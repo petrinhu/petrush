@@ -3,6 +3,7 @@
  */
 
 #include "petrush/dispatcher.h"
+#include "petrush/process.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,9 +33,19 @@ int dispatch_command(petrush_cmd_t *cmd)
         }
     }
 
-    /* Comando desconhecido — por enquanto só avisa */
-    fprintf(stderr, "petrush: comando não encontrado: %s\n", name);
-    return 1;
+    /* Não é builtin → tenta executar como comando externo */
+    int status = 0;
+    if (execute_external(cmd, &status) == 0) {
+        /* execute_external já normaliza para convenção de shell:
+         * 0-255 para saídas normais, 128+sig para terminação por sinal.
+         * Não aplicar WEXITSTATUS aqui (status já não é um valor raw de waitpid). */
+        return status;
+    }
+
+    /* execute_external retornou -1 (falha antes do fork ou find).
+     * Para casos de "não encontrado" / "permissão negada" já setamos o código
+     * correto (127 ou 126) em *status. Usamos ele quando disponível. */
+    return (status != 0) ? status : 127;
 }
 
 /* ===================== BUILTINS BÁSICOS ===================== */

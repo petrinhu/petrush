@@ -25,6 +25,15 @@ Preferências específicas deste projeto. Regras universais em `~/.claude/CLAUDE
 - TODO.md canônico no formato tab_pendencias.
 - Repo: sempre Codeberg/Forgejo (git@codeberg.org:petrinhu/petrush.git). SSH já configurada.
 
+## Licença
+
+- **PolyForm Noncommercial License 1.0.0**
+- Uso permitido **exclusivamente para fins não-comerciais**.
+- Arquivo oficial: `LICENSE.md` na raiz do projeto.
+- Definição oficial de "noncommercial": qualquer propósito que **não** seja primariamente voltado a vantagem comercial ou compensação monetária.
+- Não é permitido incorporar o código (ou derivados) em produtos ou serviços comerciais, mesmo que oferecidos gratuitamente com objetivo de monetização indireta.
+- Link oficial: https://polyformproject.org/licenses/noncommercial/1.0.0/
+
 ## Pendências
 A tabela de planejamento vive em `TODO.md` na raiz (formato da skill `tab_pendencias`).
 

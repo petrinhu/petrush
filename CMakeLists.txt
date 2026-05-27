@@ -34,6 +34,7 @@ add_executable(petrush
     src/main.c
     src/mid/parser.c
     src/mid/dispatcher.c
+    src/foundation/process.c
     vendor/linenoise/linenoise.c
 )
 
@@ -94,9 +95,24 @@ target_compile_options(test_parser PRIVATE
 )
 add_test(NAME test_parser COMMAND test_parser)
 
+# Teste da foundation de processos (PR-06)
+add_executable(test_process
+    tests/test_process.c
+    src/mid/parser.c
+    src/foundation/process.c
+)
+target_include_directories(test_process PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_options(test_process PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_process COMMAND test_process)
+
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser
+    DEPENDS test_parser test_process
     COMMENT "Executando todos os testes unitários"
 )
 

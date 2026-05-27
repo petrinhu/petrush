@@ -10,6 +10,7 @@
 #include "petrush/petrush.h"
 #include "petrush/parser.h"
 #include "petrush/dispatcher.h"
+#include "petrush/process.h"
 #include "linenoise.h"
 
 int main(int argc, char *argv[])
@@ -19,6 +20,10 @@ int main(int argc, char *argv[])
 
     printf("%s %s (C23 shell)\n", PETRUSH_NAME, PETRUSH_VERSION);
     printf("Digite 'exit' ou 'quit' para sair.\n\n");
+
+    /* Salva o estado original do terminal para restauração após comandos externos
+     * que modificam o termios (vim, less, etc.). Essencial para job control correto. */
+    petrush_init_shell_termios();
 
     linenoiseHistoryLoad(""); /* desabilita load por enquanto */
 
