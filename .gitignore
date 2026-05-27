@@ -1,0 +1,35 @@
+# Build
+build/
+*.o
+*.a
+*.so
+*.d
+
+# Generated
+compile_commands.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+Testing/
+
+# Linters / coverage
+*.gcov
+*.gcda
+*.gcno
+coverage/
+
+# Editor / OS
+*~
+.*.swp
+.DS_Store
+Thumbs.db
+
+# Runtime / user data (não commitar)
+.petrush_history
+.petrushrc
+
+# Outros
+*.log
+*.tmp
