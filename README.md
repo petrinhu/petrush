@@ -34,31 +34,12 @@ cmake --build build -j
 
 Ver `TODO.md` para pendências atuais, `CLAUDE.md` para regras do projeto e `LICENSE.md` para os termos de uso.
 
-## Licença
+## AGPL-3.0
 
-Este projeto é distribuído sob a **PolyForm Noncommercial License 1.0.0**.
+Este projeto é distribuído sob a **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+Uso comercial é permitido, desde que o código-fonte de versões modificadas seja disponibilizado.
 
-### O que é considerado "Noncommercial"?
-
-De acordo com a licença, uso **não-comercial** significa qualquer propósito que **não** seja primariamente voltado para:
-
-- Vantagem comercial ou compensação monetária;
-- Venda de produtos ou serviços que contenham o código;
-- Oferecimento gratuito de produtos/serviços cujo objetivo principal seja gerar receita, tráfego pago, dados para monetização ou qualquer outro benefício comercial.
-
-**Exemplos de uso permitido**:
-- Uso pessoal
-- Pesquisa e estudo
-- Projetos open source sem modelo de monetização
-- Ensino e workshops sem fins lucrativos
-
-**Exemplos de uso não permitido**:
-- Incorporar o código em um produto ou serviço pago
-- Usar o código em uma ferramenta gratuita que tenha como objetivo principal gerar receita (ex: freemium, ads, dados para venda, etc.)
-- Revender ou oferecer o código como parte de uma solução comercial
-
-→ [Leia o texto completo da licença](LICENSE.md)  
-→ [Versão oficial](https://polyformproject.org/licenses/noncommercial/1.0.0/)
+→ [Leia o texto completo da licença](LICENSE.md)
 
 ## Contribuição
 
