@@ -23,13 +23,9 @@
 - Globbing avançado, job control completo, scripting de arquivo  
 - POSIX 100% / bash compatibility  
 
-## Roadmap petrush v0.3 (esta onda)
+## Roadmap
 
-1. **Aliases** (`alias`/`unalias` + expansão 1ª palavra)  
-2. **PETRUSH_PS1** prompt customizável  
-3. **Tab completion** (builtins + PATH + arquivos) via linenoise  
-4. **History hints** (autosuggest cinza) via linenoise  
-5. **`&&` / `||`** no REPL  
-6. **`which`** builtin  
+- **v0.3.x:** entregue (alias, PS1, complete, hints, &&/||, which, pushd, !!).  
+- **Plano completo + fila ROI (pendentes):** ver **`docs/plan-implementacao-roi.md`**.
 
-Cada fatia: TDD red→green→refactor → commit → push.
+Cada fatia: TDD red→green→refactor → **CI verde** → commit + push → próxima.
