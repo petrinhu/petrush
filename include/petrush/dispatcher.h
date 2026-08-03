@@ -41,4 +41,13 @@ int builtin_history(petrush_cmd_t *cmd);
 /* Onda 3 placeholder */
 int builtin_info(petrush_cmd_t *cmd);
 
+/* NEW-22 UX */
+int builtin_alias(petrush_cmd_t *cmd);
+int builtin_unalias(petrush_cmd_t *cmd);
+int builtin_which(petrush_cmd_t *cmd);
+
+/* Para completion: número de builtins e nome por índice */
+int petrush_builtin_count(void);
+const char *petrush_builtin_name(int index);
+
 #endif /* PETRUSH_DISPATCHER_H */

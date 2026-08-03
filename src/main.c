@@ -16,6 +16,7 @@
 #include "petrush/dispatcher.h"
 #include "petrush/process.h"
 #include "petrush/env.h"
+#include "petrush/alias.h"
 #include "linenoise.h"
 
 /* Caminho padrão para histórico persistente */
@@ -202,8 +203,11 @@ int main(int argc, char *argv[])
         if (strlen(line) > 0) {
             linenoiseHistoryAdd(line);
 
+            char *expanded = alias_expand_line(line);
+            const char *to_run = expanded ? expanded : line;
+
             petrush_pipeline_t pl = {0};
-            if (petrush_parse_pipeline(line, &pl) == 0) {
+            if (petrush_parse_pipeline(to_run, &pl) == 0) {
                 if (pl.ncmds > 0) {
                     dispatch_pipeline(&pl);
                 }
@@ -211,6 +215,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "petrush: erro ao analisar comando\n");
             }
             petrush_pipeline_free(&pl);
+            free(expanded);
         }
 
         free(line);

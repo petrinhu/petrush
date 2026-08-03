@@ -7,6 +7,7 @@
 #include "petrush/process.h"
 #include "petrush/env.h"
 #include "petrush/pudo.h"
+#include "petrush/alias.h"
 
 #include "linenoise.h"
 
@@ -16,6 +17,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 
 static const builtin_entry_t builtins[] = {
     { "cd",      builtin_cd      },
@@ -29,9 +31,26 @@ static const builtin_entry_t builtins[] = {
     { "unset",   builtin_unset   },
     { "history", builtin_history },
     { "pudo",    builtin_pudo    },
-    { "info",    builtin_info    },  /* Onda 3 placeholder - diagnóstico básico */
+    { "info",    builtin_info    },
+    { "alias",   builtin_alias   },
+    { "unalias", builtin_unalias },
+    { "which",   builtin_which   },
     { NULL,      NULL            }   /* sentinela */
 };
+
+int petrush_builtin_count(void)
+{
+    int n = 0;
+    while (builtins[n].name != NULL) n++;
+    return n;
+}
+
+const char *petrush_builtin_name(int index)
+{
+    int n = petrush_builtin_count();
+    if (index < 0 || index >= n) return NULL;
+    return builtins[index].name;
+}
 
 /* Roda builtin no processo atual com redirecionamentos temporários. */
 static int run_builtin_with_redirs(builtin_fn_t fn, petrush_cmd_t *cmd)
@@ -237,9 +256,13 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  export       - Exporta variável (export VAR ou export VAR=valor)\n");
     printf("  unset        - Remove variável de ambiente\n");
     printf("  history      - Mostra histórico de comandos\n");
-    printf("  info         - Mostra informações do shell (diagnóstico básico - Onda 3)\n");
+    printf("  info         - Mostra informações do shell\n");
+    printf("  alias        - Define/lista aliases\n");
+    printf("  unalias      - Remove alias\n");
+    printf("  which        - Localiza comando (builtin ou PATH)\n");
     printf("\n");
-    printf("Comandos externos são executados via PATH.\n");
+    printf("Também: pipes |, redirs > >> <, listas && ||, Tab-complete, hints de history.\n");
+    printf("Comandos externos via PATH. Prompt: PETRUSH_PS1.\n");
     return 0;
 }
 
@@ -372,7 +395,115 @@ int builtin_info(petrush_cmd_t *cmd)
     printf("petrush %s\n", PETRUSH_VERSION);
     printf("C23 REPL shell\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("Features: history, rc, signals, pudo, pipes, redir\n");
+    printf("Features: history, rc, signals, pudo, pipes, redir, alias, PS1, complete, hints, &&/||\n");
     printf("Anti-OE: sem background/globbing/scripting de arquivo\n");
+    return 0;
+}
+
+int builtin_alias(petrush_cmd_t *cmd)
+{
+    if (!cmd || cmd->argc < 2) {
+        alias_list_print();
+        return 0;
+    }
+    /* alias name=value  OR  alias name value... */
+    const char *arg = cmd->argv[1];
+    const char *eq = strchr(arg, '=');
+    if (eq && eq != arg) {
+        char name[64];
+        size_t nlen = (size_t)(eq - arg);
+        if (nlen >= sizeof(name)) {
+            fprintf(stderr, "alias: nome muito longo\n");
+            return 1;
+        }
+        memcpy(name, arg, nlen);
+        name[nlen] = '\0';
+        if (alias_set(name, eq + 1) != 0) {
+            fprintf(stderr, "alias: falha ao definir '%s'\n", name);
+            return 1;
+        }
+        return 0;
+    }
+    if (cmd->argc >= 3) {
+        /* alias name rest... */
+        size_t total = 0;
+        for (int i = 2; i < cmd->argc; i++) total += strlen(cmd->argv[i]) + 1;
+        char *val = malloc(total + 1);
+        if (!val) return 1;
+        val[0] = '\0';
+        for (int i = 2; i < cmd->argc; i++) {
+            if (i > 2) strcat(val, " ");
+            strcat(val, cmd->argv[i]);
+        }
+        int rc = alias_set(arg, val);
+        free(val);
+        if (rc != 0) {
+            fprintf(stderr, "alias: falha ao definir '%s'\n", arg);
+            return 1;
+        }
+        return 0;
+    }
+    /* alias name → show one */
+    const char *v = alias_get(arg);
+    if (!v) {
+        fprintf(stderr, "alias: %s: not found\n", arg);
+        return 1;
+    }
+    printf("alias %s='%s'\n", arg, v);
+    return 0;
+}
+
+int builtin_unalias(petrush_cmd_t *cmd)
+{
+    if (!cmd || cmd->argc < 2) {
+        fprintf(stderr, "unalias: usage: unalias NAME\n");
+        return 1;
+    }
+    if (alias_unset(cmd->argv[1]) != 0) {
+        fprintf(stderr, "unalias: %s: not found\n", cmd->argv[1]);
+        return 1;
+    }
+    return 0;
+}
+
+int builtin_which(petrush_cmd_t *cmd)
+{
+    if (!cmd || cmd->argc < 2) {
+        fprintf(stderr, "which: usage: which NAME\n");
+        return 1;
+    }
+    const char *name = cmd->argv[1];
+    if (find_builtin(name)) {
+        printf("%s: shell builtin\n", name);
+        return 0;
+    }
+    /* search PATH like process.c - simple reimplementation */
+    if (strchr(name, '/')) {
+        if (access(name, X_OK) == 0) {
+            printf("%s\n", name);
+            return 0;
+        }
+        fprintf(stderr, "which: no %s in PATH\n", name);
+        return 1;
+    }
+    const char *path_env = petrush_getenv("PATH");
+    if (!path_env) path_env = "/bin:/usr/bin";
+    char *path_copy = strdup(path_env);
+    if (!path_copy) return 1;
+    char full[PATH_MAX];
+    int found = 0;
+    for (char *dir = strtok(path_copy, ":"); dir; dir = strtok(NULL, ":")) {
+        snprintf(full, sizeof(full), "%s/%s", dir, name);
+        if (access(full, X_OK) == 0) {
+            printf("%s\n", full);
+            found = 1;
+            break;
+        }
+    }
+    free(path_copy);
+    if (!found) {
+        fprintf(stderr, "which: no %s in PATH\n", name);
+        return 1;
+    }
     return 0;
 }

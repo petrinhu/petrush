@@ -49,6 +49,8 @@ run_smoke "pudo /bin/false" "allow-list|euid|denying|setuid|privileges|erro:|den
 run_smoke "nonexistentcmd12345" "não encontrado|command not found|127" "external command not found (error 127)"
 run_smoke "ls /nonexistentdir12345" "não foi possível acessar|No such file|não encontrado" "external command error path"
 run_smoke "info" "petrush 0\\.|C23 REPL|Build:" "info builtin (Onda 3 diagnostic)"
+run_smoke "alias ll=ls" "saindo|petrush 0\\." "alias define"
+run_smoke "which pwd" "builtin" "which builtin"
 
 # NEW-20: pipes e redirecionamento (externos; anti-OE)
 run_smoke "printf 'abc\\n' | cat" "abc" "pipe printf|cat"

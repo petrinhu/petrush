@@ -35,6 +35,7 @@ add_executable(petrush
     src/mid/parser.c
     src/mid/dispatcher.c
     src/mid/pudo.c
+    src/mid/alias.c
     src/foundation/process.c
     src/foundation/env.c
     vendor/linenoise/linenoise.c
@@ -169,6 +170,7 @@ add_executable(test_info
     src/mid/dispatcher.c
     src/mid/parser.c
     src/mid/pudo.c
+    src/mid/alias.c
     src/foundation/env.c
     src/foundation/process.c
     vendor/linenoise/linenoise.c
@@ -203,9 +205,23 @@ target_compile_options(test_pudo PRIVATE
 add_test(NAME test_pudo COMMAND test_pudo)
 set_tests_properties(test_pudo PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# Aliases (NEW-22)
+add_executable(test_alias
+    tests/test_alias.c
+    src/mid/alias.c
+)
+target_include_directories(test_alias PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_options(test_alias PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_alias COMMAND test_alias)
+
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_pudo test_env test_info
+    DEPENDS test_parser test_process test_pudo test_env test_info test_alias
     COMMENT "Executando todos os testes unitários"
 )
 
