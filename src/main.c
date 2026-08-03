@@ -18,6 +18,7 @@
 #include "petrush/env.h"
 #include "petrush/alias.h"
 #include "petrush/complete.h"
+#include "petrush/hist_expand.h"
 #include "linenoise.h"
 
 /* Caminho padrão para histórico persistente */
@@ -211,10 +212,17 @@ int main(int argc, char *argv[])
         }
 
         if (strlen(line) > 0) {
-            linenoiseHistoryAdd(line);
+            /* !! / !n antes de history add (não gravar o bang cru) */
+            char *hist_exp = hist_expand_line(line);
+            const char *after_hist = hist_exp ? hist_exp : line;
+            if (hist_exp) {
+                printf("%s\n", hist_exp); /* como bash: ecoa expansão */
+            }
 
-            char *expanded = alias_expand_line(line);
-            const char *to_run = expanded ? expanded : line;
+            linenoiseHistoryAdd(after_hist);
+
+            char *expanded = alias_expand_line(after_hist);
+            const char *to_run = expanded ? expanded : after_hist;
 
             petrush_list_t list = {0};
             if (petrush_parse_list(to_run, &list) == 0) {
@@ -226,6 +234,7 @@ int main(int argc, char *argv[])
             }
             petrush_list_free(&list);
             free(expanded);
+            free(hist_exp);
         }
 
         free(line);

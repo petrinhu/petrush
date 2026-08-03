@@ -53,6 +53,8 @@ run_smoke "alias ll=ls" "saindo|petrush 0\\." "alias define"
 run_smoke "which pwd" "builtin" "which builtin"
 run_smoke "/bin/true && echo and-ok" "and-ok" "list AND short-circuit"
 run_smoke "/bin/false || echo or-ok" "or-ok" "list OR short-circuit"
+run_smoke "pushd /tmp" "saindo|petrush 0\\.|/" "pushd /tmp"
+run_smoke "popd" "saindo|petrush 0\\.|/" "popd"
 
 # NEW-20: pipes e redirecionamento (externos; anti-OE)
 run_smoke "printf 'abc\\n' | cat" "abc" "pipe printf|cat"

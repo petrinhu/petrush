@@ -6,7 +6,7 @@
 #ifndef PETRUSH_PETRUSH_H
 #define PETRUSH_PETRUSH_H
 
-#define PETRUSH_VERSION "0.3.0"  // UX wave: alias, PS1, complete, hints, &&/||
+#define PETRUSH_VERSION "0.3.1"  // + pushd/popd, !! history
 #define PETRUSH_NAME "petrush"
 
 #endif /* PETRUSH_PETRUSH_H */

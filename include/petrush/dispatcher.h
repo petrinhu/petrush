@@ -48,6 +48,9 @@ int builtin_info(petrush_cmd_t *cmd);
 int builtin_alias(petrush_cmd_t *cmd);
 int builtin_unalias(petrush_cmd_t *cmd);
 int builtin_which(petrush_cmd_t *cmd);
+int builtin_pushd(petrush_cmd_t *cmd);
+int builtin_popd(petrush_cmd_t *cmd);
+int builtin_dirs(petrush_cmd_t *cmd);
 
 /* Para completion: número de builtins e nome por índice */
 int petrush_builtin_count(void);

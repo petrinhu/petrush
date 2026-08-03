@@ -8,6 +8,7 @@
 #include "petrush/env.h"
 #include "petrush/pudo.h"
 #include "petrush/alias.h"
+#include "petrush/dirstack.h"
 
 #include "linenoise.h"
 
@@ -35,6 +36,9 @@ static const builtin_entry_t builtins[] = {
     { "alias",   builtin_alias   },
     { "unalias", builtin_unalias },
     { "which",   builtin_which   },
+    { "pushd",   builtin_pushd   },
+    { "popd",    builtin_popd    },
+    { "dirs",    builtin_dirs    },
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -281,8 +285,10 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  alias        - Define/lista aliases\n");
     printf("  unalias      - Remove alias\n");
     printf("  which        - Localiza comando (builtin ou PATH)\n");
+    printf("  pushd/popd   - Stack de diretórios\n");
+    printf("  dirs         - Mostra a stack\n");
     printf("\n");
-    printf("Também: pipes |, redirs > >> <, listas && ||, Tab-complete, hints de history.\n");
+    printf("Também: pipes |, redirs > >> <, listas && ||, !! / !n, Tab, history hints.\n");
     printf("Comandos externos via PATH. Prompt: PETRUSH_PS1.\n");
     return 0;
 }
@@ -484,6 +490,28 @@ int builtin_unalias(petrush_cmd_t *cmd)
         fprintf(stderr, "unalias: %s: not found\n", cmd->argv[1]);
         return 1;
     }
+    return 0;
+}
+
+int builtin_pushd(petrush_cmd_t *cmd)
+{
+    if (!cmd || cmd->argc < 2) {
+        fprintf(stderr, "pushd: usage: pushd DIR\n");
+        return 1;
+    }
+    return dirstack_pushd(cmd->argv[1]) == 0 ? 0 : 1;
+}
+
+int builtin_popd(petrush_cmd_t *cmd)
+{
+    (void)cmd;
+    return dirstack_popd() == 0 ? 0 : 1;
+}
+
+int builtin_dirs(petrush_cmd_t *cmd)
+{
+    (void)cmd;
+    dirstack_print();
     return 0;
 }
 

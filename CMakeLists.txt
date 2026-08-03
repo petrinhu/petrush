@@ -36,6 +36,8 @@ add_executable(petrush
     src/mid/dispatcher.c
     src/mid/pudo.c
     src/mid/alias.c
+    src/mid/dirstack.c
+    src/mid/hist_expand.c
     src/front/complete.c
     src/foundation/process.c
     src/foundation/env.c
@@ -172,6 +174,7 @@ add_executable(test_info
     src/mid/parser.c
     src/mid/pudo.c
     src/mid/alias.c
+    src/mid/dirstack.c
     src/foundation/env.c
     src/foundation/process.c
     vendor/linenoise/linenoise.c
@@ -228,6 +231,7 @@ add_executable(test_complete
     src/mid/parser.c
     src/mid/pudo.c
     src/mid/alias.c
+    src/mid/dirstack.c
     src/foundation/env.c
     src/foundation/process.c
     vendor/linenoise/linenoise.c
@@ -245,9 +249,42 @@ target_compile_options(test_complete PRIVATE
 )
 add_test(NAME test_complete COMMAND test_complete)
 
+# Directory stack (NEW-25)
+add_executable(test_dirstack
+    tests/test_dirstack.c
+    src/mid/dirstack.c
+)
+target_include_directories(test_dirstack PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_options(test_dirstack PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_dirstack COMMAND test_dirstack)
+
+# History expansion !! !n (NEW-26)
+add_executable(test_hist_expand
+    tests/test_hist_expand.c
+    src/mid/hist_expand.c
+    vendor/linenoise/linenoise.c
+)
+target_include_directories(test_hist_expand PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/vendor/linenoise
+)
+set_source_files_properties(vendor/linenoise/linenoise.c PROPERTIES
+    COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-unused-function"
+)
+target_compile_options(test_hist_expand PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_hist_expand COMMAND test_hist_expand)
+
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete
+    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand
     COMMENT "Executando todos os testes unitários"
 )
 
