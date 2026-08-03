@@ -21,9 +21,37 @@ Preferências específicas deste projeto. Regras universais em `~/.claude/CLAUDE
 ## Stack confirmada
 - C23 + CMake + hardening (ASan/UBSan, PIE, FORTIFY, relro etc.) + cppcheck/clang-tidy.
 - 4 camadas (Front/Mid/Back/Foundation) mesmo em ferramenta pequena.
-- TDD obrigatório para mid/back.
 - TODO.md canônico no formato tab_pendencias.
 - Repo: **somente GitHub** (`git@github.com:petrinhu/petrush.git`). Codeberg/Forgejo deprecado (política 2026-07-25).
+
+## TDD em tudo (regra fixa — 2026-08-03)
+
+**Sempre que for escrever ou alterar comportamento de código**, o ciclo é **red → green → refactor**. Não é “TDD só mid/back”: vale para **qualquer** camada (front/mid/back/foundation), parser, dispatcher, process, pudo, main/REPL (via teste + smoke), e bugfix.
+
+### Ordem obrigatória
+
+1. **Red** — escrever ou estender o teste **primeiro** (acutest em `tests/`, smoke em `tests/smoke/` quando for integração ponta-a-ponta). Rodar e **provar vermelho** (falha esperada). Sem evidência de vermelho, **não** há licença para implementar produção.
+2. **Green** — mínimo de código de produção para o teste passar. Sem refatoração paralela, sem “já deixo genérico”.
+3. **Refactor** — limpar com a suíte **verde**. Se quebrar, voltar ao green antes de seguir.
+
+### O que conta como “escrever código”
+
+- Feature nova, bugfix, hardening de comportamento, mudança de contrato de API interna.
+- Ajuste de parser/dispatcher/process/builtins/pudo/pudod/env/REPL.
+
+### Exceções (declarar no commit/mensagem, nunca default)
+
+- Doc-only, formatação de comentário sem mudar comportamento, renomeação mecânica coberta por testes já existentes (ainda assim rodar a suíte).
+- Exploração throwaway em `/var/tmp` **não** vira commit sem antes ter teste.
+
+### Evidência na sessão
+
+Ao relatar trabalho de código: dizer explicitamente **qual teste ficou vermelho**, **qual comando mostrou isso**, depois **o green**, depois refactor se houver. “Implementei e os testes passaram” sem red prévio = processo errado.
+
+### Frameworks deste repo
+
+- Unitário: **acutest** (`tests/test_*.c`).
+- Integração: **smoke** (`tests/smoke/pudo-smoke.sh`) + target CMake `check` / `smoke` / `verify`.
 
 ## Licença
 
