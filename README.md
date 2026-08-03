@@ -56,7 +56,8 @@ history
 
 Build testado no CI (clang/gcc, Release/Debug, smoke com `pudo`).
 
-Ver `TODO.md`, `CLAUDE.md`, `docs/beginner-guide.md` (iniciantes), `docs/security/pudod-install.md` (pudo).
+Ver `TODO.md`, `CLAUDE.md`, `docs/beginner-guide.md` (iniciantes), `docs/security/pudod-install.md` (pudo),
+`docs/standards.md` (mapas para CONTRACT / AGILE / TESTES / AUDITORIAS / DEPLOY_CHECKLIST do vault).
 
 ## AGPL-3.0
 

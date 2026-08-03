@@ -2,6 +2,26 @@
 
 Preferências específicas deste projeto. Regras universais em `~/.claude/CLAUDE.md` continuam valendo 100%.
 
+## Manuais canônicos do vault (inclusão obrigatória)
+
+O petrush **inclui** (não substitui) os manuais da raiz do vault. Mapa + adaptação C23:
+[`docs/standards.md`](docs/standards.md).
+
+| Manual | Caminho (absoluto nesta máquina) |
+|--------|----------------------------------|
+| CONTRACT | `/home/petrus/IDrive/Documentos/projetos_claudebrain/CONTRACT.md` |
+| AGILE | `/home/petrus/IDrive/Documentos/projetos_claudebrain/AGILE.md` |
+| TESTES | `/home/petrus/IDrive/Documentos/projetos_claudebrain/TESTES.md` |
+| AUDITORIAS | `/home/petrus/IDrive/Documentos/projetos_claudebrain/AUDITORIAS.md` |
+| DEPLOY_CHECKLIST | `/home/petrus/IDrive/Documentos/projetos_claudebrain/DEPLOY_CHECKLIST.md` |
+
+**Antes de escrever código:** CONTRACT (camadas, clean code, §11) + TESTES (T1/T2/T4/T15) + TDD em tudo (abaixo).  
+**Antes de planejar entrega:** AGILE (histórias, DoD).  
+**Antes de auditoria/release pesada:** AUDITORIAS + gates do CONTRACT §11.  
+**Antes de setuid/`pudod` em sistema:** DEPLOY_CHECKLIST + `docs/security/`.
+
+Hierarquia de autoridade: líder → CONTRACT → TESTES/AUDITORIAS → AGILE → DEPLOY_CHECKLIST → este CLAUDE.md → `docs/*`.
+
 ## Regra de Processo (cross-project, 2026-05-27)
 
 **NUNCA tomar decisões de design ou arquitetura sem consultar o usuário antes.**
@@ -64,6 +84,7 @@ Ao relatar trabalho de código: dizer explicitamente **qual teste ficou vermelho
 A tabela de planejamento vive em `TODO.md` na raiz (formato da skill `tab_pendencias`).
 
 ## Referências rápidas
+- Standards vault (5 manuais): [`docs/standards.md`](docs/standards.md).
 - Plano de implementação aprovado: `.grok/sessions/.../plan.md` (atualizado com escolha final Opção A).
 - Docs universais: `~/.claude/docs/`.
 - Skills proativas: `tab_pendencias`, `memo_persistente`, `proj_software`, `suporte-linux`.
