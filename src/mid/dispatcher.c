@@ -221,10 +221,26 @@ int dispatch_pipeline(petrush_pipeline_t *pl)
 
 int builtin_cd(petrush_cmd_t *cmd)
 {
-    const char *path = (cmd->argc > 1) ? cmd->argv[1] : petrush_getenv("HOME");
+    /* UX-14: cd - volta a OLDPWD; atualiza OLDPWD/PWD após sucesso */
+    char oldcwd[PATH_MAX];
+    if (!getcwd(oldcwd, sizeof(oldcwd))) {
+        oldcwd[0] = '\0';
+    }
 
-    if (!path) {
+    const char *path = (cmd->argc > 1) ? cmd->argv[1] : petrush_getenv("HOME");
+    if (!path || !path[0]) {
         path = ".";
+    }
+
+    if (strcmp(path, "-") == 0) {
+        const char *op = petrush_getenv("OLDPWD");
+        if (!op || !op[0]) {
+            fprintf(stderr, "cd: OLDPWD not set\n");
+            return 1;
+        }
+        path = op;
+        /* bash imprime o destino em cd - */
+        printf("%s\n", path);
     }
 
     if (chdir(path) != 0) {
@@ -232,6 +248,15 @@ int builtin_cd(petrush_cmd_t *cmd)
         return 1;
     }
 
+    if (oldcwd[0]) {
+        (void)petrush_setenv("OLDPWD", oldcwd, 1);
+    }
+    {
+        char newcwd[PATH_MAX];
+        if (getcwd(newcwd, sizeof(newcwd))) {
+            (void)petrush_setenv("PWD", newcwd, 1);
+        }
+    }
     return 0;
 }
 

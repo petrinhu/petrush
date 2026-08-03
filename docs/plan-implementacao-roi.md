@@ -36,7 +36,7 @@ Escala **1–10** (10 = melhor ROI).
 | UX-11 | `!!` / `!n` | 8 | B | ✅ v0.3.1 | |
 | UX-12 | **`~` e `~/` expansion** | **10** | B | 🔲 PENDENTE | Gap real (eco literal) |
 | UX-13 | **`$VAR` / `${VAR}` expansion** | **10** | M | 🔲 PENDENTE | Gap real |
-| UX-14 | **`cd -` / OLDPWD** | **10** | B | 🔲 PENDENTE | 1 linha de UX diária |
+| UX-14 | **`cd -` / OLDPWD** | **10** | B | ✅ v0.3.2 | 1 linha de UX diária |
 | UX-15 | **Prompt escapes `\w` `\u` `\h` `\n`** | **8** | B | 🔲 PENDENTE | Deixa PS1 “de verdade” |
 | UX-16 | **`2>` `2>>` `2>&1` `&>`** | **8** | M | 🔲 PENDENTE | stderr / merge |
 | UX-17 | **`;` sequencial** | **7** | B | 🔲 PENDENTE | `a; b` sempre roda b |

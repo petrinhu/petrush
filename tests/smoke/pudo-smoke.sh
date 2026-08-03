@@ -56,6 +56,19 @@ run_smoke "/bin/false || echo or-ok" "or-ok" "list OR short-circuit"
 run_smoke "pushd /tmp" "saindo|petrush 0\\.|/" "pushd /tmp"
 run_smoke "popd" "saindo|petrush 0\\.|/" "popd"
 
+# UX-14: cd - (mesma sessão: /tmp depois volta)
+echo "=== SMOKE: cd - OLDPWD ==="
+cd_out=$(printf 'cd /tmp\npwd\ncd -\npwd\nexit\n' | "$PETRUSH" 2>&1 || true)
+if echo "$cd_out" | grep -Fq '/tmp' && echo "$cd_out" | grep -Eq '/'; then
+    echo "PASS: cd - OLDPWD"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: cd - OLDPWD"
+    echo "$cd_out" | tail -10
+    FAIL=$((FAIL+1))
+fi
+echo
+
 # NEW-20: pipes e redirecionamento (externos; anti-OE)
 run_smoke "printf 'abc\\n' | cat" "abc" "pipe printf|cat"
 run_smoke "echo smoke-redir > /tmp/petrush-smoke-out.txt" "saindo|petrush 0\\." "redir out no crash"
