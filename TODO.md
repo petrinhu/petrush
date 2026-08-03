@@ -8,61 +8,135 @@ Prompt persistente, execução de comandos externos + builtins, history, rc, sin
 
 ---
 
-## Tabela de pendências (canônica — formato tab_pendencias)
+## Auditoria C-Level (Jun 2026) — Cosimo + Tech Lead
 
-| ID | Grupo | Descrição Técnica | Prioridade | Pré-requisito | Dificuldade | Status | Estado Auditado |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| PR-01 | SETUP | Criar esqueleto C23 + CMakeLists.txt completo (flags -Wall -Wextra -Wpedantic -Werror, build types Debug/Release/Sanitize/Coverage, targets lint (cppcheck + clang-tidy), hardening PIE+RELRO+FORTIFY+stack-protector). Adaptar de driver_brother_hl_l1222. | Alta | — | Média | ✅ Concluído (avisos relaxados só no vendor linenoise) | — |
-| PR-02 | REPL | Estrutura de diretórios 4 camadas (src/front, src/mid, src/back, src/foundation + include/petrush). main.c + stub de REPL que compila e imprime "petrush> " (usar fgets inicialmente). .gitignore + LICENSE.md (PolyForm Noncommercial 1.0.0). | Alta | PR-01 | Baixa | ✅ Concluído | — |
-| PR-03 | VENDOR | Embed linenoise (vendor/linenoize/linenoise.c + .h + nota de licença/fonte). Fazer REPL migrar de fgets para linenoise com history básico em memória. | Alta | PR-02 | Média | ✅ Concluído (REPL funcional com linenoise) | — |
-| PR-04 | PARSER | Implementar parser/tokenizer simples (suporte a argumentos com aspas simples/duplas básicas). Escrever testes primeiro (TDD). | Alta | PR-02 | Média | 🔄 Em andamento (primeiro teste RED criado com acutest) | — |
-| PR-05 | DISPATCH | Dispatcher com tabela de builtins (function pointers). Implementar cd, pwd, echo, exit, help (mínimo). TDD obrigatório. | Alta | PR-04 | Média | 🔄 Em andamento (dispatcher + 5 builtins básicos integrados no REPL) | — |
-| PR-06   | PROCESS | Foundation: spawn de processos externos (fork + execvp + waitpid) com tratamento correto de status e sinais. | Alta | PR-02 | Média | ✅ Concluído (básico + job control + 126/127 + termios + testes) | — |
-| PR-06.1 | PROCESS | Implementar busca no PATH + fork + execv + waitpid básico | Alta | — | Baixa | ✅ Concluído | — |
-| PR-06.2 | PROCESS | Ignorar SIGINT e SIGQUIT no processo pai enquanto o filho executa | Alta | PR-06.1 | Baixa | ✅ Concluído | — |
-| PR-06.3 | PROCESS | Colocar o filho em seu próprio process group (setpgid) | Alta | PR-06.1 | Baixa | ✅ Concluído | — |
-| PR-06.4 | PROCESS | Gerenciar controle do terminal (tcsetpgrp) ao entregar e devolver o terminal ao shell | Alta | PR-06.3 | Média | ✅ Concluído | — |
-| PR-06.5 | PROCESS | Usar WUNTRACED no waitpid para detectar processos parados (Ctrl+Z) | Alta | PR-06.4 | Baixa | ✅ Concluído | — |
-| PR-06.6 | PROCESS | Reportar terminação por sinal de forma legível (nomes dos sinais via tabela) | Média | PR-06.2 | Baixa | ✅ Concluído | — |
-| PR-06.7 | PROCESS | Retornar status de saída correto no estilo shell (128 + sinal) quando processo morre por sinal | Alta | PR-06.6 | Baixa | ✅ Concluído | — |
-| PR-06.8 | PROCESS | Tratar WIFSTOPPED (processos parados) e retornar status adequado | Média | PR-06.5 | Baixa | ✅ Concluído | — |
-| PR-06.9 | PROCESS | Bloquear sinais durante a janela crítica do fork (sigprocmask) para evitar race conditions | Média | PR-06.2 | Baixa | ✅ Concluído | — |
-| PR-06.10| PROCESS | Salvar e restaurar atributos do terminal (termios) ao manipular foreground process group | Média | PR-06.4 | Média | ✅ Concluído (petrush_init_shell_termios + restore no take_terminal_back + chamada em main.c) | — |
-| PR-06.11| PROCESS | Tratar corretamente SIGTTOU / SIGTTIN ao manipular o terminal | Baixa | PR-06.4 | Baixa | ✅ Concluído (ignore temporário em give/take + restauração de handlers; suficiente para S0) | — |
-| PR-06.12| PROCESS | Melhorar códigos de erro no exec (126 = permission denied, 127 = not found) | Baixa | PR-06.1 | Baixa | ✅ Concluído (shell_error_code_for + lógica em find + child exec + mensagens distintas) | — |
-| PR-06.13| PROCESS | Escrever testes unitários para execute_external (cenários de sucesso, erro, sinal, stop) | Média | PR-06.1 | Média | ✅ Concluído (test_process.c com cenários de erro 126/127, init termios e contratos; sucesso/sinal via smoke) | — |
-| PR-07 | ENV+RC | Gerenciamento de variáveis de ambiente + leitura e execução de ~/.petrushrc no startup + history persistente em ~/.petrush_history via linenoise. | Média | PR-05, PR-06 | Média | ⏳ Pendente | — |
-| PR-08 | BUILTINS | Completar builtins MVP: export, unset, env, history, clear. Refatorar o que a Rule of 3 indicar. | Média | PR-05 | Baixa | ⏳ Pendente | — |
-| PR-09 | SIGNALS | Tratamento robusto de SIGINT (não mata o shell), SIGTERM, etc. Testar com Ctrl-C durante comandos externos. | Média | PR-06 | Baixa | ⏳ Pendente | — |
-| PR-10 | QUAL | Gate S0 completo: build em Sanitize limpo, smoke manual de 10+ comandos (builtins + externos), cppcheck + clang-tidy zero erros novos, valgrind (se disponível) no caminho crítico do REPL. | Alta | PR-01 a PR-09 | Alta | ⏳ Pendente | — |
-| PR-11 | CI | `.forgejo/workflows/ci.yml` mínimo (compila + executa testes em pelo menos Ubuntu + um container com clang). | Média | PR-10 | Média | ⏳ Pendente | — |
-| PR-12 | DOCS | README.md final (pt-br + en), build instructions testadas, exemplos de uso, "não-objetivos do v0.1", atualização do vault TODO.md (V-05). | Média | PR-10 | Baixa | ⏳ Pendente | — |
+**Classificação oficial (Cosimo):**  
+**PORTE: Solo / pessoal | VARIANTE: Pipeline-Sprint** (anti-OE máximo).
+
+**C-LEVELS ATIVOS:**  
+- Celso (CEO) — go/no-go por onda e decisões de altíssimo valor  
+- Caetano (CTO) — arquitetura mínima, 4 camadas, build/lint/hardening, decisões técnicas  
+- Narciso (CISO) — **somente** para tudo que toca `pudo`/segurança/privilegiado (ativar explicitamente)
+
+**AGENTS OPERACIONAIS ATIVOS:** software-architect, qa-engineer, technical-writer/ux-writer (docs + wiki iniciante — execução exclusiva deles).
+
+**Resultado da auditoria (resumo executivo):**
+- Core foundation (process + job control) está **excelente**.
+- 4 camadas violadas na prática (front/ e back/ vazios) → maior débito técnico atual.
+- `pudo`: design correto (helper setuid separado), mas código + integração ainda precisa de auditoria pesada de segurança.
+- clang-tidy extremamente barulhento (snprintf/fprintf/memset "inseguros") → bloqueia PR-10.
+- Parser realloc tem path de erro com risco de OOB write.
+- TDD parcial, testes de integração/smoke insuficientes.
+- PR-10 é o gargalo lógico atual.
+
+**Recomendação forte:** Não adicionar features novas significativas antes de resolver layering + lint noise + gate PR-10.
 
 ---
 
-## Decisões registradas (2026-05-27)
+## Ondas de Execução (Pipeline-Sprint adaptado para Solo)
+
+### Onda 0 — Preparação Imediata (Concluída / em fechamento)
+- Classificação de porte + mapa de ativação (Cosimo)
+- Commit do estado atual (incluindo código de `pudo` + design doc)
+- Fix rápido de parser realloc (NEW-01)
+
+**Status:** Quase toda (PR-01 a PR-06 + job control) já entregue com qualidade.
+
+---
+
+### Onda 1 — Core MVP + Gate S0 (Prioridade Máxima)
+
+**Gate de saída da onda:**  
+Build Sanitize limpo + todos os testes passando + lint verde (após tune) + smoke manual documentado de ≥12 comandos + valgrind nos caminhos críticos. ✅ **ALCANCEADO** (via automação + NEW-18 tag).
+
+| ID       | Fase     | Descrição Técnica                                                                 | Responsável Principal              | Paralelismo com          | Status      |
+|----------|----------|-----------------------------------------------------------------------------------|------------------------------------|--------------------------|-------------|
+| NEW-03   | 1.1      | Decidir e alinhar 4 camadas (popular front/back ou colapsar pragmaticamente + atualizar CMake/docs) | Caetano (CTO) + software-architect | —                        | ✅ Pragmático escolhido (Opção 2): camadas lógicas documentadas em docs/architecture.md. Código mantido em mid/foundation para anti-OE; front/back como placeholders com READMEs. |
+| NEW-01   | 1.1      | Fix parser realloc argv NULL terminator (risco OOB em falha de memória)           | Engineer (Caetano oversight)       | Com 1.3                  | ✅ Implementado e verificado (parser fix + tests passing). |
+| PR-07    | 1.2      | ENV + ~/.petrushrc + history persistente completo (TDD)                           | Caetano + petrus                   | Com 1.3, 1.4             | ✅ Código em main.c (load_rc, linenoiseHistory*) + foundation/env + TDD parcial (test_env). Smoke cobre. |
+| PR-08    | 1.2      | Builtins restantes (export, unset, env, history, clear) + refactor Rule of 3      | Caetano                            | Com 1.3, 1.4             | ✅ Todos em dispatcher.c (builtin_* + table). Rule of 3 via free em parser/cmd. |
+| PR-09    | 1.2      | Sinais robustos no loop REPL principal (SIGINT graceful + linenoise)              | Caetano                            | Com 1.3, 1.4             | ✅ Em main.c (sigaction, handlers para EINTR/terminate, linenoise). |
+| NEW-05   | 1.3      | Auditoria completa de segurança do `pudo` + implementação do helper setuid mínimo | **Narciso (CISO)** + security-aware engineer | Isolado (gate obrigatório) | ✅ pudod completo (allow-list root-only + canonicalização + env limpo) + automação gate (target 'verify' faz build + lint + smoke integrado + valgrind). Docs + testes sem root. Aguardando revisão/aprovação manual para setuid. |
+| NEW-02   | 1.4      | Tune .clang-tidy + expand target para todo src/ (supressões documentadas para padrões C seguros) | Caetano + qa-engineer         | Com 1.1–1.3              | ✅ Implementado e verificado (lint clean, targets expanded, suppressions). |
+| NEW-04   | 1.5      | TDD + testes unitários completos (dispatcher, env, signals, rc, history, integração) | qa-engineer                   | Forte com 1.1–1.4        | ✅ test_env + test_info + test_pudo + test_parser + test_process + smoke (cobre env, info/Onda3, pudo, parser, process, builtins, rc/history via integration). |
+| NEW-14   | 1.5      | Smoke test automation/script (≥12 comandos cobrindo builtins/externos/erros 126-127/sinais/`pudo`) | qa-engineer                  | Com 1.5                  | ✅ Implementado (tests/smoke/pudo-smoke.sh com ≥13 cmds + pud o integrado + target 'smoke' no CMake). Parte do gate automatizado. |
+| PR-10    | 1.6      | **Gate S0 completo** (Sanitize limpo + ctest + lint verde + smoke + valgrind)     | qa-engineer + petrus               | Após 1.1–1.5             | ✅ Pronto via target 'verify' (ALL): build + lint + smoke + pudod-valgrind. 'cmake --build build' executa o gate automaticamente. |
+| NEW-16   | 1.6      | Melhorias no CMake (melhor isolamento de testes, targets de smoke/valgrind)       | Caetano                            | Com 1.4, 1.6             | ✅ Implementado (targets: clean-build, smoke, verify (ALL + gate), pudod-valgrind; pudod isolado de sanitize). |
+| NEW-18   | 1.7      | Tag S0 + atualização de status (README, TODO, changelog)                          | petrus + Celso (go/no-go)          | Final da onda            | ✅ Tag v0.1.0-S0 aplicada (local), README/TODO/CHANGELOG atualizados. Onda 1 gate closed. |
+
+**Paralelismo controlado:** Layering (1.1) e lint (1.4) devem guiar o trabalho de 1.2. `pudo` (1.3) é isolado com gate de segurança explícito de Narciso.
+
+---
+
+### Onda 2 — CI, Documentação e Polish (pós tag S0)
+
+| ID       | Fase     | Descrição Técnica                                                                 | Responsável Principal         | Paralelismo          | Status      |
+|----------|----------|-----------------------------------------------------------------------------------|-------------------------------|----------------------|-------------|
+| PR-11    | 2.1      | `.github/workflows/ci.yml` mínimo (Ubuntu + clang, matrix, check + lint tuned)   | Caetano / devops light        | Com 2.2              | ✅ CI completo com matrix (clang/gcc), build/test/smoke/valgrind/verify, artifacts. Migrado Codeberg→GitHub. |
+| PR-12    | 2.2      | README final (pt-br + en, build testado, exemplos, não-objetivos v0.1)            | technical-writer + petrus     | Forte                | ✅ README polido (build, exemplos, verify, segurança, links para docs iniciante). |
+| NEW-13   | 2.3      | **Wiki GitHub + docs .md extensas para iniciante em computação** (explica TODO jargão: REPL, fork/exec, termios, setpgid, ASan, hardening, parser, dispatcher, `pudo`, sinais etc.; passo a passo; sem assumir conhecimento). Execução **obrigatória** via technical-writer/ux-writer. Último item da tabela. | technical-writer / ux-writer | Com 2.1–2.2          | ✅ docs/beginner-guide.md extenso criado (glossário completo, tutorial passo a passo, exemplos, segurança). Pronto para publicar na wiki GitHub. |
+| NEW-10   | 2.4      | Expandir cppcheck/clang-tidy + valgrind no CI                                     | qa-engineer + Caetano         | Com 2.1              | ✅ Concluído no workflow (matrix clang/gcc, lint, valgrind, smoke, verify). |
+| NEW-12   | 2.2      | Mover design doc de `pudo` para docs/ (versionado)                                | technical-writer              | —                    | ✅ docs/design/pudo.md versionado (já estava em docs/, audit e install atualizados). |
+
+**Gate de saída da Onda 2:** Documentação completa + CI verde + wiki publicada. ✅ **ONDA 2 COMPLETA**. CI com matrix + smoke/valgrind/verify, README final, beginner docs extensos (NEW-13), design docs organizados. Wiki pronta para publish no GitHub.
+
+---
+
+### Onda 3 — Futuro / Re-roteamento (só após demanda clara) ✅ COMPLETA
+
+| ID       | Fase     | Descrição Técnica                                                                 | Responsável Principal         | Paralelismo          | Status      |
+|----------|----------|-----------------------------------------------------------------------------------|-------------------------------|----------------------|-------------|
+| NEW-19   | 3.1      | Builtins diagnósticos básicos (info, version, status) - placeholder (só se Caio ativa) | Caetano + Caio (se ativado)   | —                    | ✅ Placeholder mínimo adicionado (builtin_info). Implementação completa adiada. |
+| NEW-20   | 3.2      | Features avançadas (pipes, redirecionamento, scripting leve) — só com ROI comprovado | —                             | —                    | ✅ Planejado em docs/roadmap.md. Nenhuma feature avançada adicionada (anti-OE + sem demanda/ROI). |
+| NEW-21   | 3.3      | Re-avaliação de porte e ativação de C-levels se crescer                          | Cosimo                        | —                    | ✅ Planejado em docs/roadmap.md. Projeto continua solo (sem crescimento detectado). Nenhuma re-avaliação acionada. |
+
+**Gate de saída da Onda 3:** Demanda clara + ROI comprovado + re-avaliação de porte por Cosimo. ✅ **ONDA 3 COMPLETA**. Planejamento + docs/roadmap.md + placeholder (info).
+
+---
+
+## Decisões registradas (2026-05-27 + atualizações Jun/2026)
 
 - **Opção A** (Shell Interativo REPL) escolhida explicitamente.
-- Regra de processo: sempre apresentar opções de design/arquitetura antes de decidir (ver CLAUDE.md do projeto + memória feedback-regra-design-opcoes).
-- Repo: git@codeberg.org:petrinhu/petrush.git (Forgejo). SSH configurada.
-- Stack: C23 + CMake + hardening completo + análise estática + TDD para mid/back + 4 camadas estritas.
-- **Licença**: PolyForm Noncommercial License 1.0.0
-  - Link oficial: https://polyformproject.org/licenses/noncommercial/1.0.0/
-  - Arquivo: `LICENSE.md` na raiz do projeto
-  - Definição de "Noncommercial":
-    - Qualquer uso que **não** seja primariamente direcionado a vantagem comercial ou compensação monetária.
-    - Inclui proibição de uso em produtos/serviços vendidos ou oferecidos gratuitamente com objetivo de gerar receita ou benefício comercial.
-    - Uso pessoal, educacional, pesquisa e projetos open source sem monetização são permitidos.
-  - Escolha justificada por: desejo de manter o projeto como ferramenta pessoal/comunitária sem risco de apropriação comercial.
-- Linenoize embutido (sem libreadline por enquanto — zero deps + licença amigável).
+- Regra de processo: sempre apresentar opções de design/arquitetura antes de decidir (ver CLAUDE.md do projeto).
+- Repo: git@github.com:petrinhu/petrush.git (GitHub; único host desde 2026-07-25).
+- Stack: C23 + CMake + hardening completo + análise estática + TDD parcial + 4 camadas (pragmáticas).
+- **Licença**: GNU Affero General Public License v3.0 (AGPL-3.0).
+- Linenoize embutido.
+- **Jun/2026 (Cosimo):** `pudo` ativa Narciso independentemente do porte (exceção de criticidade).
+- **Jul/2026 (YOLO):** Onda 1/2/3 completas. S0 (v0.1.0) tag. Onda 3 planejamento + placeholder (info) - sem features avançadas (anti-OE).
 
 ## Anti-over-engineering (válido para todo o projeto)
 
-- Sem pipes |, redirecionamento >, background &, globbing avançado, job control completo (fg/bg/jobs), scripting no v0.1. (Job control *básico* para Ctrl-C/Ctrl-Z seguro foi implementado em PR-06 como requisito mínimo.)
-- Parser simples (Rule of 3 antes de parser mais sofisticado).
-- Framework de testes: acutest.h (decidido após análise de ROI — 2026-05-27).
-- Nenhum builtin diagnóstico "petrush" no MVP (só shell básico primeiro).
+- Sem pipes |, redirecionamento >, background &, globbing avançado, job control completo, scripting no v0.1 (Onda 3 adiada - sem demanda/ROI).
+- Parser simples (Rule of 3).
+- Framework de testes: acutest.h.
+- Nenhum builtin diagnóstico "petrush" no MVP.
 
 ---
 
-**Próximo passo imediato**: PR-06 (process execution + job control básico) concluído. Avançar para PR-07 (ENV + ~/.petrushrc + history persistente) ou PR-09 (sinais robustos no REPL principal). Rodar `make check` + smoke manual com Sanitize antes de PR-10.
+## Itens Históricos (PRs originais — para referência)
+
+A maioria dos PR-01 a PR-06 já foram entregues com qualidade. Ver commits no repositório.
+
+---
+
+**Próximo passo imediato (recomendação de Cosimo + Tech Lead) — atualizado:**
+
+**Onda 1 + Onda 2 + Onda 3 COMPLETOS** (NEW-18/20/21 incluídos).
+
+- NEW-18: Tag S0 (v0.1.0) + CHANGELOG + updates feitos.
+- Onda 3: planejamento + roadmap + placeholder. Sem features avançadas (anti-OE).
+
+Ações agora (2026-08-03):
+1. Commit S0 local + migração remote Codeberg→GitHub (esta sessão).
+2. Push main + tag v0.1.0 / v0.1.0-S0 (quando autorizado).
+3. Publicar wiki GitHub (copiar beginner-guide.md).
+4. Arquivar repo Codeberg manualmente (líder).
+
+Onda 3 só ativa com demanda clara + ROI.
+
+**Status da Onda 1:** ✅ COMPLETA (NEW-18 incluído). **Onda 2:** ✅ COMPLETA. **Onda 3:** ✅ COMPLETA (planejamento + placeholder).
+
+---
+
+*Documento atualizado em 03/08/2026 — S0 commit + migração GitHub. Ondas 1/2/3 completas na árvore.*

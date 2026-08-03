@@ -15,6 +15,7 @@ static int is_quote(char c) {
 }
 
 int petrush_parse(const char *input, petrush_cmd_t *out)
+/* NOLINTNEXTLINE(readability-function-cognitive-complexity) */
 {
     if (!input || !out) return -1;
 
@@ -97,11 +98,16 @@ int petrush_parse(const char *input, petrush_cmd_t *out)
         argv[argc++] = token;
     }
 
-    /* Garantir que argv termine com NULL (útil para exec) */
+    /* Garantir que argv termine com NULL (útil para exec).
+     * IMPORTANTE: em caso de falha de realloc aqui, limpamos e retornamos erro.
+     * Evita OOB write (NEW-01). */
     char **final_argv = realloc(argv, sizeof(char*) * ((size_t)argc + 1));
-    if (final_argv) {
-        argv = final_argv;
+    if (!final_argv) {
+        for (int i = 0; i < argc; i++) free(argv[i]);
+        free(argv);
+        return -1;
     }
+    argv = final_argv;
     argv[argc] = NULL;
 
     out->argv = argv;

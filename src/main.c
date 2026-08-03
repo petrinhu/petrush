@@ -6,12 +6,131 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+#include <signal.h>
+#include <errno.h>
+#include <unistd.h>
 
 #include "petrush/petrush.h"
 #include "petrush/parser.h"
 #include "petrush/dispatcher.h"
 #include "petrush/process.h"
+#include "petrush/env.h"
 #include "linenoise.h"
+
+/* Caminho padrão para histórico persistente */
+#define PETRUSH_HISTORY_MAXLEN 1000
+
+/* Nome do arquivo de configuração (rc) — sem o ponto inicial (adicionado no get_rc_file) */
+#define PETRUSH_RC_FILE "petrushrc"
+
+static const char *get_history_file(void)
+{
+    static char path[PATH_MAX];
+    const char *home = petrush_getenv("HOME");
+
+    if (home && *home) {
+        snprintf(path, sizeof(path), "%s/.petrush_history", home);
+    } else {
+        /* Fallback seguro se HOME não estiver definido */
+        snprintf(path, sizeof(path), ".petrush_history");
+        fprintf(stderr, "petrush: aviso: HOME não definido, usando ./.petrush_history\n");
+    }
+    return path;
+}
+
+static const char *get_rc_file(void)
+{
+    static char path[PATH_MAX];
+    const char *home = petrush_getenv("HOME");
+
+    if (home && *home) {
+        snprintf(path, sizeof(path), "%s/.%s", home, PETRUSH_RC_FILE);
+    } else {
+        snprintf(path, sizeof(path), ".%s", PETRUSH_RC_FILE);
+    }
+    return path;
+}
+
+/* Carrega e executa ~/.petrushrc (se existir) */
+static void load_rc_file(void)
+{
+    const char *rcfile = get_rc_file();
+    FILE *f = fopen(rcfile, "r");
+    if (!f) {
+        /* Arquivo não existe é normal — não é erro */
+        return;
+    }
+
+    char linebuf[4096];
+    int lineno = 0;
+
+    while (fgets(linebuf, sizeof(linebuf), f)) {
+        lineno++;
+
+        /* Remove newline */
+        size_t len = strlen(linebuf);
+        if (len > 0 && linebuf[len-1] == '\n') {
+            linebuf[len-1] = '\0';
+        }
+
+        /* Ignora linhas vazias e comentários */
+        char *start = linebuf;
+        while (*start == ' ' || *start == '\t') {
+            start++;
+        }
+        if (*start == '\0' || *start == '#') {
+            continue;
+        }
+
+        /* Executa a linha como comando */
+        petrush_cmd_t cmd = {0};
+        if (petrush_parse(start, &cmd) == 0) {
+            if (cmd.argc > 0) {
+                /* Não adicionamos comandos do rc ao histórico interativo */
+                (void)dispatch_command(&cmd);
+            }
+        } else {
+            fprintf(stderr, "petrush: erro no rc (linha %d): %s\n", lineno, start);
+        }
+        petrush_cmd_free(&cmd);
+    }
+
+    fclose(f);
+}
+
+/* ==================== PR-09: Tratamento robusto de sinais ==================== */
+
+/* Salva histórico e sai de forma limpa em SIGTERM/SIGHUP */
+static void cleanup_and_exit(int signum)
+{
+    /* Tenta salvar o histórico de forma mais segura possível */
+    const char *histfile = get_history_file();
+    if (histfile) {
+        linenoiseHistorySave(histfile);
+    }
+
+    if (signum > 0) {
+        fprintf(stderr, "\npetrush: recebido sinal %d, saindo...\n", signum);
+    }
+
+    _exit(0);
+}
+
+/* Handler para sinais de término */
+static void handle_terminate(int signum)
+{
+    cleanup_and_exit(signum);
+}
+
+/* Handler vazio para SIGINT (deixa o read retornar EINTR) */
+static void sigint_handler(int signum)
+{
+    (void)signum;
+    /* Não faz nada — o importante é gerar EINTR no linenoise */
+}
+
+/* ======================================================================== */
 
 int main(int argc, char *argv[])
 {
@@ -25,10 +144,52 @@ int main(int argc, char *argv[])
      * que modificam o termios (vim, less, etc.). Essencial para job control correto. */
     petrush_init_shell_termios();
 
-    linenoiseHistoryLoad(""); /* desabilita load por enquanto */
+    /* ==================== PR-09: Tratamento robusto de sinais ==================== */
 
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;   /* Importante: sem SA_RESTART para capturarmos EINTR */
+
+    /* Handler vazio para SIGINT — permite que linenoise retorne com EINTR */
+    sa.sa_handler = sigint_handler;
+    sigaction(SIGINT, &sa, NULL);
+
+    /* Handlers para término gracioso (SIGTERM / SIGHUP) */
+    sa.sa_handler = handle_terminate;
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGHUP, &sa, NULL);
+
+    /* Ignora SIGTSTP (Ctrl-Z) no nível do shell (job control ainda mínimo) */
+    sa.sa_handler = SIG_IGN;
+    sigaction(SIGTSTP, &sa, NULL);
+
+    /* ======================================================================== */
+
+    /* Histórico persistente (PR-07) */
+    const char *histfile = get_history_file();
+    linenoiseHistorySetMaxLen(PETRUSH_HISTORY_MAXLEN);
+    linenoiseHistoryLoad(histfile);
+
+    /* Executa configuração do usuário (~/.petrushrc) antes do loop interativo */
+    load_rc_file();
+
+    /* Loop principal do REPL com tratamento robusto de SIGINT (PR-09) */
     char *line;
-    while ((line = linenoise("petrush> ")) != NULL) {
+    while (1) {
+        errno = 0;
+        line = linenoise("petrush> ");
+
+        if (line == NULL) {
+            if (errno == EINTR) {
+                /* Ctrl-C no prompt: imprime newline e redisplay o prompt */
+                printf("\n");
+                continue;
+            }
+            /* EOF real (Ctrl-D) ou outro erro */
+            break;
+        }
+
         if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) {
             free(line);
             break;
@@ -50,6 +211,9 @@ int main(int argc, char *argv[])
 
         free(line);
     }
+
+    /* Salva histórico antes de sair (PR-07) */
+    linenoiseHistorySave(histfile);
 
     printf("saindo...\n");
     return EXIT_SUCCESS;

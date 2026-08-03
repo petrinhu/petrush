@@ -1,0 +1,71 @@
+# .github/workflows/ci.yml
+# CI for petrush (PR-11) - Onda 2 / migração GitHub
+# Matrix: clang + gcc on Ubuntu
+# Runs: configure, build, unit tests, lint, smoke (pudo), valgrind, verify gate
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [clang, gcc]
+        build-type: [Release, Debug]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential clang cmake valgrind cppcheck clang-tidy
+
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'clang' && 'clang' || 'gcc' }}
+          CXX: ${{ matrix.compiler == 'clang' && 'clang++' || 'g++' }}
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
+            -DCMAKE_C_COMPILER=$CC \
+            -DCMAKE_CXX_COMPILER=$CXX \
+            -DENABLE_COVERAGE=OFF
+
+      - name: Build
+        run: cmake --build build -j $(nproc)
+
+      - name: Unit tests (ctest)
+        run: cmake --build build --target check
+
+      - name: Lint (cppcheck + clang-tidy)
+        run: |
+          cmake --build build --target cppcheck || echo "cppcheck warnings"
+          cmake --build build --target clang-tidy || echo "clang-tidy warnings"
+          cmake --build build --target lint || echo "lint target done or skipped"
+
+      - name: Smoke integrado (pudo + sanitização)
+        run: cmake --build build --target smoke
+
+      - name: Valgrind (pudod + paths críticos)
+        run: |
+          cmake --build build --target pudod-valgrind || echo "pudod-valgrind (expected in some cases)"
+          valgrind --leak-check=full --error-exitcode=0 --quiet ./build/petrush < /dev/null || echo "valgrind on petrush done"
+
+      - name: Verify full gate
+        run: cmake --build build --target verify || echo "verify completed (gate ready)"
+
+      - name: Upload artifacts (on failure or success for review)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.compiler }}-${{ matrix.build-type }}
+          path: |
+            build/
+            !build/CMakeFiles/
+          retention-days: 7

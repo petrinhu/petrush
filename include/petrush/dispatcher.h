@@ -25,4 +25,17 @@ int builtin_echo(petrush_cmd_t *cmd);
 int builtin_exit(petrush_cmd_t *cmd);
 int builtin_help(petrush_cmd_t *cmd);
 
+/* Novos builtins PR-08 */
+int builtin_clear(petrush_cmd_t *cmd);
+int builtin_env(petrush_cmd_t *cmd);
+int builtin_export(petrush_cmd_t *cmd);
+int builtin_unset(petrush_cmd_t *cmd);
+int builtin_history(petrush_cmd_t *cmd);
+
+/* FEAT-02: pudo - sudo-like builtin (segurança extrema)
+ * Declaração em include/petrush/pudo.h (única fonte da verdade) */
+
+/* Onda 3 placeholder */
+int builtin_info(petrush_cmd_t *cmd);
+
 #endif /* PETRUSH_DISPATCHER_H */

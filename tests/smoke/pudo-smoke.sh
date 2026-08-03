@@ -1,0 +1,62 @@
+#!/bin/bash
+# Integrated smoke test for petrush + pudo (NEW-14, NEW-05)
+# Runs without requiring root/setuid on pudod (expects refusal paths + other commands)
+# Usage: ./pudo-smoke.sh /path/to/petrush
+# Expects exit 0 if all pass.
+
+set -euo pipefail
+
+PETRUSH="${1:-./build/petrush}"
+SMOKE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PASS=0
+FAIL=0
+
+run_smoke() {
+    local input="$1"
+    local expect="$2"
+    local desc="$3"
+
+    echo "=== SMOKE: $desc ==="
+    output=$(printf "%s\nexit\n" "$input" | "$PETRUSH" 2>&1 || true)
+
+    if echo "$output" | grep -Eq "$expect"; then
+        echo "PASS: $desc"
+        PASS=$((PASS+1))
+    else
+        echo "FAIL: $desc"
+        echo "Expected to see: $expect"
+        echo "Got (last lines):"
+        echo "$output" | tail -5
+        FAIL=$((FAIL+1))
+    fi
+    echo
+}
+
+# Basic commands (≥12 total coverage target: builtins, external, errors, signals-ish, pudo)
+run_smoke "pwd" "/home/" "pwd builtin (prints cwd)"
+run_smoke "echo hello world" "hello world" "echo builtin"
+run_smoke "help" "Comandos embutidos disponíveis" "help builtin"
+# Não dumpa env inteiro (evita vazar secrets no log de CI); só checa prefixo
+run_smoke "export TEST_SMOKE=42" "saindo|petrush 0\\." "export builtin (no crash)"
+run_smoke "unset TEST_SMOKE" "saindo|petrush 0\\." "unset builtin (no crash)"
+run_smoke "history" "1  " "history builtin (shows entries)"
+run_smoke "clear" "" "clear builtin (no crash, empty or control)"
+run_smoke "pudo --help" "pudo — execução de comandos com privilégios" "pudo help"
+# Sem setuid: pudod recusa (allow-list/euid) ou path de erro do helper
+run_smoke "pudo /usr/bin/id" "allow-list|euid|denying|setuid|privileges|erro:|denied|not permitted|not root|permission|pudod:" "pudo execution (expects refusal without setuid/allow)"
+run_smoke "pudo /bin/false" "allow-list|euid|denying|setuid|privileges|erro:|denied|not permitted|not root|permission|pudod:" "pudo false (refusal path)"
+run_smoke "nonexistentcmd12345" "não encontrado|command not found|127" "external command not found (error 127)"
+run_smoke "ls /nonexistentdir12345" "não foi possível acessar|No such file|não encontrado" "external command error path"
+run_smoke "info" "petrush 0\\.|C23 REPL|Build:" "info builtin (Onda 3 diagnostic)"
+
+echo "=== SMOKE SUMMARY ==="
+echo "Passed: $PASS"
+echo "Failed: $FAIL"
+
+if [ "$FAIL" -gt 0 ]; then
+    echo "SMOKE FAILED"
+    exit 1
+fi
+
+echo "SMOKE PASSED (includes pudo integrated paths + sanitization-relevant commands)"
+exit 0

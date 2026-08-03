@@ -23,16 +23,14 @@ Preferências específicas deste projeto. Regras universais em `~/.claude/CLAUDE
 - 4 camadas (Front/Mid/Back/Foundation) mesmo em ferramenta pequena.
 - TDD obrigatório para mid/back.
 - TODO.md canônico no formato tab_pendencias.
-- Repo: sempre Codeberg/Forgejo (git@codeberg.org:petrinhu/petrush.git). SSH já configurada.
+- Repo: **somente GitHub** (`git@github.com:petrinhu/petrush.git`). Codeberg/Forgejo deprecado (política 2026-07-25).
 
 ## Licença
 
-- **PolyForm Noncommercial License 1.0.0**
-- Uso permitido **exclusivamente para fins não-comerciais**.
+- **GNU Affero General Public License v3.0 (AGPL-3.0)**
 - Arquivo oficial: `LICENSE.md` na raiz do projeto.
-- Definição oficial de "noncommercial": qualquer propósito que **não** seja primariamente voltado a vantagem comercial ou compensação monetária.
-- Não é permitido incorporar o código (ou derivados) em produtos ou serviços comerciais, mesmo que oferecidos gratuitamente com objetivo de monetização indireta.
-- Link oficial: https://polyformproject.org/licenses/noncommercial/1.0.0/
+- Uso comercial é permitido, desde que o código-fonte de versões modificadas (incluindo as oferecidas em rede) seja disponibilizado sob a mesma licença.
+- Link oficial: https://www.gnu.org/licenses/agpl-3.0.html
 
 ## Pendências
 A tabela de planejamento vive em `TODO.md` na raiz (formato da skill `tab_pendencias`).
@@ -40,6 +38,6 @@ A tabela de planejamento vive em `TODO.md` na raiz (formato da skill `tab_penden
 ## Referências rápidas
 - Plano de implementação aprovado: `.grok/sessions/.../plan.md` (atualizado com escolha final Opção A).
 - Docs universais: `~/.claude/docs/`.
-- Skills proativas: `tab_pendencias`, `memo_persistente`, `forgejo`, `proj_software`, `suporte-linux`.
+- Skills proativas: `tab_pendencias`, `memo_persistente`, `proj_software`, `suporte-linux`.
 
 Qualquer dúvida de design → apresentar opções primeiro.

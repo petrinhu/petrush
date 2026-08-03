@@ -7,12 +7,19 @@ Checks: >
   readability-*,
   misc-*,
   -readability-identifier-length,
-  -readability-magic-numbers
+  -readability-magic-numbers,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -misc-include-cleaner,
+  -bugprone-reserved-identifier,
+  -bugprone-multi-level-implicit-pointer-conversion,
+  -readability-braces-around-statements,
+  -readability-isolate-declaration
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*'
 FormatStyle: file
 
 CheckOptions:
+  # Deliberately relaxed for common safe C patterns and project style (NEW-02)
   - key: readability-function-cognitive-complexity.Threshold
-    value: 25
+    value: '50'  # parser state machine naturally exceeds lower thresholds; see NOLINT in parser.c

@@ -1,0 +1,19 @@
+# /etc/petrush/pudo.allow.example
+# Copie para /etc/petrush/pudo.allow
+# O arquivo DEVE ser:
+#   - owned by root
+#   - mode 0644 ou mais restrito (sem write para group/other)
+#   - um caminho absoluto por linha
+#   - comentários com #
+
+/usr/bin/id
+/usr/bin/whoami
+/bin/ls
+/usr/bin/apt
+/usr/bin/apt-get
+/usr/bin/dnf
+/usr/bin/systemctl
+/bin/cat
+/usr/bin/head
+/usr/bin/tail
+/usr/bin/passwd

@@ -3,6 +3,7 @@
  */
 
 #include "petrush/process.h"
+#include "petrush/env.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,7 +90,7 @@ static char *find_executable(const char *name)
         return NULL;
     }
 
-    const char *path_env = getenv("PATH");
+    const char *path_env = petrush_getenv("PATH");
     if (!path_env) path_env = "/bin:/usr/bin";
 
     char *path_copy = strdup(path_env);

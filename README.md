@@ -1,9 +1,11 @@
 # petrush
 
-**Ferramenta de diagnóstico e automação em C** — "PetRush" custom para o fluxo pessoal Linux + IA local.
+**Shell interativo leve em C23** — "petrush" (PetRush) para fluxo pessoal Linux + IA local.
 
-> **Estado atual (2026-05-27)**: Projeto recém-iniciado. Escolha de arquitetura: **Opção A (Shell Interativo REPL clássico)** confirmada.  
-> Agora é um shell interativo em C23 (prompt, loop, execução de comandos externos + builtins). Builtins diagnósticos/AI podem ser adicionados em iterações futuras.
+> **Estado atual (S0 - Onda 1 Gate)**: ✅ COMPLETA. 
+> Shell REPL clássico com builtins, history, rc, sinais, execução externa + `pudo` (helper setuid seguro).
+> Gate automatizado: `cmake --build build --target verify`
+> Ver CHANGELOG.md para detalhes.
 
 ## Propósito
 
@@ -16,23 +18,43 @@ Criar um **shell interativo leve em C23** (REPL), de alta qualidade, zero depend
 
 É um shell real, não uma CLI de subcomandos nem uma ferramenta de diagnóstico exclusiva.
 
-## Status do MVP
+## Status atual (S0 - Onda 1 Gate)
 
-- [ ] Comandos assinatura definidos (PR-01)
-- [ ] Build C23 + CMake + hardening + lint (PR-02)
-- [ ] Estrutura 4 camadas + primeiros testes TDD (PR-03/06)
-- [ ] Smoke + Sanitize limpo (PR-10)
-- [ ] CI básico Forgejo Actions (PR-05)
+- [x] Build C23 + CMake + hardening + lint
+- [x] Estrutura pragmática 4 camadas + TDD parcial
+- [x] Smoke + Sanitize + valgrind automatizados
+- [x] CI básico (GitHub Actions)
+- [x] Gate S0 via `verify` (build + lint + smoke + pudod-valgrind)
+- [x] Tag S0 (v0.1.0) + CHANGELOG + status updates
 
-## Build (quando existir)
+Ver CHANGELOG.md para histórico completo.
+
+## Build & Uso
 
 ```bash
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+# Release (recomendado)
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
-./build/petrush --help
+
+# Gate completo automatizado (lint + smoke + valgrind + tudo)
+cmake --build build --target verify
+
+# Executar
+./build/petrush
 ```
 
-Ver `TODO.md` para pendências atuais, `CLAUDE.md` para regras do projeto e `LICENSE.md` para os termos de uso.
+Exemplos:
+```bash
+pudo id
+pudo --help
+cd /tmp
+echo "hello" | cat
+history
+```
+
+Build testado no CI (clang/gcc, Release/Debug, smoke com `pudo`).
+
+Ver `TODO.md`, `CLAUDE.md`, `docs/beginner-guide.md` (iniciantes), `docs/security/pudod-install.md` (pudo).
 
 ## AGPL-3.0
 
@@ -47,4 +69,4 @@ Projeto pessoal. Issues e PRs só após conversa.
 
 ---
 
-**Repositório oficial**: https://codeberg.org/petrinhu/petrush
+**Repositório oficial**: https://github.com/petrinhu/petrush
