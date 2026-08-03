@@ -23,6 +23,14 @@
 int execute_external(petrush_cmd_t *cmd, int *exit_status);
 
 /*
+ * Executa um pipeline (1+ estágios). Estágios externos via fork/exec;
+ * redirecionamentos aplicados no filho. Para 1 estágio, equivalente a
+ * execute_external com redirs. Retorna 0 se o pipeline rodou; status
+ * do último estágio em *exit_status (convenção shell).
+ */
+int execute_pipeline(petrush_pipeline_t *pl, int *exit_status);
+
+/*
  * Salva o estado atual do terminal (termios) como sendo o estado "limpo" do shell.
  * Deve ser chamado uma única vez no início do REPL (antes de qualquer execução
  * de comando externo). Usado por take_terminal_back() para restaurar modos

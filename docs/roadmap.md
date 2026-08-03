@@ -1,39 +1,30 @@
-# Roadmap Futuro (Onda 3)
+# Roadmap (Onda 3+)
 
-**Atenção**: Esta onda **só é ativada após demanda clara** e comprovação de ROI (Return On Investment) para uso pessoal. Anti-over-engineering em vigor.
+## Entregue em v0.2.0 (2026-08-03)
 
-## Itens Planejados
+**Demanda/ROI**: pedido explícito do líder em modo autônomo (`1+3+4` = wiki + limpar forgejo + Onda 3 real).
 
-### NEW-19: Builtins Diagnósticos Básicos
-- `info` / `version`: Mostra versão, build type, compiler, etc.
-- `status`: Estado do shell (env vars chave, history count, etc.).
-- Placeholder por enquanto. Só implementar se Caio (CAIO) ativar.
+### NEW-19
+- `info` (placeholder) — já em v0.1.
 
-### NEW-20: Features Avançadas
-- Pipes `|`
-- Redirecionamento `>`, `>>`, `<`
-- Scripting leve (simples)
-- **Somente** se ROI comprovado (ex.: uso real em workflows pessoais que justifique complexidade).
+### NEW-20 (mínimo anti-OE)
+- [x] Pipes `|` (somente estágios **externos**; builtins no pipe → erro claro)
+- [x] Redirecionamento `>`, `>>`, `<` (externos e builtins)
+- [ ] Scripting leve de arquivo — **não** nesta fatia
+- [ ] Background `&`, `2>`, globbing — **não** nesta fatia
 
-### NEW-21: Re-avaliação de Porte
-- Se crescer (usuários, contribuições, criticidade): Cosimo (Chief of Staff) re-avalia.
-- Possível ativação de mais C-levels e agents da constelação bigtech.
-- Mudança de licença? Stack? Escopo?
+### NEW-21
+- Porte continua solo; sem re-escalar constelação.
 
-## Gate de Saída da Onda 3
-- Demanda clara documentada (issue ou memo).
-- ROI comprovado (exemplos de uso real).
-- Implementação mínima (sem inflar o core).
-- Re-avaliação de porte por Cosimo.
+## Próximo (só com demanda)
 
-## Decisões Atuais (2026-07)
-- MVP v0.1: Sem pipes, redirecionamento, background, globbing, scripting.
-- Foco em qualidade, hardening, segurança (pudo), documentação para iniciantes.
-- Futuro só se necessário.
+- Builtins no meio de pipeline (subshell)
+- `2>` / `&>` / `2>&1`
+- Scripting de arquivo (`.petrush` batch)
+- Globbing simples
 
-Ver também:
-- CLAUDE.md (regras, anti-OE)
-- TODO.md (Ondas)
-- docs/beginner-guide.md
+## Gate v0.2
+- Testes unitários + smoke (pipes/redir) verdes
+- Decisão autônoma registrada no CHANGELOG (confirmar retroativamente)
 
-*Documento para planejamento. Implementação adiada.*
+Ver: CLAUDE.md, TODO.md, beginner-guide.md.

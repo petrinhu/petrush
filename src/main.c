@@ -83,17 +83,16 @@ static void load_rc_file(void)
             continue;
         }
 
-        /* Executa a linha como comando */
-        petrush_cmd_t cmd = {0};
-        if (petrush_parse(start, &cmd) == 0) {
-            if (cmd.argc > 0) {
-                /* Não adicionamos comandos do rc ao histórico interativo */
-                (void)dispatch_command(&cmd);
+        /* Executa a linha como pipeline (rc) */
+        petrush_pipeline_t pl = {0};
+        if (petrush_parse_pipeline(start, &pl) == 0) {
+            if (pl.ncmds > 0) {
+                (void)dispatch_pipeline(&pl);
             }
         } else {
             fprintf(stderr, "petrush: erro no rc (linha %d): %s\n", lineno, start);
         }
-        petrush_cmd_free(&cmd);
+        petrush_pipeline_free(&pl);
     }
 
     fclose(f);
@@ -137,8 +136,13 @@ int main(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
+    /* line-buffered mesmo em pipe (smoke/CI): evita vazar banner em redirs */
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    setvbuf(stderr, NULL, _IOLBF, 0);
+
     printf("%s %s (C23 shell)\n", PETRUSH_NAME, PETRUSH_VERSION);
     printf("Digite 'exit' ou 'quit' para sair.\n\n");
+    fflush(stdout);
 
     /* Salva o estado original do terminal para restauração após comandos externos
      * que modificam o termios (vim, less, etc.). Essencial para job control correto. */
@@ -198,15 +202,15 @@ int main(int argc, char *argv[])
         if (strlen(line) > 0) {
             linenoiseHistoryAdd(line);
 
-            petrush_cmd_t cmd = {0};
-            if (petrush_parse(line, &cmd) == 0) {
-                if (cmd.argc > 0) {
-                    dispatch_command(&cmd);
+            petrush_pipeline_t pl = {0};
+            if (petrush_parse_pipeline(line, &pl) == 0) {
+                if (pl.ncmds > 0) {
+                    dispatch_pipeline(&pl);
                 }
             } else {
                 fprintf(stderr, "petrush: erro ao analisar comando\n");
             }
-            petrush_cmd_free(&cmd);
+            petrush_pipeline_free(&pl);
         }
 
         free(line);

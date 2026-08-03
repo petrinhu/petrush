@@ -87,6 +87,60 @@ void test_parse_many_args_for_realloc(void)
     petrush_cmd_free(&cmd);
 }
 
+/* NEW-20: redirecionamento e pipes */
+void test_parse_redir_out(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi > /tmp/out.txt", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(strcmp(cmd.argv[0], "echo") == 0);
+    TEST_CHECK(strcmp(cmd.argv[1], "hi") == 0);
+    TEST_CHECK(cmd.redir_out != NULL);
+    TEST_CHECK(strcmp(cmd.redir_out, "/tmp/out.txt") == 0);
+    TEST_CHECK(cmd.redir_append == 0);
+    TEST_CHECK(cmd.redir_in == NULL);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_redir_append_and_in(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("cat < /tmp/in.txt >> /tmp/out.txt", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 1);
+    TEST_CHECK(strcmp(cmd.argv[0], "cat") == 0);
+    TEST_CHECK(cmd.redir_in && strcmp(cmd.redir_in, "/tmp/in.txt") == 0);
+    TEST_CHECK(cmd.redir_out && strcmp(cmd.redir_out, "/tmp/out.txt") == 0);
+    TEST_CHECK(cmd.redir_append == 1);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_pipeline_two(void)
+{
+    petrush_pipeline_t pl = {0};
+    TEST_CHECK(petrush_parse_pipeline("echo hello | cat", &pl) == 0);
+    TEST_CHECK(pl.ncmds == 2);
+    TEST_CHECK(pl.cmds[0].argc == 2);
+    TEST_CHECK(strcmp(pl.cmds[0].argv[0], "echo") == 0);
+    TEST_CHECK(strcmp(pl.cmds[0].argv[1], "hello") == 0);
+    TEST_CHECK(pl.cmds[1].argc == 1);
+    TEST_CHECK(strcmp(pl.cmds[1].argv[0], "cat") == 0);
+    petrush_pipeline_free(&pl);
+}
+
+void test_parse_pipeline_rejects_empty_stage(void)
+{
+    petrush_pipeline_t pl = {0};
+    TEST_CHECK(petrush_parse_pipeline("echo a | | cat", &pl) != 0);
+    petrush_pipeline_free(&pl);
+}
+
+void test_parse_pipe_fails_single_api(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo a | cat", &cmd) != 0);
+    petrush_cmd_free(&cmd);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -94,5 +148,10 @@ TEST_LIST = {
     { "parse_empty", test_parse_empty },
     { "parse_whitespace_only", test_parse_whitespace_only },
     { "parse_many_args_for_realloc", test_parse_many_args_for_realloc },
+    { "parse_redir_out", test_parse_redir_out },
+    { "parse_redir_append_and_in", test_parse_redir_append_and_in },
+    { "parse_pipeline_two", test_parse_pipeline_two },
+    { "parse_pipeline_rejects_empty_stage", test_parse_pipeline_rejects_empty_stage },
+    { "parse_pipe_fails_single_api", test_parse_pipe_fails_single_api },
     { NULL, NULL }
 };

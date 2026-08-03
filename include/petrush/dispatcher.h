@@ -15,8 +15,11 @@ typedef struct {
     builtin_fn_t fn;
 } builtin_entry_t;
 
-/* Despacha o comando. Retorna 0 se executado, 1 se comando desconhecido, -1 erro */
+/* Despacha o comando. Retorna status de saída (convenção shell). */
 int dispatch_command(petrush_cmd_t *cmd);
+
+/* Despacha pipeline (pipes + redirs). Retorna status do último estágio. */
+int dispatch_pipeline(petrush_pipeline_t *pl);
 
 /* Funções de builtins (implementadas em src/back ou aqui por enquanto) */
 int builtin_cd(petrush_cmd_t *cmd);

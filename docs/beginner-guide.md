@@ -68,6 +68,10 @@ cmake --build build --target verify
 - `history` — mostra histórico
 - `pudo comando` — executa com privilégios (via pudod)
 - Qualquer outro: executa binário do PATH (ex: `ls`, `cat`, `gcc`)
+- **Pipe** `|` — liga a saída de um comando externo à entrada do próximo (`printf 'a\n' | cat`)
+- **Redirecionamento** — `>` grava stdout em arquivo (cria/trunca), `>>` anexa, `<` lê stdin de arquivo
+
+Ainda **não** há: background (`&`), `2>` (stderr), globbing (`*.c`), scripts em arquivo.
 
 ## Segurança e `pudo` (explicado simples)
 

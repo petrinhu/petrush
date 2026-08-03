@@ -15,6 +15,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
 
 static const builtin_entry_t builtins[] = {
     { "cd",      builtin_cd      },
@@ -32,32 +33,143 @@ static const builtin_entry_t builtins[] = {
     { NULL,      NULL            }   /* sentinela */
 };
 
+/* Roda builtin no processo atual com redirecionamentos temporários. */
+static int run_builtin_with_redirs(builtin_fn_t fn, petrush_cmd_t *cmd)
+{
+    int saved_in = -1, saved_out = -1;
+    int rc;
+
+    /* flush antes de trocar FDs — buffer do stdio (non-tty = fully buffered)
+     * ainda aponta para o FD antigo e vaza no arquivo de redir. */
+    fflush(stdout);
+    fflush(stderr);
+
+    if (cmd->redir_in) {
+        saved_in = dup(STDIN_FILENO);
+        int fd = open(cmd->redir_in, O_RDONLY);
+        if (fd < 0) {
+            fprintf(stderr, "petrush: não foi possível abrir '%s' para leitura: %s\n",
+                    cmd->redir_in, strerror(errno));
+            if (saved_in >= 0) close(saved_in);
+            return 1;
+        }
+        if (dup2(fd, STDIN_FILENO) < 0) {
+            close(fd);
+            if (saved_in >= 0) close(saved_in);
+            return 1;
+        }
+        close(fd);
+    }
+
+    if (cmd->redir_out) {
+        saved_out = dup(STDOUT_FILENO);
+        int flags = O_WRONLY | O_CREAT | (cmd->redir_append ? O_APPEND : O_TRUNC);
+        int fd = open(cmd->redir_out, flags, 0644);
+        if (fd < 0) {
+            fprintf(stderr, "petrush: não foi possível abrir '%s' para escrita: %s\n",
+                    cmd->redir_out, strerror(errno));
+            if (saved_in >= 0) {
+                dup2(saved_in, STDIN_FILENO);
+                close(saved_in);
+            }
+            if (saved_out >= 0) close(saved_out);
+            return 1;
+        }
+        if (dup2(fd, STDOUT_FILENO) < 0) {
+            close(fd);
+            if (saved_in >= 0) {
+                dup2(saved_in, STDIN_FILENO);
+                close(saved_in);
+            }
+            if (saved_out >= 0) close(saved_out);
+            return 1;
+        }
+        close(fd);
+    }
+
+    rc = fn(cmd);
+
+    /* flush antes de restaurar FDs — senão o buffer do stdio
+     * (pipe no smoke / non-tty) escreve no FD errado depois do dup2. */
+    fflush(stdout);
+    fflush(stderr);
+
+    if (saved_in >= 0) {
+        dup2(saved_in, STDIN_FILENO);
+        close(saved_in);
+    }
+    if (saved_out >= 0) {
+        dup2(saved_out, STDOUT_FILENO);
+        close(saved_out);
+    }
+    return rc;
+}
+
+static builtin_fn_t find_builtin(const char *name)
+{
+    if (!name) return NULL;
+    for (int i = 0; builtins[i].name != NULL; i++) {
+        if (strcmp(name, builtins[i].name) == 0) {
+            return builtins[i].fn;
+        }
+    }
+    return NULL;
+}
+
 int dispatch_command(petrush_cmd_t *cmd)
 {
     if (!cmd || cmd->argc == 0 || !cmd->argv[0]) {
         return 0;
     }
 
-    const char *name = cmd->argv[0];
-
-    for (int i = 0; builtins[i].name != NULL; i++) {
-        if (strcmp(name, builtins[i].name) == 0) {
-            return builtins[i].fn(cmd);
+    builtin_fn_t fn = find_builtin(cmd->argv[0]);
+    if (fn) {
+        if (cmd->redir_in || cmd->redir_out) {
+            return run_builtin_with_redirs(fn, cmd);
         }
+        return fn(cmd);
     }
 
     /* Não é builtin → tenta executar como comando externo */
     int status = 0;
     if (execute_external(cmd, &status) == 0) {
-        /* execute_external já normaliza para convenção de shell:
-         * 0-255 para saídas normais, 128+sig para terminação por sinal.
-         * Não aplicar WEXITSTATUS aqui (status já não é um valor raw de waitpid). */
         return status;
     }
 
-    /* execute_external retornou -1 (falha antes do fork ou find).
-     * Para casos de "não encontrado" / "permissão negada" já setamos o código
-     * correto (127 ou 126) em *status. Usamos ele quando disponível. */
+    return (status != 0) ? status : 127;
+}
+
+int dispatch_pipeline(petrush_pipeline_t *pl)
+{
+    if (!pl || pl->ncmds <= 0) {
+        return 0;
+    }
+
+    /* Um estágio: caminho normal (builtin ou externo + redirs) */
+    if (pl->ncmds == 1) {
+        return dispatch_command(&pl->cmds[0]);
+    }
+
+    /*
+     * Multi-estágio: só externos via execute_pipeline.
+     * Builtins no meio de pipe rodam em subshell-like (fork+exec path fails
+     * for builtins) — v0.2: se algum estágio for builtin, erro claro.
+     * Decisão autônoma: anti-OE; builtins-em-pipe fica para ROI futuro.
+     */
+    for (int i = 0; i < pl->ncmds; i++) {
+        if (find_builtin(pl->cmds[i].argv[0])) {
+            fprintf(stderr,
+                    "petrush: builtin '%s' em pipeline ainda não suportado "
+                    "(use comando externo ou um estágio só)\n",
+                    pl->cmds[i].argv[0]);
+            return 1;
+        }
+    }
+
+    int status = 0;
+    if (execute_pipeline(pl, &status) == 0) {
+        return status;
+    }
     return (status != 0) ? status : 127;
 }
 
@@ -260,7 +372,7 @@ int builtin_info(petrush_cmd_t *cmd)
     printf("petrush %s\n", PETRUSH_VERSION);
     printf("C23 REPL shell\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("Features: history, rc, signals, pudo (helper)\n");
-    printf("Anti-OE: sem pipes/redir/scripting no MVP\n");
+    printf("Features: history, rc, signals, pudo, pipes, redir\n");
+    printf("Anti-OE: sem background/globbing/scripting de arquivo\n");
     return 0;
 }

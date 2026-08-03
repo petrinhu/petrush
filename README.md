@@ -2,10 +2,9 @@
 
 **Shell interativo leve em C23** — "petrush" (PetRush) para fluxo pessoal Linux + IA local.
 
-> **Estado atual (S0 - Onda 1 Gate)**: ✅ COMPLETA. 
-> Shell REPL clássico com builtins, history, rc, sinais, execução externa + `pudo` (helper setuid seguro).
-> Gate automatizado: `cmake --build build --target verify`
-> Ver CHANGELOG.md para detalhes.
+> **Estado atual (v0.2.0)**: S0 + Onda 3 mínima (pipes `|`, redir `>` `>>` `<`).
+> Shell REPL com builtins, history, rc, sinais, externos, `pudo`, pipes e redirecionamento.
+> Gate: `cmake --build build --target verify` · Wiki: https://github.com/petrinhu/petrush/wiki
 
 ## Propósito
 
@@ -18,16 +17,17 @@ Criar um **shell interativo leve em C23** (REPL), de alta qualidade, zero depend
 
 É um shell real, não uma CLI de subcomandos nem uma ferramenta de diagnóstico exclusiva.
 
-## Status atual (S0 - Onda 1 Gate)
+## Status atual (v0.2.0)
 
 - [x] Build C23 + CMake + hardening + lint
 - [x] Estrutura pragmática 4 camadas + TDD parcial
 - [x] Smoke + Sanitize + valgrind automatizados
-- [x] CI básico (GitHub Actions)
-- [x] Gate S0 via `verify` (build + lint + smoke + pudod-valgrind)
-- [x] Tag S0 (v0.1.0) + CHANGELOG + status updates
+- [x] CI (GitHub Actions) + wiki
+- [x] Gate S0 via `verify`
+- [x] Pipes `|` e redirecionamento `>` `>>` `<` (NEW-20 mínimo)
+- [x] Tags `v0.1.0` / `v0.2.0` + CHANGELOG
 
-Ver CHANGELOG.md para histórico completo.
+Ver CHANGELOG.md e a [wiki](https://github.com/petrinhu/petrush/wiki).
 
 ## Build & Uso
 
@@ -45,10 +45,12 @@ cmake --build build --target verify
 
 Exemplos:
 ```bash
-pudo id
 pudo --help
 cd /tmp
-echo "hello" | cat
+echo hello
+printf 'abc\n' | cat
+echo out > /tmp/x.txt
+cat < /tmp/x.txt
 history
 ```
 

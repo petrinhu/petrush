@@ -49,6 +49,20 @@ run_smoke "nonexistentcmd12345" "não encontrado|command not found|127" "externa
 run_smoke "ls /nonexistentdir12345" "não foi possível acessar|No such file|não encontrado" "external command error path"
 run_smoke "info" "petrush 0\\.|C23 REPL|Build:" "info builtin (Onda 3 diagnostic)"
 
+# NEW-20: pipes e redirecionamento (externos; anti-OE)
+run_smoke "printf 'abc\\n' | cat" "abc" "pipe printf|cat"
+run_smoke "echo smoke-redir > /tmp/petrush-smoke-out.txt" "saindo|petrush 0\\." "redir out no crash"
+# leitura do arquivo escrito (se shell persistiu o arquivo)
+if [ -f /tmp/petrush-smoke-out.txt ] && grep -q 'smoke-redir' /tmp/petrush-smoke-out.txt 2>/dev/null; then
+    echo "=== SMOKE: redir file content ==="
+    echo "PASS: redir file content"
+    PASS=$((PASS+1))
+else
+    # fallback: cat via petrush
+    run_smoke "cat /tmp/petrush-smoke-out.txt" "smoke-redir" "redir file content via cat"
+fi
+rm -f /tmp/petrush-smoke-out.txt
+
 echo "=== SMOKE SUMMARY ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

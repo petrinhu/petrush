@@ -74,7 +74,7 @@ Build Sanitize limpo + todos os testes passando + lint verde (após tune) + smok
 |----------|----------|-----------------------------------------------------------------------------------|-------------------------------|----------------------|-------------|
 | PR-11    | 2.1      | `.github/workflows/ci.yml` mínimo (Ubuntu + clang, matrix, check + lint tuned)   | Caetano / devops light        | Com 2.2              | ✅ CI completo com matrix (clang/gcc), build/test/smoke/valgrind/verify, artifacts. Migrado Codeberg→GitHub. |
 | PR-12    | 2.2      | README final (pt-br + en, build testado, exemplos, não-objetivos v0.1)            | technical-writer + petrus     | Forte                | ✅ README polido (build, exemplos, verify, segurança, links para docs iniciante). |
-| NEW-13   | 2.3      | **Wiki GitHub + docs .md extensas para iniciante em computação** (explica TODO jargão: REPL, fork/exec, termios, setpgid, ASan, hardening, parser, dispatcher, `pudo`, sinais etc.; passo a passo; sem assumir conhecimento). Execução **obrigatória** via technical-writer/ux-writer. Último item da tabela. | technical-writer / ux-writer | Com 2.1–2.2          | ✅ docs/beginner-guide.md extenso criado (glossário completo, tutorial passo a passo, exemplos, segurança). Pronto para publicar na wiki GitHub. |
+| NEW-13   | 2.3      | **Wiki GitHub + docs .md extensas para iniciante em computação** (explica TODO jargão: REPL, fork/exec, termios, setpgid, ASan, hardening, parser, dispatcher, `pudo`, sinais etc.; passo a passo; sem assumir conhecimento). Execução **obrigatória** via technical-writer/ux-writer. Último item da tabela. | technical-writer / ux-writer | Com 2.1–2.2          | ✅ docs/beginner-guide.md + wiki https://github.com/petrinhu/petrush/wiki publicada 2026-08-03. |
 | NEW-10   | 2.4      | Expandir cppcheck/clang-tidy + valgrind no CI                                     | qa-engineer + Caetano         | Com 2.1              | ✅ Concluído no workflow (matrix clang/gcc, lint, valgrind, smoke, verify). |
 | NEW-12   | 2.2      | Mover design doc de `pudo` para docs/ (versionado)                                | technical-writer              | —                    | ✅ docs/design/pudo.md versionado (já estava em docs/, audit e install atualizados). |
 
@@ -82,15 +82,15 @@ Build Sanitize limpo + todos os testes passando + lint verde (após tune) + smok
 
 ---
 
-### Onda 3 — Futuro / Re-roteamento (só após demanda clara) ✅ COMPLETA
+### Onda 3 — Futuro / Re-roteamento
 
 | ID       | Fase     | Descrição Técnica                                                                 | Responsável Principal         | Paralelismo          | Status      |
 |----------|----------|-----------------------------------------------------------------------------------|-------------------------------|----------------------|-------------|
-| NEW-19   | 3.1      | Builtins diagnósticos básicos (info, version, status) - placeholder (só se Caio ativa) | Caetano + Caio (se ativado)   | —                    | ✅ Placeholder mínimo adicionado (builtin_info). Implementação completa adiada. |
-| NEW-20   | 3.2      | Features avançadas (pipes, redirecionamento, scripting leve) — só com ROI comprovado | —                             | —                    | ✅ Planejado em docs/roadmap.md. Nenhuma feature avançada adicionada (anti-OE + sem demanda/ROI). |
-| NEW-21   | 3.3      | Re-avaliação de porte e ativação de C-levels se crescer                          | Cosimo                        | —                    | ✅ Planejado em docs/roadmap.md. Projeto continua solo (sem crescimento detectado). Nenhuma re-avaliação acionada. |
+| NEW-19   | 3.1      | Builtins diagnósticos básicos (info, version, status) - placeholder (só se Caio ativa) | Caetano + Caio (se ativado)   | —                    | ✅ Placeholder `info` (v0.1). |
+| NEW-20   | 3.2      | Features avançadas (pipes, redirecionamento, scripting leve) — só com ROI comprovado | Caetano                       | —                    | 🔍 v0.2.0: pipes `\|` + redir `>` `>>` `<` (mínimo). Scripting/background/2> fora. Demanda=líder modo autônomo 2026-08-03. |
+| NEW-21   | 3.3      | Re-avaliação de porte e ativação de C-levels se crescer                          | Cosimo                        | —                    | ✅ Solo mantido (roadmap). |
 
-**Gate de saída da Onda 3:** Demanda clara + ROI comprovado + re-avaliação de porte por Cosimo. ✅ **ONDA 3 COMPLETA**. Planejamento + docs/roadmap.md + placeholder (info).
+**Gate Onda 3 (parcial v0.2):** demanda do líder + implementação mínima pipes/redir + testes/smoke. Scripting adiado.
 
 ---
 
@@ -107,7 +107,7 @@ Build Sanitize limpo + todos os testes passando + lint verde (após tune) + smok
 
 ## Anti-over-engineering (válido para todo o projeto)
 
-- Sem pipes |, redirecionamento >, background &, globbing avançado, job control completo, scripting no v0.1 (Onda 3 adiada - sem demanda/ROI).
+- v0.2: pipes `|` e redir `>`/`>>`/`<` (NEW-20 mínimo). Ainda sem background `&`, globbing, `2>`, scripting de arquivo, builtins no meio de pipe.
 - Parser simples (Rule of 3).
 - Framework de testes: acutest.h.
 - Nenhum builtin diagnóstico "petrush" no MVP.
@@ -127,16 +127,15 @@ A maioria dos PR-01 a PR-06 já foram entregues com qualidade. Ver commits no re
 - NEW-18: Tag S0 (v0.1.0) + CHANGELOG + updates feitos.
 - Onda 3: planejamento + roadmap + placeholder. Sem features avançadas (anti-OE).
 
-Ações agora (2026-08-03):
-1. Commit S0 local + migração remote Codeberg→GitHub (esta sessão).
-2. Push main + tag v0.1.0 / v0.1.0-S0 (quando autorizado).
-3. Publicar wiki GitHub (copiar beginner-guide.md).
-4. Arquivar repo Codeberg manualmente (líder).
+Ações (2026-08-03 modo autônomo 1+3+4):
+1. ✅ Wiki GitHub publicada.
+2. ✅ `.forgejo/` local removido.
+3. ✅ NEW-20 mínimo (pipes + redir) em v0.2.0.
+4. Arquivar repo Codeberg (manual, líder).
+5. Confirmar retroativamente escopo Onda 3 com líder.
 
-Onda 3 só ativa com demanda clara + ROI.
-
-**Status da Onda 1:** ✅ COMPLETA (NEW-18 incluído). **Onda 2:** ✅ COMPLETA. **Onda 3:** ✅ COMPLETA (planejamento + placeholder).
+**Status:** Onda 1 ✅ · Onda 2 ✅ · Onda 3 🔍 (NEW-20 parcial em verificação pós-push/CI).
 
 ---
 
-*Documento atualizado em 03/08/2026 — S0 commit + migração GitHub. Ondas 1/2/3 completas na árvore.*
+*Atualizado 03/08/2026 — v0.2.0 Onda 3 mínima + wiki + limpeza forgejo.*

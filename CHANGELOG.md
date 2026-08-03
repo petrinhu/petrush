@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-08-03 - Onda 3 (pipes + redir)
+
+### Added
+- Pipes `|` (estágios externos; multi-stage via `execute_pipeline`)
+- Redirecionamento `>`, `>>`, `<` (externos e builtins)
+- API `petrush_parse_pipeline` / `dispatch_pipeline` / `execute_pipeline`
+- Smoke cobrindo pipe e redir; testes unitários de parser NEW-20
+- Wiki GitHub publicada (Home + guia iniciante + arquitetura/security)
+
+### Changed
+- Versão `0.2.0`; REPL com line-buffer em stdout/stderr (evita vazar banner em redir sob pipe)
+- Host GitHub-only; `.forgejo/` removido localmente
+
+### Notes
+- **Decisão autônoma (líder: modo autônomo 1+3+4):** ROI = pedido explícito do líder; escopo mínimo anti-OE.
+- Fora de escopo v0.2: background `&`, `2>`/`&>`, globbing, builtins no meio de pipe, scripting de arquivo.
+- Confirmar retroativamente com o líder se o escopo de redir/pipe basta.
+
 ## [0.1.0] - 2026-07-01 - S0 Gate
 
 ### Added
@@ -42,4 +60,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - License: GNU Affero General Public License v3.0 (AGPL-3.0)
 - Host: GitHub (`petrinhu/petrush`); Codeberg/Forgejo deprecado
 
+[0.2.0]: https://github.com/petrinhu/petrush/releases/tag/v0.2.0
 [0.1.0]: https://github.com/petrinhu/petrush/releases/tag/v0.1.0
