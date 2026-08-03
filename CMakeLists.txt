@@ -316,7 +316,8 @@ add_custom_target(pudod-valgrind
 # Automático via 'cmake --build build' (porque verify é ALL). Se precisar só do binário: cmake --build build --target petrush
 add_custom_target(smoke
     COMMAND ${CMAKE_COMMAND} -E echo "=== Running integrated smoke test for petrush + pudo + sanitization ==="
-    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/pudo-smoke.sh ${CMAKE_BINARY_DIR}/petrush || ${CMAKE_COMMAND} -E echo "Smoke script completed (see output for PASS/FAIL)"
+    # Falha real propaga (CI/TDD); não engolir exit code do smoke
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/pudo-smoke.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
     COMMENT "Executando smoke tests integrados (≥12 comandos + pudo + paths de erro / sanitização)"
     VERBATIM

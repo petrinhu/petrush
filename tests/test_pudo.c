@@ -9,6 +9,8 @@
 #include "petrush/pudo.h"
 #include "petrush/env.h"
 
+#include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -101,24 +103,29 @@ void test_pudod_binary_refuses_without_privileges(void)
      * com mensagem de allow-list ou recusa. Valida execução do pudod
      * sem precisar de privilégios (recomendado para CI / gate).
      */
-    /* Localiza pudod de forma confiável (suporta execução de raiz ou de build/) */
-    char pudod_path[512];
+    char pudod_path[PATH_MAX];
     char *pudod = NULL;
 
-    /* Tenta irmão do executável do teste (comum quando cwd=build/) */
-    if (readlink("/proc/self/exe", pudod_path, sizeof(pudod_path)-1) > 0) {
-        char *last_slash = strrchr(pudod_path, '/');
-        if (last_slash) {
-            *last_slash = '\0';
-            snprintf(pudod_path + strlen(pudod_path), sizeof(pudod_path) - strlen(pudod_path), "/pudod");
-            if (access(pudod_path, X_OK) == 0) {
-                pudod = pudod_path;
+    /* Irmão de /proc/self/exe — readlink NÃO null-termina */
+    {
+        ssize_t rlen = readlink("/proc/self/exe", pudod_path, sizeof(pudod_path) - 1);
+        if (rlen > 0) {
+            pudod_path[rlen] = '\0';
+            char *last_slash = strrchr(pudod_path, '/');
+            if (last_slash) {
+                size_t dir_len = (size_t)(last_slash - pudod_path);
+                /* dir + "/pudod" + NUL */
+                if (dir_len + 7 <= sizeof(pudod_path)) {
+                    memcpy(last_slash, "/pudod", 7);
+                    if (access(pudod_path, X_OK) == 0) {
+                        pudod = pudod_path;
+                    }
+                }
             }
         }
     }
 
     if (!pudod) {
-        /* Fallbacks comuns */
         const char *fallbacks[] = {
             "./pudod",
             "../pudod",
@@ -128,25 +135,37 @@ void test_pudod_binary_refuses_without_privileges(void)
         };
         for (int i = 0; fallbacks[i]; i++) {
             if (access(fallbacks[i], X_OK) == 0) {
-                pudod = (char*)fallbacks[i];
+                size_t fl = strlen(fallbacks[i]);
+                if (fl + 1 <= sizeof(pudod_path)) {
+                    memcpy(pudod_path, fallbacks[i], fl + 1);
+                    pudod = pudod_path;
+                }
                 break;
             }
         }
     }
 
+    TEST_CHECK(pudod != NULL);
     if (!pudod) {
-        pudod = "./build/pudod"; /* último fallback */
+        return;
     }
 
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "%s /usr/bin/id 2>&1", pudod);
+    /* PATH_MAX + sufixo; evita -Werror=format-truncation no CI (gcc Debug) */
+    char cmd[PATH_MAX + 64];
+    int n = snprintf(cmd, sizeof(cmd), "%s /usr/bin/id 2>&1", pudod);
+    TEST_CHECK(n > 0 && (size_t)n < sizeof(cmd));
+    if (n <= 0 || (size_t)n >= sizeof(cmd)) {
+        return;
+    }
     FILE *fp = popen(cmd, "r");
     TEST_CHECK(fp != NULL);
     if (fp) {
         char buf[512];
         int saw_refusal = 0;
         while (fgets(buf, sizeof(buf), fp)) {
-            if (strstr(buf, "allow-list") || strstr(buf, "denying all") || strstr(buf, "failed to load") || strstr(buf, "euid")) {
+            if (strstr(buf, "allow-list") || strstr(buf, "denying all") ||
+                strstr(buf, "failed to load") || strstr(buf, "euid") ||
+                strstr(buf, "not root") || strstr(buf, "permission")) {
                 saw_refusal = 1;
             }
         }

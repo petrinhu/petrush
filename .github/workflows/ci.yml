@@ -50,15 +50,13 @@ jobs:
           cmake --build build --target lint || echo "lint target done or skipped"
 
       - name: Smoke integrado (pudo + sanitização)
-        run: cmake --build build --target smoke
+        run: bash tests/smoke/pudo-smoke.sh ./build/petrush
 
       - name: Valgrind (pudod + paths críticos)
         run: |
           cmake --build build --target pudod-valgrind || echo "pudod-valgrind (expected in some cases)"
-          valgrind --leak-check=full --error-exitcode=0 --quiet ./build/petrush < /dev/null || echo "valgrind on petrush done"
-
-      - name: Verify full gate
-        run: cmake --build build --target verify || echo "verify completed (gate ready)"
+          # non-tty REPL; exit 0 on leaks report for informational scan
+          valgrind --leak-check=full --error-exitcode=0 --quiet ./build/petrush < /dev/null || true
 
       - name: Upload artifacts (on failure or success for review)
         if: always()
