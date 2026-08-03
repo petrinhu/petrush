@@ -13,6 +13,7 @@
 #include "petrush/process.h"
 #include "petrush/parser.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -95,11 +96,78 @@ void test_init_shell_termios_is_safe(void)
     TEST_CHECK(1);  /* se chegamos aqui, passou */
 }
 
+/* NEW-20: pipeline / redir — contrato com externos estaveis em /bin */
+void test_pipeline_true_pipe_true(void)
+{
+    petrush_pipeline_t pl = {0};
+    TEST_CHECK(petrush_parse_pipeline("/bin/true | /bin/true", &pl) == 0);
+    TEST_CHECK(pl.ncmds == 2);
+
+    int status = -1;
+    int rc = execute_pipeline(&pl, &status);
+    TEST_CHECK(rc == 0);
+    TEST_CHECK(status == 0);
+    petrush_pipeline_free(&pl);
+}
+
+void test_pipeline_false_last_status(void)
+{
+    petrush_pipeline_t pl = {0};
+    TEST_CHECK(petrush_parse_pipeline("/bin/true | /bin/false", &pl) == 0);
+
+    int status = 0;
+    int rc = execute_pipeline(&pl, &status);
+    TEST_CHECK(rc == 0);
+    TEST_CHECK(status == 1); /* último estágio define status */
+    petrush_pipeline_free(&pl);
+}
+
+void test_execute_external_redir_out_writes_file(void)
+{
+    char out_path[] = "/tmp/petrush_test_redir_XXXXXX";
+    int fd = mkstemp(out_path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    close(fd);
+    unlink(out_path); /* execute recria com O_CREAT */
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo redir-unit-ok > ", &cmd) != 0); /* incompleto = erro */
+
+    petrush_pipeline_t pl = {0};
+    char line[256];
+    snprintf(line, sizeof(line), "/bin/echo redir-unit-ok > %s", out_path);
+    TEST_CHECK(petrush_parse_pipeline(line, &pl) == 0);
+    TEST_CHECK(pl.ncmds == 1);
+    TEST_CHECK(pl.cmds[0].redir_out != NULL);
+
+    int status = -1;
+    int rc = execute_pipeline(&pl, &status);
+    TEST_CHECK(rc == 0);
+    TEST_CHECK(status == 0);
+
+    FILE *f = fopen(out_path, "r");
+    TEST_CHECK(f != NULL);
+    if (f) {
+        char buf[64] = {0};
+        TEST_CHECK(fgets(buf, sizeof(buf), f) != NULL);
+        TEST_CHECK(strstr(buf, "redir-unit-ok") != NULL);
+        fclose(f);
+    }
+    unlink(out_path);
+    petrush_pipeline_free(&pl);
+}
+
 TEST_LIST = {
     { "execute_null_cmd",           test_execute_null_cmd },
     { "execute_empty_cmd",          test_execute_empty_cmd },
     { "execute_not_found_127",      test_execute_not_found_returns_127 },
     { "execute_permission_126",     test_execute_permission_denied_for_nonexec_path_returns_126 },
     { "init_shell_termios_safe",    test_init_shell_termios_is_safe },
+    { "pipeline_true_pipe_true",    test_pipeline_true_pipe_true },
+    { "pipeline_false_last_status", test_pipeline_false_last_status },
+    { "execute_redir_out_file",     test_execute_external_redir_out_writes_file },
     { NULL, NULL }
 };

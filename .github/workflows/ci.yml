@@ -1,7 +1,7 @@
 # .github/workflows/ci.yml
-# CI for petrush (PR-11) - Onda 2 / migração GitHub
-# Matrix: clang + gcc on Ubuntu
-# Runs: configure, build, unit tests, lint, smoke (pudo), valgrind, verify gate
+# CI for petrush — container Fedora (espelha host do líder: Fedora 44)
+# Matrix: clang + gcc × Release/Debug
+# Runs: configure, build, unit tests, smoke, lint best-effort
 
 name: CI
 
@@ -14,17 +14,28 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    container:
+      # Stable atual (= latest no registry Fedora em 2026-08). Host do líder: 44.
+      image: registry.fedoraproject.org/fedora:44
     strategy:
+      fail-fast: false
       matrix:
         compiler: [clang, gcc]
         build-type: [Release, Debug]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install deps
+      - name: Install deps (dnf)
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y build-essential clang cmake valgrind cppcheck clang-tidy
+          dnf -y install \
+            gcc gcc-c++ clang clang-tools-extra \
+            cmake make \
+            valgrind cppcheck \
+            glibc-devel \
+            diffutils findutils which
+          command -v cmake
+          gcc --version | head -1
+          clang --version | head -1
 
       - name: Configure
         env:
@@ -37,33 +48,51 @@ jobs:
             -DCMAKE_CXX_COMPILER=$CXX \
             -DENABLE_COVERAGE=OFF
 
-      - name: Build
-        run: cmake --build build -j $(nproc)
+      - name: Build (binários + testes, sem verify ALL)
+        # evita o target verify ALL (lint/valgrind soft) no path crítico
+        run: cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo
 
       - name: Unit tests (ctest)
         run: cmake --build build --target check
 
-      - name: Lint (cppcheck + clang-tidy)
-        run: |
-          cmake --build build --target cppcheck || echo "cppcheck warnings"
-          cmake --build build --target clang-tidy || echo "clang-tidy warnings"
-          cmake --build build --target lint || echo "lint target done or skipped"
-
-      - name: Smoke integrado (pudo + sanitização)
+      - name: Smoke integrado
         run: bash tests/smoke/pudo-smoke.sh ./build/petrush
 
-      - name: Valgrind (pudod + paths críticos)
+      - name: Lint (best-effort)
         run: |
-          cmake --build build --target pudod-valgrind || echo "pudod-valgrind (expected in some cases)"
-          # non-tty REPL; exit 0 on leaks report for informational scan
-          valgrind --leak-check=full --error-exitcode=0 --quiet ./build/petrush < /dev/null || true
+          cmake --build build --target cppcheck || true
+          cmake --build build --target clang-tidy || true
+          cmake --build build --target lint || true
 
-      - name: Upload artifacts (on failure or success for review)
+      - name: Valgrind pudod (best-effort)
+        run: |
+          cmake --build build --target pudod-valgrind || true
+
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ matrix.compiler }}-${{ matrix.build-type }}
+          name: build-fedora44-${{ matrix.compiler }}-${{ matrix.build-type }}
           path: |
-            build/
-            !build/CMakeFiles/
-          retention-days: 7
+            build/petrush
+            build/pudod
+            build/test_*
+          retention-days: 5
+
+  # Opcional: job experimental na imagem mais nova (45/rawhide). Não bloqueia main.
+  build-fedora-next:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    container:
+      image: registry.fedoraproject.org/fedora:45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          dnf -y install gcc clang cmake make valgrind cppcheck clang-tools-extra glibc-devel
+      - name: Build Release gcc
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
+          cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo
+          cmake --build build --target check
+          bash tests/smoke/pudo-smoke.sh ./build/petrush

@@ -54,7 +54,7 @@ cat < /tmp/x.txt
 history
 ```
 
-Build testado no CI (clang/gcc, Release/Debug, smoke com `pudo`).
+Build testado no CI em **container Fedora 44** (clang/gcc × Release/Debug + smoke). Job experimental Fedora 45 não bloqueia `main`.
 
 Ver `TODO.md`, `CLAUDE.md`, `docs/beginner-guide.md` (iniciantes), `docs/security/pudod-install.md` (pudo),
 `docs/standards.md` (mapas para CONTRACT / AGILE / TESTES / AUDITORIAS / DEPLOY_CHECKLIST do vault).
