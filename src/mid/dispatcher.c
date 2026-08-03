@@ -9,6 +9,7 @@
 #include "petrush/pudo.h"
 #include "petrush/alias.h"
 #include "petrush/dirstack.h"
+#include "petrush/expand.h"
 
 #include "linenoise.h"
 
@@ -145,6 +146,9 @@ int dispatch_command(petrush_cmd_t *cmd)
         return 0;
     }
 
+    /* UX-12/13: ~ e $VAR em argv e redirs antes do dispatch */
+    expand_cmd_argv(cmd);
+
     builtin_fn_t fn = find_builtin(cmd->argv[0]);
     if (fn) {
         if (cmd->redir_in || cmd->redir_out) {
@@ -189,8 +193,14 @@ int dispatch_pipeline(petrush_pipeline_t *pl)
         return 0;
     }
 
+    /* Expandir todas as etapas cedo (UX-12/13) */
+    for (int i = 0; i < pl->ncmds; i++) {
+        expand_cmd_argv(&pl->cmds[i]);
+    }
+
     /* Um estágio: caminho normal (builtin ou externo + redirs) */
     if (pl->ncmds == 1) {
+        /* expand já feito; dispatch_command expandiria de novo (idempotente) */
         return dispatch_command(&pl->cmds[0]);
     }
 

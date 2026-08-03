@@ -51,6 +51,20 @@ run_smoke "ls /nonexistentdir12345" "não foi possível acessar|No such file|nã
 run_smoke "info" "petrush 0\\.|C23 REPL|Build:" "info builtin (Onda 3 diagnostic)"
 run_smoke "alias ll=ls" "saindo|petrush 0\\." "alias define"
 run_smoke "which pwd" "builtin" "which builtin"
+run_smoke "echo ~" "/home/|/root|/Users" "tilde expand"
+run_smoke "export PETRUSH_SMOKE_V=xyz99" "saindo|petrush 0\\." "export for var expand"
+# var expand needs same process — multi-line
+echo "=== SMOKE: dollar VAR expand ==="
+var_out=$(printf 'export PETRUSH_SMOKE_V=xyz99\necho $PETRUSH_SMOKE_V\nexit\n' | "$PETRUSH" 2>&1 || true)
+if echo "$var_out" | grep -Fq 'xyz99'; then
+    echo "PASS: dollar VAR expand"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: dollar VAR expand"
+    echo "$var_out" | tail -6
+    FAIL=$((FAIL+1))
+fi
+echo
 run_smoke "/bin/true && echo and-ok" "and-ok" "list AND short-circuit"
 run_smoke "/bin/false || echo or-ok" "or-ok" "list OR short-circuit"
 run_smoke "pushd /tmp" "saindo|petrush 0\\.|/" "pushd /tmp"
