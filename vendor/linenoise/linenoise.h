@@ -105,6 +105,10 @@ int linenoiseHistoryAdd(const char *line);
 int linenoiseHistorySetMaxLen(int len);
 int linenoiseHistorySave(const char *filename);
 int linenoiseHistoryLoad(const char *filename);
+/* petrush: expose history for autosuggestions (read-only) */
+int linenoiseHistoryLen(void);
+/* index 0 = oldest; returns NULL if out of range */
+const char *linenoiseHistoryGet(int index);
 
 /* Other utilities. */
 void linenoiseClearScreen(void);

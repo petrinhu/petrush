@@ -50,7 +50,7 @@ jobs:
 
       - name: Build (binários + testes, sem verify ALL)
         # evita o target verify ALL (lint/valgrind soft) no path crítico
-        run: cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo test_alias
+        run: cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo test_alias test_complete
 
       - name: Unit tests (ctest)
         run: cmake --build build --target check
@@ -93,6 +93,6 @@ jobs:
       - name: Build Release gcc
         run: |
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
-          cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo test_alias
+          cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo test_alias test_complete
           cmake --build build --target check
           bash tests/smoke/pudo-smoke.sh ./build/petrush

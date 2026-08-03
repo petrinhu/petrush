@@ -51,6 +51,8 @@ run_smoke "ls /nonexistentdir12345" "não foi possível acessar|No such file|nã
 run_smoke "info" "petrush 0\\.|C23 REPL|Build:" "info builtin (Onda 3 diagnostic)"
 run_smoke "alias ll=ls" "saindo|petrush 0\\." "alias define"
 run_smoke "which pwd" "builtin" "which builtin"
+run_smoke "/bin/true && echo and-ok" "and-ok" "list AND short-circuit"
+run_smoke "/bin/false || echo or-ok" "or-ok" "list OR short-circuit"
 
 # NEW-20: pipes e redirecionamento (externos; anti-OE)
 run_smoke "printf 'abc\\n' | cat" "abc" "pipe printf|cat"

@@ -48,4 +48,24 @@ int petrush_parse(const char *input, petrush_cmd_t *out);
 /* Libera memória alocada por petrush_parse() / um estágio. */
 void petrush_cmd_free(petrush_cmd_t *cmd);
 
+/* NEW-24: listas && e || (left-to-right, short-circuit) */
+typedef enum {
+    PETRUSH_COND_ALWAYS = 0, /* first item */
+    PETRUSH_COND_AND,        /* run if previous status == 0 */
+    PETRUSH_COND_OR          /* run if previous status != 0 */
+} petrush_run_cond_t;
+
+typedef struct {
+    petrush_pipeline_t pl;
+    petrush_run_cond_t cond;
+} petrush_list_item_t;
+
+typedef struct {
+    petrush_list_item_t *items;
+    int nitems;
+} petrush_list_t;
+
+int petrush_parse_list(const char *input, petrush_list_t *out);
+void petrush_list_free(petrush_list_t *list);
+
 #endif /* PETRUSH_PARSER_H */

@@ -158,6 +158,27 @@ int dispatch_command(petrush_cmd_t *cmd)
     return (status != 0) ? status : 127;
 }
 
+int dispatch_list(petrush_list_t *list)
+{
+    if (!list || list->nitems <= 0) {
+        return 0;
+    }
+    int status = 0;
+    for (int i = 0; i < list->nitems; i++) {
+        petrush_list_item_t *it = &list->items[i];
+        if (i > 0) {
+            if (it->cond == PETRUSH_COND_AND && status != 0) {
+                continue; /* short-circuit && */
+            }
+            if (it->cond == PETRUSH_COND_OR && status == 0) {
+                continue; /* short-circuit || */
+            }
+        }
+        status = dispatch_pipeline(&it->pl);
+    }
+    return status;
+}
+
 int dispatch_pipeline(petrush_pipeline_t *pl)
 {
     if (!pl || pl->ncmds <= 0) {

@@ -2,9 +2,9 @@
 
 **Shell interativo leve em C23** — "petrush" (PetRush) para fluxo pessoal Linux + IA local.
 
-> **Estado atual (v0.2.0)**: S0 + Onda 3 mínima (pipes `|`, redir `>` `>>` `<`).
-> Shell REPL com builtins, history, rc, sinais, externos, `pudo`, pipes e redirecionamento.
-> Gate: `cmake --build build --target verify` · Wiki: https://github.com/petrinhu/petrush/wiki
+> **Estado atual (v0.3.0)**: UX wave — aliases, `PETRUSH_PS1`, Tab-complete, history hints, `&&`/`||`, which.
+> Também: pipes `|`, redirs, `pudo`, history, rc, sinais.
+> Gate: `cmake --build build --target check` + smoke · Wiki: https://github.com/petrinhu/petrush/wiki
 
 ## Propósito
 
@@ -45,13 +45,14 @@ cmake --build build --target verify
 
 Exemplos:
 ```bash
-pudo --help
-cd /tmp
-echo hello
+alias ll='ls -la'
+which pwd
+export PETRUSH_PS1='🚀 > '   # reinicie o shell para ver (lido a cada prompt)
 printf 'abc\n' | cat
+/bin/true && echo ok
+/bin/false || echo recovered
 echo out > /tmp/x.txt
-cat < /tmp/x.txt
-history
+# Tab = complete; digite prefixo de history para ghost-text (hints)
 ```
 
 Build testado no CI em **container Fedora 44** (clang/gcc × Release/Debug + smoke). Job experimental Fedora 45 não bloqueia `main`.

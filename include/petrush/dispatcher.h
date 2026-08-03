@@ -21,6 +21,9 @@ int dispatch_command(petrush_cmd_t *cmd);
 /* Despacha pipeline (pipes + redirs). Retorna status do último estágio. */
 int dispatch_pipeline(petrush_pipeline_t *pl);
 
+/* Despacha lista && / || com short-circuit. */
+int dispatch_list(petrush_list_t *list);
+
 /* Funções de builtins (implementadas em src/back ou aqui por enquanto) */
 int builtin_cd(petrush_cmd_t *cmd);
 int builtin_pwd(petrush_cmd_t *cmd);

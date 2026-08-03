@@ -345,3 +345,111 @@ int petrush_parse(const char *input, petrush_cmd_t *out)
     pl.ncmds = 0;
     return 0;
 }
+
+void petrush_list_free(petrush_list_t *list)
+{
+    if (!list || !list->items) {
+        if (list) {
+            list->items = NULL;
+            list->nitems = 0;
+        }
+        return;
+    }
+    for (int i = 0; i < list->nitems; i++) {
+        petrush_pipeline_free(&list->items[i].pl);
+    }
+    free(list->items);
+    list->items = NULL;
+    list->nitems = 0;
+}
+
+/* Encontra próximo && ou || fora de aspas. Retorna 1 se achou. */
+static int find_list_connector(const char *s, size_t from, size_t *out_pos, petrush_run_cond_t *out_cond)
+{
+    char quote = 0;
+    for (size_t i = from; s[i]; i++) {
+        char c = s[i];
+        if (quote) {
+            if (c == quote) quote = 0;
+            continue;
+        }
+        if (c == '\'' || c == '"') {
+            quote = c;
+            continue;
+        }
+        if (c == '&' && s[i + 1] == '&') {
+            *out_pos = i;
+            *out_cond = PETRUSH_COND_AND;
+            return 1;
+        }
+        if (c == '|' && s[i + 1] == '|') {
+            *out_pos = i;
+            *out_cond = PETRUSH_COND_OR;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int petrush_parse_list(const char *input, petrush_list_t *out)
+{
+    if (!input || !out) return -1;
+    memset(out, 0, sizeof(*out));
+
+    /* contagem de segmentos */
+    int nitems = 1;
+    size_t pos = 0;
+    petrush_run_cond_t dummy;
+    size_t cpos;
+    while (find_list_connector(input, pos, &cpos, &dummy)) {
+        nitems++;
+        pos = cpos + 2;
+    }
+
+    petrush_list_item_t *items = calloc((size_t)nitems, sizeof(*items));
+    if (!items) return -1;
+
+    size_t start = 0;
+    petrush_run_cond_t next_cond = PETRUSH_COND_ALWAYS;
+    int idx = 0;
+    pos = 0;
+    while (idx < nitems) {
+        size_t conn_pos = 0;
+        petrush_run_cond_t conn = PETRUSH_COND_ALWAYS;
+        int has = find_list_connector(input, pos, &conn_pos, &conn);
+
+        size_t end = has ? conn_pos : strlen(input);
+        /* extrair substring [start, end) */
+        while (start < end && isspace((unsigned char)input[start])) start++;
+        size_t e = end;
+        while (e > start && isspace((unsigned char)input[e - 1])) e--;
+        size_t seglen = e - start;
+        char *seg = malloc(seglen + 1);
+        if (!seg) {
+            for (int j = 0; j < idx; j++) petrush_pipeline_free(&items[j].pl);
+            free(items);
+            return -1;
+        }
+        memcpy(seg, input + start, seglen);
+        seg[seglen] = '\0';
+
+        items[idx].cond = next_cond;
+        if (petrush_parse_pipeline(seg, &items[idx].pl) != 0) {
+            free(seg);
+            for (int j = 0; j < idx; j++) petrush_pipeline_free(&items[j].pl);
+            free(items);
+            return -1;
+        }
+        free(seg);
+        idx++;
+
+        if (!has) break;
+        next_cond = conn;
+        start = conn_pos + 2;
+        pos = start;
+    }
+
+    out->items = items;
+    out->nitems = nitems;
+    return 0;
+}

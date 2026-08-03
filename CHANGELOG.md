@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-03 - UX wave (features festejadas em shells)
+
+Pesquisa: Fish/Zsh/Bash — autosuggest, tab-complete, prompt, aliases, `&&`/`||`, which  
+(ver `docs/research-shell-features.md`).
+
+### Added
+- **alias / unalias** + expansão da 1ª palavra (NEW-22)
+- **which** (builtin vs PATH)
+- **PETRUSH_PS1** prompt customizável
+- **Tab completion** (builtins + PATH + arquivos) via linenoise
+- **History autosuggest** (ghost text) via linenoise hints + API HistoryGet
+- **Listas `&&` / `||`** com short-circuit (NEW-24)
+- Testes: `test_alias`, `test_complete`, parser list; smoke 20 cases
+
+### Notes
+- Syntax highlighting adiado (anti-OE; alto custo em C sem lib extra).
+- Host CI: Fedora 44.
+
 ## [0.2.0] - 2026-08-03 - Onda 3 (pipes + redir)
 
 ### Added
@@ -60,5 +78,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - License: GNU Affero General Public License v3.0 (AGPL-3.0)
 - Host: GitHub (`petrinhu/petrush`); Codeberg/Forgejo deprecado
 
+[0.3.0]: https://github.com/petrinhu/petrush/releases/tag/v0.3.0
 [0.2.0]: https://github.com/petrinhu/petrush/releases/tag/v0.2.0
 [0.1.0]: https://github.com/petrinhu/petrush/releases/tag/v0.1.0

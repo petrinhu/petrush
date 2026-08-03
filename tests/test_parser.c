@@ -141,6 +141,25 @@ void test_parse_pipe_fails_single_api(void)
     petrush_cmd_free(&cmd);
 }
 
+void test_parse_list_and(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("/bin/true && /bin/true", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_AND);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_or(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("/bin/false || /bin/true", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_OR);
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -153,5 +172,7 @@ TEST_LIST = {
     { "parse_pipeline_two", test_parse_pipeline_two },
     { "parse_pipeline_rejects_empty_stage", test_parse_pipeline_rejects_empty_stage },
     { "parse_pipe_fails_single_api", test_parse_pipe_fails_single_api },
+    { "parse_list_and", test_parse_list_and },
+    { "parse_list_or", test_parse_list_or },
     { NULL, NULL }
 };

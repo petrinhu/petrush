@@ -17,6 +17,7 @@
 #include "petrush/process.h"
 #include "petrush/env.h"
 #include "petrush/alias.h"
+#include "petrush/complete.h"
 #include "linenoise.h"
 
 /* Caminho padrão para histórico persistente */
@@ -84,16 +85,19 @@ static void load_rc_file(void)
             continue;
         }
 
-        /* Executa a linha como pipeline (rc) */
-        petrush_pipeline_t pl = {0};
-        if (petrush_parse_pipeline(start, &pl) == 0) {
-            if (pl.ncmds > 0) {
-                (void)dispatch_pipeline(&pl);
+        /* Executa a linha como lista/pipeline (rc); expande alias */
+        char *expanded = alias_expand_line(start);
+        const char *to_run = expanded ? expanded : start;
+        petrush_list_t list = {0};
+        if (petrush_parse_list(to_run, &list) == 0) {
+            if (list.nitems > 0) {
+                (void)dispatch_list(&list);
             }
         } else {
             fprintf(stderr, "petrush: erro no rc (linha %d): %s\n", lineno, start);
         }
-        petrush_pipeline_free(&pl);
+        petrush_list_free(&list);
+        free(expanded);
     }
 
     fclose(f);
@@ -176,6 +180,9 @@ int main(int argc, char *argv[])
     linenoiseHistorySetMaxLen(PETRUSH_HISTORY_MAXLEN);
     linenoiseHistoryLoad(histfile);
 
+    /* Tab-complete + history autosuggest (NEW-23) */
+    petrush_setup_linenoise_ux();
+
     /* Executa configuração do usuário (~/.petrushrc) antes do loop interativo */
     load_rc_file();
 
@@ -183,7 +190,10 @@ int main(int argc, char *argv[])
     char *line;
     while (1) {
         errno = 0;
-        line = linenoise("petrush> ");
+        /* PETRUSH_PS1: prompt customizável (feature #4 da pesquisa UX) */
+        const char *ps1 = petrush_getenv("PETRUSH_PS1");
+        const char *prompt = (ps1 && ps1[0]) ? ps1 : "petrush> ";
+        line = linenoise(prompt);
 
         if (line == NULL) {
             if (errno == EINTR) {
@@ -206,15 +216,15 @@ int main(int argc, char *argv[])
             char *expanded = alias_expand_line(line);
             const char *to_run = expanded ? expanded : line;
 
-            petrush_pipeline_t pl = {0};
-            if (petrush_parse_pipeline(to_run, &pl) == 0) {
-                if (pl.ncmds > 0) {
-                    dispatch_pipeline(&pl);
+            petrush_list_t list = {0};
+            if (petrush_parse_list(to_run, &list) == 0) {
+                if (list.nitems > 0) {
+                    dispatch_list(&list);
                 }
             } else {
                 fprintf(stderr, "petrush: erro ao analisar comando\n");
             }
-            petrush_pipeline_free(&pl);
+            petrush_list_free(&list);
             free(expanded);
         }
 

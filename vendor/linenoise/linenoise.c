@@ -2296,6 +2296,15 @@ int linenoiseHistoryAdd(const char *line) {
  * if there is already some history, the function will make sure to retain
  * just the latest 'len' elements if the new history length value is smaller
  * than the amount of items already inside the history. */
+int linenoiseHistoryLen(void) {
+    return history_len;
+}
+
+const char *linenoiseHistoryGet(int index) {
+    if (index < 0 || index >= history_len || !history) return NULL;
+    return history[index];
+}
+
 int linenoiseHistorySetMaxLen(int len) {
     char **new;
 
