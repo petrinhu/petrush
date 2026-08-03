@@ -33,7 +33,8 @@ run_smoke() {
 }
 
 # Basic commands (≥12 total coverage target: builtins, external, errors, signals-ish, pudo)
-run_smoke "pwd" "/home/" "pwd builtin (prints cwd)"
+# Caminho absoluto qualquer (CI Fedora/GHA roda em /__w/... ou /github/workspace, não /home/)
+run_smoke "pwd" "/" "pwd builtin (prints cwd)"
 run_smoke "echo hello world" "hello world" "echo builtin"
 run_smoke "help" "Comandos embutidos disponíveis" "help builtin"
 # Não dumpa env inteiro (evita vazar secrets no log de CI); só checa prefixo
