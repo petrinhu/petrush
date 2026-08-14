@@ -1,141 +1,91 @@
-# petrush — Planejamento e Pendências
+# petrush - Planejamento e Pendências
 
-**Shell interativo em C23** (Opção A escolhida em 2026-05-27: "opcao a").
+**Shell interativo em C23** (Opção A, 2026-05-27): prompt persistente, comandos externos + builtins, history, rc, sinais. Zero deps runtime.
 
-Prompt persistente, execução de comandos externos + builtins, history, rc, sinais. Ferramenta pessoal de alta qualidade, zero deps runtime.
+Tabela canônica de 9 colunas (`tab_pendencias` v1.0.2). Ordem das linhas = ordem de execução. `Onda` agrupa o que pode rodar em paralelo.
 
-**Escolha de arquitetura final**: Opção A — Shell Interativo REPL clássico.
+## Gate Cosimo (2026-08-14, `/bigtech` + `--reorder`)
 
----
+- **Porte:** early. **Variante:** Pipeline-Sprint. Marcador: `.bigtech-porte`.
+- **C-levels desta auditoria:** Celso (aceite no fim), Caetano (técnico), Narciso (só `pudo`/`pudod`).
+- **Dormentes:** Capitolino, Camilo, Cosmo, Cândido, Caio, Confúcio, Cícero, Cláudio.
+- **Ops:** security-engineer (relatório em `/var/tmp/petrush-audit-20260814/security.md`). Caetano/QA/Narciso em persona: 402 no spawn; recorte fechado na thread e gravado no mesmo scratch.
+- **TDD:** hook `.claude/tdd-guard.json` ausente (T1 fora da tabela).
+- **Setuid:** continua gate humano (`DEPLOY_CHECKLIST`). Esta passada **não** endossa 4755.
 
-## Auditoria C-Level (Jun 2026) — Cosimo + Tech Lead
+Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX: [`docs/plan-implementacao-roi.md`](docs/plan-implementacao-roi.md). Snapshot AppSec: `/var/tmp/petrush-audit-20260814/`.
 
-**Classificação oficial (Cosimo):**  
-**PORTE: Solo / pessoal | VARIANTE: Pipeline-Sprint** (anti-OE máximo).
+| ID | Onda | Grupo | Descrição Técnica | Prioridade | Pré-requisito | Dificuldade | Status | Estado Auditado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| NEW-03 | — | Fundação | Decidir 4 camadas: pragmático (Opção 2): lógicas em `docs/architecture.md`; código em mid/foundation; front/back placeholders. | Alta | — | Média | ✅ Concluído | — |
+| NEW-01 | — | Fundação | Fix parser realloc argv NULL terminator (risco OOB em falha de memória). | Alta | — | Baixa | ✅ Concluído | — |
+| PR-07 | — | MVP | ENV + `~/.petrushrc` + history persistente (`load_rc`, linenoiseHistory) + TDD parcial (`test_env`). | Alta | NEW-03 | Média | ✅ Concluído | — |
+| PR-08 | — | MVP | Builtins restantes (`export`, `unset`, `env`, `history`, `clear`) + Rule of 3. | Alta | PR-07 | Média | ✅ Concluído | — |
+| PR-09 | — | MVP | Sinais robustos no REPL (SIGINT graceful + linenoise + EINTR). | Alta | PR-07 | Média | ✅ Concluído | — |
+| NEW-05 | — | Segurança | Auditoria `pudo` + helper setuid mínimo (`pudod`, allow-list, env limpo). Setuid em sistema ainda é do líder (`DEPLOY_CHECKLIST`). Snapshot 2026-08-14: residual `unsetenv` no pai, path relativo, example amplo, truncamento de argv. | Alta | — | Alta | ✅ Concluído | ⚠ |
+| NEW-02 | — | Qualidade | Tune `.clang-tidy` + expand target para todo `src/` (supressões C seguro documentadas). | Média | NEW-03 | Média | ✅ Concluído | — |
+| NEW-04 | — | Testes | TDD + unitários (dispatcher, env, signals, rc, history, integração). | Alta | PR-08, PR-09 | Alta | ✅ Concluído | — |
+| NEW-14 | — | Testes | Smoke ≥12 comandos (builtins/externos/erros 126-127/sinais/`pudo`); target CMake `smoke`. | Alta | NEW-04 | Média | ✅ Concluído | — |
+| PR-10 | — | Gate | Gate S0: Sanitize + ctest + lint + smoke + valgrind (`verify` ALL). | Alta | NEW-02, NEW-14, NEW-05 | Alta | ✅ Concluído | — |
+| NEW-16 | — | Build | CMake: isolamento de testes, targets `smoke` / `verify` / `pudod-valgrind`. | Média | PR-10 | Média | ✅ Concluído | — |
+| NEW-18 | — | Release | Tag S0 `v0.1.0` + README/TODO/CHANGELOG. | Alta | PR-10 | Baixa | ✅ Concluído | — |
+| PR-12 | — | Docs | README final (pt-br + en, build, exemplos, não-objetivos v0.1). | Média | NEW-18 | Baixa | ✅ Concluído | — |
+| NEW-10 | — | CI | Expandir cppcheck/clang-tidy + valgrind no workflow (entregue em paralelo com PR-11). | Média | NEW-18 | Média | ✅ Concluído | — |
+| NEW-12 | — | Docs | Design doc de `pudo` versionado em `docs/design/pudo.md`. | Baixa | NEW-05 | Baixa | ✅ Concluído | — |
+| NEW-13 | — | Docs | Wiki GitHub + `docs/beginner-guide.md` para iniciante (jargão, passo a passo). Via technical-writer/ux-writer. Publicada 2026-08-03. | Média | PR-12 | Alta | ✅ Concluído | — |
+| NEW-19 | — | Roadmap | Builtin diagnóstico `info` (placeholder v0.1). | Baixa | NEW-18 | Baixa | ✅ Concluído | — |
+| NEW-21 | — | Processo | Re-avaliação de porte. Early/Pipeline-Sprint mantido. | Baixa | NEW-18 | Baixa | ✅ Concluído | — |
+| CB-01 | — | Ops | Host canônico = só GitHub. Codeberg/Forgejo fora de uso (política 2026-07-25). Não há pendência de arquivo no site. | Baixa | — | Baixa | ✅ Concluído | — |
+| UX-15 | W1 | Shell | Prompt escapes `\w` `\u` `\h` `\n` `\$` `\\` em `PETRUSH_PS1`. WIP na working tree (não está no blob HEAD). | Alta | — | Baixa | 🔄 Em andamento | — |
+| PR-11 | W1 | CI | `.github/workflows/ci.yml` (Fedora 44 × clang/gcc × Debug/Release + smoke; F45 experimental). Espelho remoto. Builds pesados no container local `fedora:44`. | Alta | — | Média | 🔍 Pendente verificação | — |
+| NEW-20 | W1 | Shell | Pipes `\|` + redir `>` `>>` `<` (mínimo v0.2.0). Scripting/background/`2>` fora (UX-16/UX-22/UX-23). | Alta | — | Média | 🔍 Pendente verificação | — |
+| SEC-01 | W1 | Segurança | Remover `unsetenv` no processo `petrush` após `pudo` (`src/mid/pudo.c` `sanitize_environment` / `pudo_sanitize_environment`). Confiar só em `build_clean_envp` + sanitize no `pudod`. Residual do `pudo-audit.md` (claim “sem mutação persistente” é falso). | Alta | — | Baixa | ⏳ Pendente | — |
+| UX-16 | W2 | Shell | Redirecionamento de stderr: `2>` `2>>` `2>&1` `&>`. | Alta | UX-15 | Média | ⏳ Pendente | — |
+| NEW-22 | W2 | Processo | Confirmar retroativamente o escopo da Onda 3 (NEW-20 mínimo) com o líder. | Baixa | NEW-20 | Baixa | ⏳ Pendente | — |
+| SEC-02 | W2 | Segurança | Em Release/install, path do `pudod` só absoluto (`PUDOD_INSTALL_PATH` / `/usr/local/libexec/petrush-pudod`). Fallbacks `build/pudod`, `./pudod` e `access("pudod")` só em debug. | Alta | — | Média | ⏳ Pendente | — |
+| SEC-03 | W2 | Segurança | Encolher `src/pudod/pudo.allow.example` a 2–3 comandos inocentes (`id`, `whoami`, `true`). Tirar apt/dnf/systemctl/passwd/cat do exemplo ativo. | Média | — | Baixa | ⏳ Pendente | — |
+| SEC-04 | W2 | Segurança | Fail closed se `argc` exceder `MAX_ARGS` / `pudod_argv[128]` (hoje trunca em silêncio). | Média | — | Baixa | ⏳ Pendente | — |
+| SEC-05 | W2 | Segurança | Load da allow-list: se `realpath` falhar, não aceitar o literal (`pudod.c` ~L142–148). | Média | — | Baixa | ⏳ Pendente | — |
+| DOC-01 | W2 | Docs | Atualizar `docs/architecture.md`: Front já tem `complete.c`; prosa “porte Solo” é informal (piso early). | Baixa | — | Baixa | ⏳ Pendente | — |
+| UX-17 | W3 | Shell | Lista sequencial `;` (`a; b` sempre roda `b`). | Média | UX-16 | Baixa | ⏳ Pendente | — |
+| UX-18 | W4 | Shell | Glob simples `*` `?` só em tokens unquoted. | Média | UX-17 | Média | ⏳ Pendente | — |
+| UX-19 | W5 | Shell | Builtins no pipe (subshell-like). | Média | UX-18 | Média | ⏳ Pendente | — |
+| UX-20 | W6 | Shell | Ctrl-R history search. Patch mínimo no linenoise; se a API bloquear, documentar degradação (setas + hints + `!!`) e seguir. | Média | UX-19 | Alta | ⏳ Pendente | — |
+| UX-21 | W7 | Shell | Syntax highlight mínimo (aspas não fechadas / token grosso; não full highlighter). | Baixa | UX-20 | Alta | ⏳ Pendente | — |
+| UX-22 | W8 | Shell | `source` / `.`: rodar arquivo linha a linha. | Baixa | UX-21 | Média | ⏳ Pendente | — |
+| UX-23 | W9 | Shell | Background `&` + job control mínimo. | Baixa | UX-22 | Alta | ⏳ Pendente | — |
+| TST-T2 | W10 | Testes | Análise estática (cppcheck + clang-tidy). Ver `TESTES.md`. | Alta | UX-23 | Média | ⏳ Pendente | — |
+| TST-T3 | W10 | Testes | Fuzzing de inputs (parser / expand / prompt). Ver `TESTES.md`. | Média | UX-23 | Alta | ⏳ Pendente | — |
+| TST-T4 | W10 | Testes | Análise dinâmica de memória (ASan + UBSan + valgrind). Ver `TESTES.md`. | Alta | UX-23 | Média | ⏳ Pendente | — |
+| TST-T5 | W10 | Testes | Scanning de dependências (trivy/grype). Ver `TESTES.md`. | Média | UX-23 | Baixa | ⏳ Pendente | — |
+| TST-T7 | W10 | Testes | Scanning de binário (checksec / hardening-check). Ver `TESTES.md`. | Média | UX-23 | Baixa | ⏳ Pendente | — |
+| TST-T8 | W10 | Testes | Verificação de secrets (gitleaks/trufflehog). Ver `TESTES.md`. | Alta | UX-23 | Baixa | ⏳ Pendente | — |
+| TST-T12 | W10 | Testes | Busca de CVEs nas deps/toolchain. Ver `TESTES.md`. | Média | UX-23 | Baixa | ⏳ Pendente | — |
+| TST-T14 | W10 | Testes | Integração fim-a-fim (smoke). Ver `TESTES.md`. | Alta | UX-23 | Média | ⏳ Pendente | — |
+| TST-T15 | W10 | Testes | Pré-CI no container local Fedora 44 (mesma imagem do `ci.yml`): build + lint + smoke + valgrind/`verify`. GHA é o espelho remoto, não o caminho pesado. Ver `TESTES.md`. | Alta | UX-23 | Baixa | ⏳ Pendente | — |
+| AUD-DISC | W11 | Auditoria | Descoberta e modelagem de ameaça. Ver `AUDITORIAS.md`. | Alta | TST-T2, TST-T4, TST-T8, TST-T14, TST-T15 | Média | ⏳ Pendente | — |
+| AUD-ARCH | W11 | Auditoria | Arquitetura e 4 camadas. Ver `AUDITORIAS.md`. | Alta | TST-T2, TST-T4, TST-T8, TST-T14, TST-T15 | Média | ⏳ Pendente | — |
+| AUD-SEC | W11 | Auditoria | Segurança (memory safety, secrets, `pudod`, binário). Ver `AUDITORIAS.md`. | Alta | TST-T2, TST-T4, TST-T7, TST-T8, TST-T12 | Alta | ⏳ Pendente | — |
+| AUD-QUALITY | W11 | Auditoria | Qualidade de código (complexidade, dead code, Rule of 3). Ver `AUDITORIAS.md`. | Média | TST-T2, TST-T14 | Média | ⏳ Pendente | — |
+| AUD-COV | W11 | Auditoria | Cobertura nos módulos críticos. Ver `AUDITORIAS.md`. | Média | TST-T14 | Média | ⏳ Pendente | — |
+| AUD-DEPS | W11 | Auditoria | Dependências e acoplamento (linenoise + camadas). Ver `AUDITORIAS.md`. | Baixa | TST-T5, TST-T12 | Baixa | ⏳ Pendente | — |
+| AUD-LANG | W11 | Auditoria | Idioms C23. Ver `AUDITORIAS.md`. | Baixa | TST-T2 | Baixa | ⏳ Pendente | — |
+| AUD-REPORT | W12 | Auditoria | Relatório final (score 0-100, patches). Ver `AUDITORIAS.md`. | Alta | AUD-DISC, AUD-ARCH, AUD-SEC, AUD-QUALITY, AUD-COV, AUD-DEPS, AUD-LANG | Média | ⏳ Pendente | — |
+| NEW-23 | W13 | Docs | Atualizar Wiki GitHub + `docs/beginner-guide.md` após a próxima tag (`v0.4` se UX-12..18; `v0.5` se até UX-23). Execução via technical-writer/ux-writer. | Baixa | AUD-REPORT | Média | ⏳ Pendente | — |
 
-**C-LEVELS ATIVOS:**  
-- Celso (CEO) — go/no-go por onda e decisões de altíssimo valor  
-- Caetano (CTO) — arquitetura mínima, 4 camadas, build/lint/hardening, decisões técnicas  
-- Narciso (CISO) — **somente** para tudo que toca `pudo`/segurança/privilegiado (ativar explicitamente)
+## INBOX (descobertas não priorizadas)
 
-**AGENTS OPERACIONAIS ATIVOS:** software-architect, qa-engineer, technical-writer/ux-writer (docs + wiki iniciante — execução exclusiva deles).
+*(vazia.)*
 
-**Resultado da auditoria (resumo executivo):**
-- Core foundation (process + job control) está **excelente**.
-- 4 camadas violadas na prática (front/ e back/ vazios) → maior débito técnico atual.
-- `pudo`: design correto (helper setuid separado), mas código + integração ainda precisa de auditoria pesada de segurança.
-- clang-tidy extremamente barulhento (snprintf/fprintf/memset "inseguros") → bloqueia PR-10.
-- Parser realloc tem path de erro com risco de OOB write.
-- TDD parcial, testes de integração/smoke insuficientes.
-- PR-10 é o gargalo lógico atual.
+## Notas de ordenação (WSJF qualitativo, early)
 
-**Recomendação forte:** Não adicionar features novas significativas antes de resolver layering + lint noise + gate PR-10.
+- Fundação e gates já entregues ficam no topo com `Onda —` (histórico; IDs e Status preservados).
+- **W1** fecha o fogo: UX-15 (WIP, só tree), PR-11 e NEW-20 (`🔍`), mais SEC-01 (bug vivo: `unsetenv` no pai).
+- **W2** mistura UX-16 + cluster pré-setuid (SEC-02..05) + DOC-01 + NEW-22. Não bloqueia a fila ROI.
+- **W3..W9** = UX-17..23 (ROI). Gate entre fatias: container local Fedora 44, não GHA pesado.
+- **W10** TST-\* (T1 nunca é item). Snapshot 14/08 não fecha esses IDs (ferramentas canônicas não rodaram).
+- **W11..W12** AUD-\*. **W13** NEW-23 wiki pós-tag.
+- Fora: UX-24/25/26; CVE-2025-9810 (já `fchmod` no vendor); setuid no host; reabrir Opção A.
+- Exec-without-fork do `pudo` = residual consciente (documentar se doer), não item novo.
 
----
-
-## Ondas de Execução (Pipeline-Sprint adaptado para Solo)
-
-### Onda 0 — Preparação Imediata (Concluída / em fechamento)
-- Classificação de porte + mapa de ativação (Cosimo)
-- Commit do estado atual (incluindo código de `pudo` + design doc)
-- Fix rápido de parser realloc (NEW-01)
-
-**Status:** Quase toda (PR-01 a PR-06 + job control) já entregue com qualidade.
-
----
-
-### Onda 1 — Core MVP + Gate S0 (Prioridade Máxima)
-
-**Gate de saída da onda:**  
-Build Sanitize limpo + todos os testes passando + lint verde (após tune) + smoke manual documentado de ≥12 comandos + valgrind nos caminhos críticos. ✅ **ALCANCEADO** (via automação + NEW-18 tag).
-
-| ID       | Fase     | Descrição Técnica                                                                 | Responsável Principal              | Paralelismo com          | Status      |
-|----------|----------|-----------------------------------------------------------------------------------|------------------------------------|--------------------------|-------------|
-| NEW-03   | 1.1      | Decidir e alinhar 4 camadas (popular front/back ou colapsar pragmaticamente + atualizar CMake/docs) | Caetano (CTO) + software-architect | —                        | ✅ Pragmático escolhido (Opção 2): camadas lógicas documentadas em docs/architecture.md. Código mantido em mid/foundation para anti-OE; front/back como placeholders com READMEs. |
-| NEW-01   | 1.1      | Fix parser realloc argv NULL terminator (risco OOB em falha de memória)           | Engineer (Caetano oversight)       | Com 1.3                  | ✅ Implementado e verificado (parser fix + tests passing). |
-| PR-07    | 1.2      | ENV + ~/.petrushrc + history persistente completo (TDD)                           | Caetano + petrus                   | Com 1.3, 1.4             | ✅ Código em main.c (load_rc, linenoiseHistory*) + foundation/env + TDD parcial (test_env). Smoke cobre. |
-| PR-08    | 1.2      | Builtins restantes (export, unset, env, history, clear) + refactor Rule of 3      | Caetano                            | Com 1.3, 1.4             | ✅ Todos em dispatcher.c (builtin_* + table). Rule of 3 via free em parser/cmd. |
-| PR-09    | 1.2      | Sinais robustos no loop REPL principal (SIGINT graceful + linenoise)              | Caetano                            | Com 1.3, 1.4             | ✅ Em main.c (sigaction, handlers para EINTR/terminate, linenoise). |
-| NEW-05   | 1.3      | Auditoria completa de segurança do `pudo` + implementação do helper setuid mínimo | **Narciso (CISO)** + security-aware engineer | Isolado (gate obrigatório) | ✅ pudod completo (allow-list root-only + canonicalização + env limpo) + automação gate (target 'verify' faz build + lint + smoke integrado + valgrind). Docs + testes sem root. Aguardando revisão/aprovação manual para setuid. |
-| NEW-02   | 1.4      | Tune .clang-tidy + expand target para todo src/ (supressões documentadas para padrões C seguros) | Caetano + qa-engineer         | Com 1.1–1.3              | ✅ Implementado e verificado (lint clean, targets expanded, suppressions). |
-| NEW-04   | 1.5      | TDD + testes unitários completos (dispatcher, env, signals, rc, history, integração) | qa-engineer                   | Forte com 1.1–1.4        | ✅ test_env + test_info + test_pudo + test_parser + test_process + smoke (cobre env, info/Onda3, pudo, parser, process, builtins, rc/history via integration). |
-| NEW-14   | 1.5      | Smoke test automation/script (≥12 comandos cobrindo builtins/externos/erros 126-127/sinais/`pudo`) | qa-engineer                  | Com 1.5                  | ✅ Implementado (tests/smoke/pudo-smoke.sh com ≥13 cmds + pud o integrado + target 'smoke' no CMake). Parte do gate automatizado. |
-| PR-10    | 1.6      | **Gate S0 completo** (Sanitize limpo + ctest + lint verde + smoke + valgrind)     | qa-engineer + petrus               | Após 1.1–1.5             | ✅ Pronto via target 'verify' (ALL): build + lint + smoke + pudod-valgrind. 'cmake --build build' executa o gate automaticamente. |
-| NEW-16   | 1.6      | Melhorias no CMake (melhor isolamento de testes, targets de smoke/valgrind)       | Caetano                            | Com 1.4, 1.6             | ✅ Implementado (targets: clean-build, smoke, verify (ALL + gate), pudod-valgrind; pudod isolado de sanitize). |
-| NEW-18   | 1.7      | Tag S0 + atualização de status (README, TODO, changelog)                          | petrus + Celso (go/no-go)          | Final da onda            | ✅ Tag v0.1.0-S0 aplicada (local), README/TODO/CHANGELOG atualizados. Onda 1 gate closed. |
-
-**Paralelismo controlado:** Layering (1.1) e lint (1.4) devem guiar o trabalho de 1.2. `pudo` (1.3) é isolado com gate de segurança explícito de Narciso.
-
----
-
-### Onda 2 — CI, Documentação e Polish (pós tag S0)
-
-| ID       | Fase     | Descrição Técnica                                                                 | Responsável Principal         | Paralelismo          | Status      |
-|----------|----------|-----------------------------------------------------------------------------------|-------------------------------|----------------------|-------------|
-| PR-11    | 2.1      | `.github/workflows/ci.yml` (Fedora 44 container + clang/gcc matrix)   | Caetano / devops light        | Com 2.2              | 🔍 CI verde em `22bd6a7` (Fedora 44 × clang/gcc × Debug/Release + smoke). Job F45 experimental. |
-| PR-12    | 2.2      | README final (pt-br + en, build testado, exemplos, não-objetivos v0.1)            | technical-writer + petrus     | Forte                | ✅ README polido (build, exemplos, verify, segurança, links para docs iniciante). |
-| NEW-13   | 2.3      | **Wiki GitHub + docs .md extensas para iniciante em computação** (explica TODO jargão: REPL, fork/exec, termios, setpgid, ASan, hardening, parser, dispatcher, `pudo`, sinais etc.; passo a passo; sem assumir conhecimento). Execução **obrigatória** via technical-writer/ux-writer. Último item da tabela. | technical-writer / ux-writer | Com 2.1–2.2          | ✅ docs/beginner-guide.md + wiki https://github.com/petrinhu/petrush/wiki publicada 2026-08-03. |
-| NEW-10   | 2.4      | Expandir cppcheck/clang-tidy + valgrind no CI                                     | qa-engineer + Caetano         | Com 2.1              | ✅ Concluído no workflow (matrix clang/gcc, lint, valgrind, smoke, verify). |
-| NEW-12   | 2.2      | Mover design doc de `pudo` para docs/ (versionado)                                | technical-writer              | —                    | ✅ docs/design/pudo.md versionado (já estava em docs/, audit e install atualizados). |
-
-**Gate de saída da Onda 2:** Documentação completa + CI verde + wiki publicada. ✅ **ONDA 2 COMPLETA**. CI com matrix + smoke/valgrind/verify, README final, beginner docs extensos (NEW-13), design docs organizados. Wiki pronta para publish no GitHub.
-
----
-
-### Onda 3 — Futuro / Re-roteamento
-
-| ID       | Fase     | Descrição Técnica                                                                 | Responsável Principal         | Paralelismo          | Status      |
-|----------|----------|-----------------------------------------------------------------------------------|-------------------------------|----------------------|-------------|
-| NEW-19   | 3.1      | Builtins diagnósticos básicos (info, version, status) - placeholder (só se Caio ativa) | Caetano + Caio (se ativado)   | —                    | ✅ Placeholder `info` (v0.1). |
-| NEW-20   | 3.2      | Features avançadas (pipes, redirecionamento, scripting leve) — só com ROI comprovado | Caetano                       | —                    | 🔍 v0.2.0: pipes `\|` + redir `>` `>>` `<` (mínimo). Scripting/background/2> fora. Demanda=líder modo autônomo 2026-08-03. |
-| NEW-21   | 3.3      | Re-avaliação de porte e ativação de C-levels se crescer                          | Cosimo                        | —                    | ✅ Solo mantido (roadmap). |
-
-**Gate Onda 3 (parcial v0.2):** demanda do líder + implementação mínima pipes/redir + testes/smoke. Scripting adiado.
-
----
-
-## Decisões registradas (2026-05-27 + atualizações Jun/2026)
-
-- **Opção A** (Shell Interativo REPL) escolhida explicitamente.
-- Regra de processo: sempre apresentar opções de design/arquitetura antes de decidir (ver CLAUDE.md do projeto).
-- Repo: git@github.com:petrinhu/petrush.git (GitHub; único host desde 2026-07-25).
-- Stack: C23 + CMake + hardening completo + análise estática + TDD parcial + 4 camadas (pragmáticas).
-- **Licença**: GNU Affero General Public License v3.0 (AGPL-3.0).
-- Linenoize embutido.
-- **Jun/2026 (Cosimo):** `pudo` ativa Narciso independentemente do porte (exceção de criticidade).
-- **Jul/2026 (YOLO):** Onda 1/2/3 completas. S0 (v0.1.0) tag. Onda 3 planejamento + placeholder (info) - sem features avançadas (anti-OE).
-
-## Anti-over-engineering (válido para todo o projeto)
-
-- v0.2: pipes `|` e redir `>`/`>>`/`<` (NEW-20 mínimo). Ainda sem background `&`, globbing, `2>`, scripting de arquivo, builtins no meio de pipe.
-- Parser simples (Rule of 3).
-- Framework de testes: acutest.h.
-- Nenhum builtin diagnóstico "petrush" no MVP.
-
----
-
-## Itens Históricos (PRs originais — para referência)
-
-A maioria dos PR-01 a PR-06 já foram entregues com qualidade. Ver commits no repositório.
-
----
-
-**Próximo passo imediato (recomendação de Cosimo + Tech Lead) — atualizado:**
-
-**Onda 1 + Onda 2 + Onda 3 COMPLETOS** (NEW-18/20/21 incluídos).
-
-- NEW-18: Tag S0 (v0.1.0) + CHANGELOG + updates feitos.
-- Onda 3: planejamento + roadmap + placeholder. Sem features avançadas (anti-OE).
-
-Ações (2026-08-03 modo autônomo 1+3+4):
-1. ✅ Wiki GitHub publicada.
-2. ✅ `.forgejo/` local removido.
-3. ✅ NEW-20 mínimo (pipes + redir) em v0.2.0.
-4. Arquivar repo Codeberg (manual, líder).
-5. Confirmar retroativamente escopo Onda 3 com líder.
-
-**Status:** Onda 1 ✅ · Onda 2 ✅ · Onda 3 🔍 (NEW-20 parcial em verificação pós-push/CI).
-
----
-
-*Atualizado 03/08/2026 — v0.2.0 Onda 3 mínima + wiki + limpeza forgejo.*
+*Atualizado 14/08/2026: `/bigtech` auditoria snapshot + itens SEC-01..05 / DOC-01.*

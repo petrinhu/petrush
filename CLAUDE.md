@@ -81,7 +81,7 @@ Ao relatar trabalho de código: dizer explicitamente **qual teste ficou vermelho
 - Link oficial: https://www.gnu.org/licenses/agpl-3.0.html
 
 ## Pendências
-A tabela de planejamento vive em `TODO.md` na raiz (formato da skill `tab_pendencias`).
+A tabela de pendências e planejamento do projeto está em `TODO.md` na raiz (ordenada por execução, coluna Onda marca passos paralelizáveis).
 
 ## Referências rápidas
 - Standards vault (5 manuais): [`docs/standards.md`](docs/standards.md).
