@@ -7,8 +7,8 @@
  * Arquitetura de segurança (Fase 1):
  * - Este código roda como o usuário normal (nunca privilegiado).
  * - Toda elevação de privilégio é delegada ao binário separado `pudod`.
- * - Aqui fazemos: parsing, policy client-side, sanitização de ambiente,
- *   logging e preparação de argv seguro para o pudod.
+ * - Aqui fazemos: parsing, policy client-side, logging e argv/envp
+ *   limpos só no execve do filho (não mutar o ambiente do petrush).
  *
  * O pudod (em src/pudod/) é o único componente que roda com privilégios.
  * Ele re-valida TUDO.
@@ -49,7 +49,6 @@ static pudo_config_t g_pudo_config = {0};
 static int load_pudo_config(pudo_config_t *cfg);
 static void free_pudo_config(pudo_config_t *cfg);
 static int is_command_allowed(const char *cmd);
-static int sanitize_environment(void);
 static int run_via_pudod(petrush_cmd_t *cmd);
 
 /* ========================== LOGGING BÁSICO (auditoria) ========================== */
@@ -105,13 +104,7 @@ int builtin_pudo(petrush_cmd_t *cmd)
         return 0;
     }
 
-    /* Sanitização forte de ambiente (importante para segurança) */
-    if (sanitize_environment() != 0) {
-        fprintf(stderr, "pudo: falha na sanitização de ambiente\n");
-        free_pudo_config(&g_pudo_config);
-        closelog();
-        return 1;
-    }
+    /* SEC-01: não unsetenv no processo petrush. Filho recebe build_clean_envp(). */
 
     /* Verifica se o comando está na allow-list (se configurada) */
     const char *target_cmd = cmd->argv[arg_start];
@@ -318,12 +311,6 @@ int pudo_sanitize_environment(void)
     }
 
     return failed ? -1 : 0;
-}
-
-/* Versão interna usada pelo builtin (mantém compat com testes) */
-static int sanitize_environment(void)
-{
-    return pudo_sanitize_environment();
 }
 
 /*

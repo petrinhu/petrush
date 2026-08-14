@@ -9,10 +9,12 @@
 #include "petrush/pudo.h"
 #include "petrush/env.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 /* ===================== TESTES DE SEGURANÇA - ENVIRONMENT ===================== */
@@ -97,6 +99,48 @@ void test_pudo_uses_argv_not_shell(void)
 
 /* ===================== TESTES DO HELPER PUDOD (sem root) ===================== */
 
+void test_pudo_builtin_does_not_mutate_parent_env(void)
+{
+    /* SEC-01: allow-list client recusa depois do sanitize. O pai tem de
+     * conservar LD_PRELOAD (clean_envp só no execve do filho). */
+    char tmpl[] = "/var/tmp/petrush-sec01-XXXXXX";
+    char *dir = mkdtemp(tmpl);
+    TEST_CHECK(dir != NULL);
+    if (!dir) return;
+
+    char cfgdir[PATH_MAX];
+    char cfgfile[PATH_MAX];
+    snprintf(cfgdir, sizeof(cfgdir), "%s/.config", dir);
+    TEST_CHECK(mkdir(cfgdir, 0700) == 0 || errno == EEXIST);
+    snprintf(cfgdir, sizeof(cfgdir), "%s/.config/petrush", dir);
+    TEST_CHECK(mkdir(cfgdir, 0700) == 0 || errno == EEXIST);
+    snprintf(cfgfile, sizeof(cfgfile), "%s/.config/petrush/pudo.conf", dir);
+    FILE *cf = fopen(cfgfile, "w");
+    TEST_CHECK(cf != NULL);
+    if (!cf) return;
+    fputs("/usr/bin/true\n", cf);
+    fclose(cf);
+
+    setenv("HOME", dir, 1);
+    setenv("LD_PRELOAD", "/tmp/sec01-evil.so", 1);
+
+    petrush_cmd_t cmd = {0};
+    int prc = petrush_parse("pudo /usr/bin/id", &cmd);
+    TEST_CHECK(prc == 0);
+    if (prc != 0) return;
+
+    (void)builtin_pudo(&cmd);
+    petrush_cmd_free(&cmd);
+
+    const char *left = petrush_getenv("LD_PRELOAD");
+    TEST_CHECK(left != NULL);
+    if (left) {
+        TEST_CHECK(strcmp(left, "/tmp/sec01-evil.so") == 0);
+    }
+
+    unsetenv("LD_PRELOAD");
+}
+
 void test_pudod_binary_refuses_without_privileges(void)
 {
     /* Testa o helper diretamente: sem setuid/root ele deve falhar cedo
@@ -180,6 +224,7 @@ TEST_LIST = {
     { "security_env_multiple_dangerous",   test_pudo_sanitize_removes_multiple_dangerous_vars },
     { "pudo_config_and_allowed",           test_pudo_config_loading_and_allowed },
     { "pudo_uses_argv_not_shell",          test_pudo_uses_argv_not_shell },
+    { "pudo_parent_env_intact",            test_pudo_builtin_does_not_mutate_parent_env },
     { "pudod_refuses_without_privs",       test_pudod_binary_refuses_without_privileges },
     { NULL, NULL }
 };
