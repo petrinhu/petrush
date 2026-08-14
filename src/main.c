@@ -19,6 +19,7 @@
 #include "petrush/alias.h"
 #include "petrush/complete.h"
 #include "petrush/hist_expand.h"
+#include "petrush/prompt.h"
 #include "linenoise.h"
 
 /* Caminho padrão para histórico persistente */
@@ -191,10 +192,11 @@ int main(int argc, char *argv[])
     char *line;
     while (1) {
         errno = 0;
-        /* PETRUSH_PS1: prompt customizável (feature #4 da pesquisa UX) */
+        /* PETRUSH_PS1 + escapes \w \u \h \n \$ \\ (UX-15) */
         const char *ps1 = petrush_getenv("PETRUSH_PS1");
-        const char *prompt = (ps1 && ps1[0]) ? ps1 : "petrush> ";
-        line = linenoise(prompt);
+        char prompt_buf[512];
+        prompt_render(ps1, prompt_buf, sizeof(prompt_buf));
+        line = linenoise(prompt_buf);
 
         if (line == NULL) {
             if (errno == EINTR) {

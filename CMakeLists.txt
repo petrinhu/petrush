@@ -39,6 +39,7 @@ add_executable(petrush
     src/mid/dirstack.c
     src/mid/hist_expand.c
     src/mid/expand.c
+    src/mid/prompt.c
     src/front/complete.c
     src/foundation/process.c
     src/foundation/env.c
@@ -300,9 +301,24 @@ target_compile_options(test_expand PRIVATE
 )
 add_test(NAME test_expand COMMAND test_expand)
 
+# PS1 escapes (UX-15)
+add_executable(test_prompt
+    tests/test_prompt.c
+    src/mid/prompt.c
+    src/foundation/env.c
+)
+target_include_directories(test_prompt PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_options(test_prompt PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_prompt COMMAND test_prompt)
+
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_expand
+    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_expand test_prompt
     COMMENT "Executando todos os testes unitários"
 )
 

@@ -93,6 +93,6 @@ jobs:
       - name: Build Release gcc
         run: |
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
-          cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo test_alias test_complete test_dirstack test_hist_expand test_expand
+          cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo test_alias test_complete test_dirstack test_hist_expand test_expand test_prompt
           cmake --build build --target check
           bash tests/smoke/pudo-smoke.sh ./build/petrush

@@ -36,7 +36,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | NEW-19 | — | Roadmap | Builtin diagnóstico `info` (placeholder v0.1). | Baixa | NEW-18 | Baixa | ✅ Concluído | — |
 | NEW-21 | — | Processo | Re-avaliação de porte. Early/Pipeline-Sprint mantido. | Baixa | NEW-18 | Baixa | ✅ Concluído | — |
 | CB-01 | — | Ops | Host canônico = só GitHub. Codeberg/Forgejo fora de uso (política 2026-07-25). Não há pendência de arquivo no site. | Baixa | — | Baixa | ✅ Concluído | — |
-| UX-15 | W1 | Shell | Prompt escapes `\w` `\u` `\h` `\n` `\$` `\\` em `PETRUSH_PS1`. WIP na working tree (não está no blob HEAD). | Alta | — | Baixa | 🔄 Em andamento | — |
+| UX-15 | W1 | Shell | Prompt escapes `\w` `\u` `\h` `\n` `\$` `\\` em `PETRUSH_PS1`. `prompt_render` + `test_prompt` (10 casos). | Alta | — | Baixa | 🔍 Pendente verificação | — |
 | PR-11 | W1 | CI | `.github/workflows/ci.yml` (Fedora 44 × clang/gcc × Debug/Release + smoke; F45 experimental). Espelho remoto. Builds pesados no container local `fedora:44`. | Alta | — | Média | 🔍 Pendente verificação | — |
 | NEW-20 | W1 | Shell | Pipes `\|` + redir `>` `>>` `<` (mínimo v0.2.0). Scripting/background/`2>` fora (UX-16/UX-22/UX-23). | Alta | — | Média | 🔍 Pendente verificação | — |
 | SEC-01 | W1 | Segurança | Remover `unsetenv` no processo `petrush` após `pudo` (`src/mid/pudo.c` `sanitize_environment` / `pudo_sanitize_environment`). Confiar só em `build_clean_envp` + sanitize no `pudod`. Residual do `pudo-audit.md` (claim “sem mutação persistente” é falso). | Alta | — | Baixa | ⏳ Pendente | — |
