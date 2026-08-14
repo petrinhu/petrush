@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2.0] - 2026-08-14
+
 ### Added
 - **PETRUSH_PS1 escapes** `\w` `\u` `\h` `\n` `\$` `\\` (UX-15). Default continua `petrush> `.
+- Tilde `~` / `$VAR` (UX-12/13) e `cd -` (UX-14), já no `main` sem tag.
+
+### Fixed
+- Smoke `echo ~` no GitHub Actions (`HOME=/github/home`).
 
 ## [0.3.1] - 2026-08-03 - pushd/popd + history bangs
 
@@ -90,6 +96,7 @@ Pesquisa: Fish/Zsh/Bash — autosuggest, tab-complete, prompt, aliases, `&&`/`||
 - License: GNU Affero General Public License v3.0 (AGPL-3.0)
 - Host: GitHub (`petrinhu/petrush`); Codeberg/Forgejo deprecado
 
+[0.3.2.0]: https://github.com/petrinhu/petrush/releases/tag/v0.3.2.0
 [0.3.1]: https://github.com/petrinhu/petrush/releases/tag/v0.3.1
 [0.3.0]: https://github.com/petrinhu/petrush/releases/tag/v0.3.0
 [0.2.0]: https://github.com/petrinhu/petrush/releases/tag/v0.2.0

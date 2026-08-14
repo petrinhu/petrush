@@ -51,7 +51,8 @@ run_smoke "ls /nonexistentdir12345" "não foi possível acessar|No such file|nã
 run_smoke "info" "petrush 0\\.|C23 REPL|Build:" "info builtin (Onda 3 diagnostic)"
 run_smoke "alias ll=ls" "saindo|petrush 0\\." "alias define"
 run_smoke "which pwd" "builtin" "which builtin"
-run_smoke "echo ~" "/home/|/root|/Users" "tilde expand"
+# GHA Fedora: HOME=/github/home (não casa /home/)
+run_smoke "echo ~" "/home/|/root|/Users|/github/home" "tilde expand"
 run_smoke "export PETRUSH_SMOKE_V=xyz99" "saindo|petrush 0\\." "export for var expand"
 # var expand needs same process — multi-line
 echo "=== SMOKE: dollar VAR expand ==="
