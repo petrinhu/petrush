@@ -15,6 +15,23 @@ Tabela canônica de 9 colunas (`tab_pendencias` v1.0.2). Ordem das linhas = orde
 
 Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX: [`docs/plan-implementacao-roi.md`](docs/plan-implementacao-roi.md). Snapshot AppSec: `/var/tmp/petrush-audit-20260814/`.
 
+## Notas de ordenação (WSJF qualitativo, early)
+
+- Fundação e gates já entregues ficam no topo com `Onda —` (histórico; IDs e Status preservados).
+- **W1** fecha o fogo: UX-15 (WIP, só tree), PR-11 e NEW-20 (`🔍`), mais SEC-01 (bug vivo: `unsetenv` no pai).
+- **W2** mistura UX-16 + cluster pré-setuid (SEC-02..05) + DOC-01 + NEW-22. Não bloqueia a fila ROI.
+- **W3..W9** = UX-17..23 (ROI). Gate entre fatias: container local Fedora 44, não GHA pesado.
+- **W10** TST-\* (T1 nunca é item). Snapshot 14/08 não fecha esses IDs (ferramentas canônicas não rodaram).
+- **W11..W12** AUD-\*. **W13** NEW-23 wiki pós-tag.
+- Fora: UX-24/25/26; CVE-2025-9810 (já `fchmod` no vendor); setuid no host; reabrir Opção A.
+- Exec-without-fork do `pudo` = residual consciente (documentar se doer), não item novo.
+
+*Atualizado 14/08/2026: `/bigtech` auditoria snapshot + itens SEC-01..05 / DOC-01.*
+
+## INBOX (descobertas não priorizadas)
+
+*(vazia.)*
+
 | ID | Onda | Grupo | Descrição Técnica | Prioridade | Pré-requisito | Dificuldade | Status | Estado Auditado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | NEW-03 | — | Fundação | Decidir 4 camadas: pragmático (Opção 2): lógicas em `docs/architecture.md`; código em mid/foundation; front/back placeholders. | Alta | — | Média | ✅ Concluído | — |
@@ -72,20 +89,3 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | AUD-LANG | W11 | Auditoria | Idioms C23. Ver `AUDITORIAS.md`. | Baixa | TST-T2 | Baixa | ⏳ Pendente | — |
 | AUD-REPORT | W12 | Auditoria | Relatório final (score 0-100, patches). Ver `AUDITORIAS.md`. | Alta | AUD-DISC, AUD-ARCH, AUD-SEC, AUD-QUALITY, AUD-COV, AUD-DEPS, AUD-LANG | Média | ⏳ Pendente | — |
 | NEW-23 | W13 | Docs | Atualizar Wiki GitHub + `docs/beginner-guide.md` após a próxima tag (`v0.4` se UX-12..18; `v0.5` se até UX-23). Execução via technical-writer/ux-writer. | Baixa | AUD-REPORT | Média | ⏳ Pendente | — |
-
-## INBOX (descobertas não priorizadas)
-
-*(vazia.)*
-
-## Notas de ordenação (WSJF qualitativo, early)
-
-- Fundação e gates já entregues ficam no topo com `Onda —` (histórico; IDs e Status preservados).
-- **W1** fecha o fogo: UX-15 (WIP, só tree), PR-11 e NEW-20 (`🔍`), mais SEC-01 (bug vivo: `unsetenv` no pai).
-- **W2** mistura UX-16 + cluster pré-setuid (SEC-02..05) + DOC-01 + NEW-22. Não bloqueia a fila ROI.
-- **W3..W9** = UX-17..23 (ROI). Gate entre fatias: container local Fedora 44, não GHA pesado.
-- **W10** TST-\* (T1 nunca é item). Snapshot 14/08 não fecha esses IDs (ferramentas canônicas não rodaram).
-- **W11..W12** AUD-\*. **W13** NEW-23 wiki pós-tag.
-- Fora: UX-24/25/26; CVE-2025-9810 (já `fchmod` no vendor); setuid no host; reabrir Opção A.
-- Exec-without-fork do `pudo` = residual consciente (documentar se doer), não item novo.
-
-*Atualizado 14/08/2026: `/bigtech` auditoria snapshot + itens SEC-01..05 / DOC-01.*
