@@ -4,7 +4,8 @@
  * Onda 3 (NEW-20, decisão autônoma 2026-08-03):
  * - pipes `|`
  * - redirecionamento `>`, `>>`, `<`
- * NÃO: background `&`, `2>`, globbing, scripting de arquivo.
+ * UX-16: `2>`, `2>>`, `2>&1`, `&>`
+ * NÃO: background `&`, `2>&N` genérico, globbing, scripting de arquivo.
  */
 
 #ifndef PETRUSH_PARSER_H
@@ -19,6 +20,9 @@ typedef struct {
     char *redir_in;    /* caminho de `< file` (owned) ou NULL */
     char *redir_out;   /* caminho de `> file` / `>> file` (owned) ou NULL */
     int redir_append;  /* 1 se stdout for `>>` */
+    char *redir_err;        /* path 2> / 2>>; NULL se merge-only */
+    int redir_err_append;   /* 1 se 2>> */
+    int redir_err_to_out;   /* 1 se 2>&1 ou &> → dup2(stdout, stderr) */
 } petrush_cmd_t;
 
 /* Pipeline: um ou mais estágios ligados por `|`. */

@@ -134,7 +134,10 @@ static int shell_error_code_for(const char *name)
     return 127;
 }
 
-/* Aplica redirecionamentos no processo atual (filho). Retorna 0 ok, -1 erro. */
+/* Aplica redirecionamentos no processo atual (filho). Retorna 0 ok, -1 erro.
+ * Ordem: stdin → stdout arquivo → stderr (path OU merge).
+ * Assim `> file 2>&1` e `&> file` mandam os dois para o arquivo.
+ * `2>&1 > file` NÃO replica bash (sem lista ordenada de ops). */
 static int apply_redirs(const petrush_cmd_t *cmd)
 {
     if (!cmd) return -1;
@@ -168,6 +171,27 @@ static int apply_redirs(const petrush_cmd_t *cmd)
             return -1;
         }
         close(fd);
+    }
+
+    if (cmd->redir_err) {
+        int flags = O_WRONLY | O_CREAT | (cmd->redir_err_append ? O_APPEND : O_TRUNC);
+        int fd = open(cmd->redir_err, flags, 0644);
+        if (fd < 0) {
+            fprintf(stderr, "petrush: não foi possível abrir '%s' para escrita: %s\n",
+                    cmd->redir_err, strerror(errno));
+            return -1;
+        }
+        if (dup2(fd, STDERR_FILENO) < 0) {
+            close(fd);
+            perror("petrush: dup2 stderr");
+            return -1;
+        }
+        close(fd);
+    } else if (cmd->redir_err_to_out) {
+        if (dup2(STDOUT_FILENO, STDERR_FILENO) < 0) {
+            perror("petrush: dup2 stderr→stdout");
+            return -1;
+        }
     }
     return 0;
 }

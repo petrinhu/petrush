@@ -1,5 +1,5 @@
 /*
- * parser.c — Parser com pipes e redirecionamento (NEW-20)
+ * parser.c — Parser com pipes e redirecionamento (NEW-20 + UX-16)
  */
 
 #include "petrush/parser.h"
@@ -15,13 +15,17 @@ static int is_quote(char c)
     return c == '"' || c == '\'';
 }
 
-/* Operadores reconhecidos (unquoted): |  <  >  >> */
+/* Operadores unquoted: | < > >> 2> 2>> 2>&1 &> */
 typedef enum {
     TOK_WORD = 0,
     TOK_PIPE,
     TOK_LT,
     TOK_GT,
-    TOK_GTGT
+    TOK_GTGT,
+    TOK_ERRGT,     /* 2> */
+    TOK_ERRGTGT,   /* 2>> */
+    TOK_ERRTOOUT,  /* 2>&1 */
+    TOK_AMPGT      /* &> */
 } tok_kind_t;
 
 typedef struct {
@@ -47,6 +51,7 @@ static void cmd_clear(petrush_cmd_t *cmd)
     }
     free(cmd->redir_in);
     free(cmd->redir_out);
+    free(cmd->redir_err);
     memset(cmd, 0, sizeof(*cmd));
 }
 
@@ -98,6 +103,37 @@ static int tokenize(const char *input, token_t **out_toks, int *out_n)
             } else if (*p == '<') {
                 kind = TOK_LT;
                 p++;
+            } else if (*p == '&' && p[1] == '>') {
+                /* &> — não tratar & sozinho */
+                kind = TOK_AMPGT;
+                p += 2;
+            } else if (*p == '2' && p[1] == '>') {
+                /* 2 colado em > (12> permanece WORD "12" + TOK_GT) */
+                if (p[2] == '>') {
+                    kind = TOK_ERRGTGT;
+                    p += 3;
+                } else if (p[2] == '&') {
+                    if (p[3] == '1') {
+                        char after = p[4];
+                        if (after == '\0' || isspace((unsigned char)after) ||
+                            after == '|' || after == '<' || after == '>' ||
+                            after == '&') {
+                            kind = TOK_ERRTOOUT;
+                            p += 4;
+                        } else {
+                            /* 2>&12 etc. — não abrir arquivo "&12" */
+                            free_tokens(toks, n);
+                            return -1;
+                        }
+                    } else {
+                        /* 2>&  / 2>&2 — inválido nesta fatia */
+                        free_tokens(toks, n);
+                        return -1;
+                    }
+                } else {
+                    kind = TOK_ERRGT;
+                    p += 2;
+                }
             } else if (*p == '>') {
                 if (p[1] == '>') {
                     kind = TOK_GTGT;
@@ -126,8 +162,9 @@ static int tokenize(const char *input, token_t **out_toks, int *out_n)
                     }
                 } else {
                     if (isspace((unsigned char)*p)) break;
-                    /* operador quebra palavra */
+                    /* operador quebra palavra (| < > e &> colado) */
                     if (*p == '|' || *p == '<' || *p == '>') break;
+                    if (*p == '&' && p[1] == '>') break;
                 }
                 p++;
             }
@@ -217,7 +254,15 @@ static int build_stage(token_t *toks, int begin, int end, petrush_cmd_t *cmd)
             cmd_clear(cmd);
             return -1;
         }
-        /* redir: próximo token deve ser WORD */
+        /* 2>&1: não consome path; last-wins limpa path de stderr */
+        if (k == TOK_ERRTOOUT) {
+            free(cmd->redir_err);
+            cmd->redir_err = NULL;
+            cmd->redir_err_append = 0;
+            cmd->redir_err_to_out = 1;
+            continue;
+        }
+        /* demais redirs: próximo token deve ser WORD (path) */
         if (i + 1 >= end || toks[i + 1].kind != TOK_WORD) {
             cmd_clear(cmd);
             return -1;
@@ -233,6 +278,21 @@ static int build_stage(token_t *toks, int begin, int end, petrush_cmd_t *cmd)
             free(cmd->redir_out);
             cmd->redir_out = path;
             cmd->redir_append = (k == TOK_GTGT) ? 1 : 0;
+        } else if (k == TOK_ERRGT || k == TOK_ERRGTGT) {
+            /* last-wins: path limpa merge */
+            free(cmd->redir_err);
+            cmd->redir_err = path;
+            cmd->redir_err_append = (k == TOK_ERRGTGT) ? 1 : 0;
+            cmd->redir_err_to_out = 0;
+        } else if (k == TOK_AMPGT) {
+            /* &> file: stdout trunc + merge stderr; path não aliasado */
+            free(cmd->redir_out);
+            cmd->redir_out = path;
+            cmd->redir_append = 0;
+            free(cmd->redir_err);
+            cmd->redir_err = NULL;
+            cmd->redir_err_append = 0;
+            cmd->redir_err_to_out = 1;
         } else {
             free(path);
             cmd_clear(cmd);

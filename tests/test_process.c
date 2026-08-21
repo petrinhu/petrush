@@ -160,6 +160,165 @@ void test_execute_external_redir_out_writes_file(void)
     petrush_pipeline_free(&pl);
 }
 
+/* UX-16: stderr via /bin/sh -c 'echo OUT; echo ERR >&2' */
+static int parse_run_sh_both(const char *redir_suffix, const char *path,
+                             int *status_out)
+{
+    petrush_pipeline_t pl = {0};
+    char line[512];
+    snprintf(line, sizeof(line),
+             "/bin/sh -c 'echo OUT; echo ERR >&2' %s %s",
+             redir_suffix, path);
+    if (petrush_parse_pipeline(line, &pl) != 0) {
+        petrush_pipeline_free(&pl);
+        return -1;
+    }
+    int status = -1;
+    int rc = execute_pipeline(&pl, &status);
+    petrush_pipeline_free(&pl);
+    if (status_out) *status_out = status;
+    return rc;
+}
+
+void test_execute_redir_err_file(void)
+{
+    char err_path[] = "/tmp/petrush_test_err_XXXXXX";
+    int fd = mkstemp(err_path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    close(fd);
+    unlink(err_path);
+
+    int status = -1;
+    TEST_CHECK(parse_run_sh_both("2>", err_path, &status) == 0);
+    TEST_CHECK(status == 0);
+
+    FILE *f = fopen(err_path, "r");
+    TEST_CHECK(f != NULL);
+    if (f) {
+        char buf[128] = {0};
+        TEST_CHECK(fgets(buf, sizeof(buf), f) != NULL);
+        TEST_CHECK(strstr(buf, "ERR") != NULL);
+        TEST_CHECK(strstr(buf, "OUT") == NULL);
+        fclose(f);
+    }
+    unlink(err_path);
+}
+
+void test_execute_redir_err_append(void)
+{
+    char err_path[] = "/tmp/petrush_test_errapp_XXXXXX";
+    int fd = mkstemp(err_path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    close(fd);
+    unlink(err_path);
+
+    int status = -1;
+    TEST_CHECK(parse_run_sh_both("2>>", err_path, &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(parse_run_sh_both("2>>", err_path, &status) == 0);
+    TEST_CHECK(status == 0);
+
+    FILE *f = fopen(err_path, "r");
+    TEST_CHECK(f != NULL);
+    if (f) {
+        char buf[128] = {0};
+        int n = 0;
+        while (fgets(buf, sizeof(buf), f)) {
+            if (strstr(buf, "ERR")) n++;
+        }
+        TEST_CHECK(n == 2);
+        fclose(f);
+    }
+    unlink(err_path);
+}
+
+void test_execute_redir_err_merge_to_out(void)
+{
+    char out_path[] = "/tmp/petrush_test_merge_XXXXXX";
+    int fd = mkstemp(out_path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    close(fd);
+    unlink(out_path);
+
+    petrush_pipeline_t pl = {0};
+    char line[512];
+    snprintf(line, sizeof(line),
+             "/bin/sh -c 'echo OUT; echo ERR >&2' > %s 2>&1", out_path);
+    TEST_CHECK(petrush_parse_pipeline(line, &pl) == 0);
+    int status = -1;
+    TEST_CHECK(execute_pipeline(&pl, &status) == 0);
+    TEST_CHECK(status == 0);
+    petrush_pipeline_free(&pl);
+
+    FILE *f = fopen(out_path, "r");
+    TEST_CHECK(f != NULL);
+    if (f) {
+        char all[256] = {0};
+        size_t n = fread(all, 1, sizeof(all) - 1, f);
+        all[n] = '\0';
+        TEST_CHECK(strstr(all, "OUT") != NULL);
+        TEST_CHECK(strstr(all, "ERR") != NULL);
+        fclose(f);
+    }
+    unlink(out_path);
+}
+
+void test_execute_redir_ampgt_both(void)
+{
+    char out_path[] = "/tmp/petrush_test_ampgt_XXXXXX";
+    int fd = mkstemp(out_path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    close(fd);
+    unlink(out_path);
+
+    petrush_pipeline_t pl = {0};
+    char line[512];
+    snprintf(line, sizeof(line),
+             "/bin/sh -c 'echo OUT; echo ERR >&2' &> %s", out_path);
+    TEST_CHECK(petrush_parse_pipeline(line, &pl) == 0);
+    int status = -1;
+    TEST_CHECK(execute_pipeline(&pl, &status) == 0);
+    TEST_CHECK(status == 0);
+    petrush_pipeline_free(&pl);
+
+    FILE *f = fopen(out_path, "r");
+    TEST_CHECK(f != NULL);
+    if (f) {
+        char all[256] = {0};
+        size_t n = fread(all, 1, sizeof(all) - 1, f);
+        all[n] = '\0';
+        TEST_CHECK(strstr(all, "OUT") != NULL);
+        TEST_CHECK(strstr(all, "ERR") != NULL);
+        fclose(f);
+    }
+    unlink(out_path);
+}
+
+void test_execute_redir_err_open_fail(void)
+{
+    petrush_pipeline_t pl = {0};
+    /* diretório inexistente → open falha */
+    TEST_CHECK(petrush_parse_pipeline(
+        "/bin/sh -c 'echo ERR >&2' 2> /tmp/petrush-no-such-dir-ux16/err.txt",
+        &pl) == 0);
+    int status = 0;
+    int rc = execute_pipeline(&pl, &status);
+    TEST_CHECK(rc != 0 || status != 0);
+    petrush_pipeline_free(&pl);
+}
+
 TEST_LIST = {
     { "execute_null_cmd",           test_execute_null_cmd },
     { "execute_empty_cmd",          test_execute_empty_cmd },
@@ -169,5 +328,10 @@ TEST_LIST = {
     { "pipeline_true_pipe_true",    test_pipeline_true_pipe_true },
     { "pipeline_false_last_status", test_pipeline_false_last_status },
     { "execute_redir_out_file",     test_execute_external_redir_out_writes_file },
+    { "execute_redir_err_file",     test_execute_redir_err_file },
+    { "execute_redir_err_append",   test_execute_redir_err_append },
+    { "execute_redir_err_merge",    test_execute_redir_err_merge_to_out },
+    { "execute_redir_ampgt_both",   test_execute_redir_ampgt_both },
+    { "execute_redir_err_open_fail", test_execute_redir_err_open_fail },
     { NULL, NULL }
 };

@@ -8,6 +8,7 @@
 #include "petrush/parser.h"
 
 #include <string.h>
+#include <stdlib.h>
 
 /* ===================== TESTES ===================== */
 
@@ -160,6 +161,157 @@ void test_parse_list_or(void)
     petrush_list_free(&list);
 }
 
+/* UX-16: stderr redirs 2> 2>> 2>&1 &> */
+void test_parse_redir_err(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi 2> /tmp/err.txt", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(cmd.argv && strcmp(cmd.argv[0], "echo") == 0);
+    TEST_CHECK(cmd.argv && cmd.argc >= 2 && strcmp(cmd.argv[1], "hi") == 0);
+    TEST_CHECK(cmd.redir_err && strcmp(cmd.redir_err, "/tmp/err.txt") == 0);
+    TEST_CHECK(cmd.redir_out == NULL);
+    TEST_CHECK(cmd.redir_err_to_out == 0);
+    TEST_CHECK(cmd.redir_err_append == 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_redir_err_glued(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi 2>/tmp/err.txt", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(cmd.redir_err && strcmp(cmd.redir_err, "/tmp/err.txt") == 0);
+    TEST_CHECK(cmd.redir_out == NULL);
+    TEST_CHECK(cmd.redir_err_to_out == 0);
+    TEST_CHECK(cmd.redir_err_append == 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_redir_err_append(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi 2>> /tmp/err.txt", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(cmd.redir_err && strcmp(cmd.redir_err, "/tmp/err.txt") == 0);
+    TEST_CHECK(cmd.redir_err_append == 1);
+    TEST_CHECK(cmd.redir_err_to_out == 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_redir_err_to_out(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi 2>&1", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(strcmp(cmd.argv[1], "hi") == 0);
+    TEST_CHECK(cmd.redir_err == NULL);
+    TEST_CHECK(cmd.redir_err_to_out == 1);
+    TEST_CHECK(cmd.redir_out == NULL);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_redir_ampgt(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi &> /tmp/both.txt", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(strcmp(cmd.argv[0], "echo") == 0);
+    TEST_CHECK(strcmp(cmd.argv[1], "hi") == 0);
+    TEST_CHECK(cmd.redir_out && strcmp(cmd.redir_out, "/tmp/both.txt") == 0);
+    TEST_CHECK(cmd.redir_append == 0);
+    TEST_CHECK(cmd.redir_err_to_out == 1);
+    TEST_CHECK(cmd.redir_err == NULL);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_redir_out_then_err_merge(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi > /tmp/o.txt 2>&1", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(cmd.redir_out && strcmp(cmd.redir_out, "/tmp/o.txt") == 0);
+    TEST_CHECK(cmd.redir_err_to_out == 1);
+    TEST_CHECK(cmd.redir_err == NULL);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_quoted_twogt_literal(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo \"2>\"", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(strcmp(cmd.argv[1], "2>") == 0);
+    TEST_CHECK(cmd.redir_err == NULL);
+    TEST_CHECK(cmd.redir_out == NULL);
+    TEST_CHECK(cmd.redir_err_to_out == 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_quoted_ampgt_literal(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo '&>'", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(strcmp(cmd.argv[1], "&>") == 0);
+    TEST_CHECK(cmd.redir_out == NULL);
+    TEST_CHECK(cmd.redir_err_to_out == 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_digit_space_gt_is_stdout(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo 2 > /tmp/o.txt", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(strcmp(cmd.argv[1], "2") == 0);
+    TEST_CHECK(cmd.redir_out && strcmp(cmd.redir_out, "/tmp/o.txt") == 0);
+    TEST_CHECK(cmd.redir_err == NULL);
+    TEST_CHECK(cmd.redir_err_to_out == 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_redir_err_incomplete(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi 2>", &cmd) != 0);
+    petrush_cmd_free(&cmd);
+    memset(&cmd, 0, sizeof(cmd));
+    TEST_CHECK(petrush_parse("echo hi &>", &cmd) != 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_redir_err_bad_fd(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi 2>&2", &cmd) == -1);
+    petrush_cmd_free(&cmd);
+    memset(&cmd, 0, sizeof(cmd));
+    TEST_CHECK(petrush_parse("echo hi 2>&", &cmd) == -1);
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_pipeline_redir_err_first_stage(void)
+{
+    petrush_pipeline_t pl = {0};
+    TEST_CHECK(petrush_parse_pipeline("ls 2>/tmp/e | cat", &pl) == 0);
+    TEST_CHECK(pl.ncmds == 2);
+    TEST_CHECK(pl.cmds[0].redir_err && strcmp(pl.cmds[0].redir_err, "/tmp/e") == 0);
+    TEST_CHECK(pl.cmds[1].redir_err == NULL);
+    TEST_CHECK(pl.cmds[1].redir_err_to_out == 0);
+    petrush_pipeline_free(&pl);
+}
+
+void test_parse_redir_out_regression(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo hi > /tmp/out.txt", &cmd) == 0);
+    TEST_CHECK(cmd.redir_out && strcmp(cmd.redir_out, "/tmp/out.txt") == 0);
+    TEST_CHECK(cmd.redir_err == NULL);
+    TEST_CHECK(cmd.redir_err_to_out == 0);
+    petrush_cmd_free(&cmd);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -174,5 +326,18 @@ TEST_LIST = {
     { "parse_pipe_fails_single_api", test_parse_pipe_fails_single_api },
     { "parse_list_and", test_parse_list_and },
     { "parse_list_or", test_parse_list_or },
+    { "parse_redir_err", test_parse_redir_err },
+    { "parse_redir_err_glued", test_parse_redir_err_glued },
+    { "parse_redir_err_append", test_parse_redir_err_append },
+    { "parse_redir_err_to_out", test_parse_redir_err_to_out },
+    { "parse_redir_ampgt", test_parse_redir_ampgt },
+    { "parse_redir_out_then_err_merge", test_parse_redir_out_then_err_merge },
+    { "parse_quoted_twogt_literal", test_parse_quoted_twogt_literal },
+    { "parse_quoted_ampgt_literal", test_parse_quoted_ampgt_literal },
+    { "parse_digit_space_gt_is_stdout", test_parse_digit_space_gt_is_stdout },
+    { "parse_redir_err_incomplete", test_parse_redir_err_incomplete },
+    { "parse_redir_err_bad_fd", test_parse_redir_err_bad_fd },
+    { "parse_pipeline_redir_err_first_stage", test_parse_pipeline_redir_err_first_stage },
+    { "parse_redir_out_regression", test_parse_redir_out_regression },
     { NULL, NULL }
 };

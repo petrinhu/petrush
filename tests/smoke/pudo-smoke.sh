@@ -98,6 +98,74 @@ else
 fi
 rm -f /tmp/petrush-smoke-out.txt
 
+# UX-16: stderr redirs 2> 2>> 2>&1 &>
+rm -f /tmp/petrush-smoke-err.txt /tmp/petrush-smoke-err2.txt \
+      /tmp/petrush-smoke-both.txt /tmp/petrush-smoke-cderr.txt
+
+run_smoke "/bin/sh -c 'echo OUT; echo ERR >&2' 2> /tmp/petrush-smoke-err.txt" \
+    "OUT" "2> stderr file (OUT on stdout)"
+if [ -f /tmp/petrush-smoke-err.txt ] && grep -q 'ERR' /tmp/petrush-smoke-err.txt \
+    && ! grep -q 'OUT' /tmp/petrush-smoke-err.txt; then
+    echo "=== SMOKE: 2> err file content ==="
+    echo "PASS: 2> err file content"
+    PASS=$((PASS+1))
+else
+    echo "=== SMOKE: 2> err file content ==="
+    echo "FAIL: 2> err file content"
+    FAIL=$((FAIL+1))
+fi
+
+run_smoke "/bin/sh -c 'echo ERR >&2' 2>> /tmp/petrush-smoke-err2.txt" \
+    "saindo|petrush 0\\." "2>> first"
+run_smoke "/bin/sh -c 'echo ERR >&2' 2>> /tmp/petrush-smoke-err2.txt" \
+    "saindo|petrush 0\\." "2>> second"
+if [ -f /tmp/petrush-smoke-err2.txt ] \
+    && [ "$(grep -c 'ERR' /tmp/petrush-smoke-err2.txt 2>/dev/null || echo 0)" = "2" ]; then
+    echo "=== SMOKE: 2>> append ==="
+    echo "PASS: 2>> append"
+    PASS=$((PASS+1))
+else
+    echo "=== SMOKE: 2>> append ==="
+    echo "FAIL: 2>> append"
+    FAIL=$((FAIL+1))
+fi
+
+# 2>&1: ERR deve aparecer no stdout capturado junto com OUT
+run_smoke "/bin/sh -c 'echo OUT; echo ERR >&2' 2>&1" "ERR" "2>&1 merge to stdout"
+
+run_smoke "/bin/sh -c 'echo OUT; echo ERR >&2' &> /tmp/petrush-smoke-both.txt" \
+    "saindo|petrush 0\\." "&> both to file"
+if [ -f /tmp/petrush-smoke-both.txt ] \
+    && grep -q 'OUT' /tmp/petrush-smoke-both.txt \
+    && grep -q 'ERR' /tmp/petrush-smoke-both.txt; then
+    echo "=== SMOKE: &> both content ==="
+    echo "PASS: &> both content"
+    PASS=$((PASS+1))
+else
+    echo "=== SMOKE: &> both content ==="
+    echo "FAIL: &> both content"
+    FAIL=$((FAIL+1))
+fi
+
+# 2> sem alvo → erro ao analisar (não crash)
+run_smoke "echo hi 2>" "erro|analis|parse|sintaxe|petrush:" "2> incomplete parse error"
+
+# builtin perror no arquivo via 2>
+run_smoke "cd /no-such-petrush-ux16 2> /tmp/petrush-smoke-cderr.txt" \
+    "saindo|petrush 0\\.|No such|não|cd:" "builtin cd 2> file"
+if [ -f /tmp/petrush-smoke-cderr.txt ] && [ -s /tmp/petrush-smoke-cderr.txt ]; then
+    echo "=== SMOKE: builtin 2> perror ==="
+    echo "PASS: builtin 2> perror"
+    PASS=$((PASS+1))
+else
+    echo "=== SMOKE: builtin 2> perror ==="
+    echo "FAIL: builtin 2> perror"
+    FAIL=$((FAIL+1))
+fi
+
+rm -f /tmp/petrush-smoke-err.txt /tmp/petrush-smoke-err2.txt \
+      /tmp/petrush-smoke-both.txt /tmp/petrush-smoke-cderr.txt
+
 echo "=== SMOKE SUMMARY ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

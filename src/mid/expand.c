@@ -132,4 +132,8 @@ void expand_cmd_argv(petrush_cmd_t *cmd)
         char *e = expand_word(cmd->redir_out);
         if (e) { free(cmd->redir_out); cmd->redir_out = e; }
     }
+    if (cmd->redir_err) {
+        char *e = expand_word(cmd->redir_err);
+        if (e) { free(cmd->redir_err); cmd->redir_err = e; }
+    }
 }

@@ -57,7 +57,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | PR-11 | W1 | CI | `.github/workflows/ci.yml` (Fedora 44 × clang/gcc × Debug/Release + smoke; F45 experimental). Espelho remoto. Builds pesados no container local `fedora:44`. | Alta | — | Média | 🔍 Pendente verificação | — |
 | NEW-20 | W1 | Shell | Pipes `\|` + redir `>` `>>` `<` (mínimo v0.2.0). Scripting/background/`2>` fora (UX-16/UX-22/UX-23). | Alta | — | Média | 🔍 Pendente verificação | — |
 | SEC-01 | W1 | Segurança | Remover `unsetenv` no processo `petrush` após `pudo`. Confiar só em `build_clean_envp` + sanitize no `pudod`. | Alta | — | Baixa | 🔍 Pendente verificação | — |
-| UX-16 | W2 | Shell | Redirecionamento de stderr: `2>` `2>>` `2>&1` `&>`. | Alta | UX-15 | Média | ⏳ Pendente | — |
+| UX-16 | W2 | Shell | Redirecionamento de stderr: `2>` `2>>` `2>&1` `&>`. | Alta | UX-15 | Média | 🔍 Pendente verificação | — |
 | NEW-22 | W2 | Processo | Confirmar retroativamente o escopo da Onda 3 (NEW-20 mínimo) com o líder. | Baixa | NEW-20 | Baixa | ⏳ Pendente | — |
 | SEC-02 | W2 | Segurança | Em Release/install, path do `pudod` só absoluto (`PUDOD_INSTALL_PATH` / `/usr/local/libexec/petrush-pudod`). Fallbacks `build/pudod`, `./pudod` e `access("pudod")` só em debug. | Alta | — | Média | ⏳ Pendente | — |
 | SEC-03 | W2 | Segurança | Encolher `src/pudod/pudo.allow.example` a 2–3 comandos inocentes (`id`, `whoami`, `true`). Tirar apt/dnf/systemctl/passwd/cat do exemplo ativo. | Média | — | Baixa | ⏳ Pendente | — |
