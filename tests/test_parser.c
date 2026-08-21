@@ -161,6 +161,129 @@ void test_parse_list_or(void)
     petrush_list_free(&list);
 }
 
+/* UX-17: sequential lists with ';' (PETRUSH_COND_ALWAYS) */
+void test_parse_list_seq_spaced(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a; echo b", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_ALWAYS);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_seq_glued(void)
+{
+    /* len=1: must not eat the next command's first char */
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a;echo b", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[1].pl.ncmds == 1);
+    TEST_CHECK(list.items[1].pl.cmds[0].argc >= 1);
+    TEST_CHECK(strcmp(list.items[1].pl.cmds[0].argv[0], "echo") == 0);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_seq_three(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a; echo b; echo c", &list) == 0);
+    TEST_CHECK(list.nitems == 3);
+    TEST_CHECK(list.items[0].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[2].cond == PETRUSH_COND_ALWAYS);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_mix_and_seq(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("/bin/false && echo no ; echo yes", &list) == 0);
+    TEST_CHECK(list.nitems == 3);
+    TEST_CHECK(list.items[0].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_AND);
+    TEST_CHECK(list.items[2].cond == PETRUSH_COND_ALWAYS);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_mix_seq_and(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a ; /bin/true && echo b", &list) == 0);
+    TEST_CHECK(list.nitems == 3);
+    TEST_CHECK(list.items[0].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[2].cond == PETRUSH_COND_AND);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_seq_quoted_literal(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo 'a; b'", &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    petrush_list_free(&list);
+
+    memset(&list, 0, sizeof(list));
+    TEST_CHECK(petrush_parse_list("echo \"a; b\"", &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_seq_trailing(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a ;", &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].cond == PETRUSH_COND_ALWAYS);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_seq_leading_empty(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("; echo a", &list) != 0);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_seq_middle_empty(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a ; ; echo b", &list) != 0);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_and_trailing_empty(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("/bin/true &&", &list) != 0);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_pipe_then_seq(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a | cat ; echo b", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].pl.ncmds == 2);
+    TEST_CHECK(list.items[1].pl.ncmds == 1);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_redir_err_then_seq(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a 2> /tmp/e ; echo b", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].pl.ncmds == 1);
+    TEST_CHECK(list.items[0].pl.cmds[0].redir_err != NULL);
+    TEST_CHECK(strcmp(list.items[0].pl.cmds[0].redir_err, "/tmp/e") == 0);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_ALWAYS);
+    petrush_list_free(&list);
+}
+
 /* UX-16: stderr redirs 2> 2>> 2>&1 &> */
 void test_parse_redir_err(void)
 {
@@ -326,6 +449,18 @@ TEST_LIST = {
     { "parse_pipe_fails_single_api", test_parse_pipe_fails_single_api },
     { "parse_list_and", test_parse_list_and },
     { "parse_list_or", test_parse_list_or },
+    { "parse_list_seq_spaced", test_parse_list_seq_spaced },
+    { "parse_list_seq_glued", test_parse_list_seq_glued },
+    { "parse_list_seq_three", test_parse_list_seq_three },
+    { "parse_list_mix_and_seq", test_parse_list_mix_and_seq },
+    { "parse_list_mix_seq_and", test_parse_list_mix_seq_and },
+    { "parse_list_seq_quoted_literal", test_parse_list_seq_quoted_literal },
+    { "parse_list_seq_trailing", test_parse_list_seq_trailing },
+    { "parse_list_seq_leading_empty", test_parse_list_seq_leading_empty },
+    { "parse_list_seq_middle_empty", test_parse_list_seq_middle_empty },
+    { "parse_list_and_trailing_empty", test_parse_list_and_trailing_empty },
+    { "parse_list_pipe_then_seq", test_parse_list_pipe_then_seq },
+    { "parse_list_redir_err_then_seq", test_parse_list_redir_err_then_seq },
     { "parse_redir_err", test_parse_redir_err },
     { "parse_redir_err_glued", test_parse_redir_err_glued },
     { "parse_redir_err_append", test_parse_redir_err_append },

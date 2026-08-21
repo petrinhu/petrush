@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **UX-17:** listas sequenciais `;` (`a; b` sempre roda `b`; reusa `PETRUSH_COND_ALWAYS`).
 - **UX-16:** redirecionamento de stderr `2>` `2>>` `2>&1` `&>` (parser + apply em externos e builtins).
 
 ## [0.3.2.1] - 2026-08-14

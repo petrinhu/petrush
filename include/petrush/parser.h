@@ -52,9 +52,9 @@ int petrush_parse(const char *input, petrush_cmd_t *out);
 /* Libera memória alocada por petrush_parse() / um estágio. */
 void petrush_cmd_free(petrush_cmd_t *cmd);
 
-/* NEW-24: listas && e || (left-to-right, short-circuit) */
+/* NEW-24 / UX-17: listas && || ; (left-to-right; &&/|| short-circuit) */
 typedef enum {
-    PETRUSH_COND_ALWAYS = 0, /* first item */
+    PETRUSH_COND_ALWAYS = 0, /* first item, or after ';' */
     PETRUSH_COND_AND,        /* run if previous status == 0 */
     PETRUSH_COND_OR          /* run if previous status != 0 */
 } petrush_run_cond_t;

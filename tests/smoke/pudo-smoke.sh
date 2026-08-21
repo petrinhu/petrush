@@ -68,6 +68,12 @@ fi
 echo
 run_smoke "/bin/true && echo and-ok" "and-ok" "list AND short-circuit"
 run_smoke "/bin/false || echo or-ok" "or-ok" "list OR short-circuit"
+run_smoke "/bin/false ; echo seq-ok" "seq-ok" "list SEQ always runs b"
+run_smoke "/bin/true ; echo seq-ok" "seq-ok" "list SEQ after success"
+run_smoke "/bin/false && echo no-and ; echo seq-after-and" "seq-after-and" "SEQ after AND short-circuit"
+run_smoke "echo 'a; b'" "a; b" "quoted semicolon is literal"
+run_smoke "echo a;" "a" "trailing semicolon"
+run_smoke "; echo no-lead" "erro|analis|parse|sintaxe|petrush:" "leading semicolon parse error"
 run_smoke "pushd /tmp" "saindo|petrush 0\\.|/" "pushd /tmp"
 run_smoke "popd" "saindo|petrush 0\\.|/" "popd"
 

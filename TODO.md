@@ -64,7 +64,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | SEC-04 | W2 | Segurança | Fail closed se `argc` exceder `MAX_ARGS` / `pudod_argv[128]` (hoje trunca em silêncio). | Média | — | Baixa | ⏳ Pendente | — |
 | SEC-05 | W2 | Segurança | Load da allow-list: se `realpath` falhar, não aceitar o literal (`pudod.c` ~L142–148). | Média | — | Baixa | ⏳ Pendente | — |
 | DOC-01 | W2 | Docs | Atualizar `docs/architecture.md`: Front já tem `complete.c`; prosa “porte Solo” é informal (piso early). | Baixa | — | Baixa | ⏳ Pendente | — |
-| UX-17 | W3 | Shell | Lista sequencial `;` (`a; b` sempre roda `b`). | Média | UX-16 | Baixa | ⏳ Pendente | — |
+| UX-17 | W3 | Shell | Lista sequencial `;` (`a; b` sempre roda `b`). | Média | UX-16 | Baixa | 🔍 Pendente verificação | — |
 | UX-18 | W4 | Shell | Glob simples `*` `?` só em tokens unquoted. | Média | UX-17 | Média | ⏳ Pendente | — |
 | UX-19 | W5 | Shell | Builtins no pipe (subshell-like). | Média | UX-18 | Média | ⏳ Pendente | — |
 | UX-20 | W6 | Shell | Ctrl-R history search. Patch mínimo no linenoise; se a API bloquear, documentar degradação (setas + hints + `!!`) e seguir. | Média | UX-19 | Alta | ⏳ Pendente | — |
