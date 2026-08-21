@@ -72,6 +72,24 @@ run_smoke "/bin/false ; echo seq-ok" "seq-ok" "list SEQ always runs b"
 run_smoke "/bin/true ; echo seq-ok" "seq-ok" "list SEQ after success"
 run_smoke "/bin/false && echo no-and ; echo seq-after-and" "seq-after-and" "SEQ after AND short-circuit"
 run_smoke "echo 'a; b'" "a; b" "quoted semicolon is literal"
+# UX-18: glob unquoted expande; quoted fica literal
+echo "=== SMOKE: glob unquoted / quoted ==="
+glob_dir=$(mktemp -d /tmp/petrush-smoke-glob-XXXXXX)
+printf 'x\n' > "$glob_dir/a.c"
+printf 'x\n' > "$glob_dir/b.c"
+printf 'x\n' > "$glob_dir/d.txt"
+glob_out=$(printf 'cd %s\necho *.c\necho "*.c"\nexit\n' "$glob_dir" | "$PETRUSH" 2>&1 || true)
+rm -rf "$glob_dir"
+if echo "$glob_out" | grep -q 'a.c' && echo "$glob_out" | grep -q 'b.c' \
+    && echo "$glob_out" | grep -Fq '*.c'; then
+    echo "PASS: glob unquoted expands / quoted literal"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: glob unquoted expands / quoted literal"
+    echo "$glob_out" | tail -8
+    FAIL=$((FAIL+1))
+fi
+echo
 run_smoke "echo a;" "a" "trailing semicolon"
 run_smoke "; echo no-lead" "erro|analis|parse|sintaxe|petrush:" "leading semicolon parse error"
 run_smoke "pushd /tmp" "saindo|petrush 0\\.|/" "pushd /tmp"

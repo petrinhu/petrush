@@ -5,7 +5,8 @@
  * - pipes `|`
  * - redirecionamento `>`, `>>`, `<`
  * UX-16: `2>`, `2>>`, `2>&1`, `&>`
- * NÃO: background `&`, `2>&N` genérico, globbing, scripting de arquivo.
+ * UX-18: `argv_quoted` paralelo (1 = token nasceu quoted; sem re-glob).
+ * NÃO: background `&`, `2>&N` genérico, `[]`/`**`, scripting de arquivo.
  */
 
 #ifndef PETRUSH_PARSER_H
@@ -17,6 +18,7 @@
 typedef struct {
     char **argv;
     int argc;
+    int *argv_quoted;  /* paralelo a argv; NULL = todos unquoted */
     char *redir_in;    /* caminho de `< file` (owned) ou NULL */
     char *redir_out;   /* caminho de `> file` / `>> file` (owned) ou NULL */
     int redir_append;  /* 1 se stdout for `>>` */

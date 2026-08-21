@@ -349,7 +349,8 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  pushd/popd   - Stack de diretórios\n");
     printf("  dirs         - Mostra a stack\n");
     printf("\n");
-    printf("Também: pipes |, redirs > >> <, listas && ||, !! / !n, Tab, history hints.\n");
+    printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ;,\n");
+    printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
     printf("Comandos externos via PATH. Prompt: PETRUSH_PS1.\n");
     return 0;
 }
@@ -483,8 +484,8 @@ int builtin_info(petrush_cmd_t *cmd)
     printf("petrush %s\n", PETRUSH_VERSION);
     printf("C23 REPL shell\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("Features: history, rc, signals, pudo, pipes, redir, alias, PS1, complete, hints, &&/||\n");
-    printf("Anti-OE: sem background/globbing/scripting de arquivo\n");
+    printf("Features: history, rc, signals, pudo, pipes, redir, alias, PS1, complete, hints, &&/||/;, glob\n");
+    printf("Anti-OE: sem background, sem []/**, sem scripting de arquivo\n");
     return 0;
 }
 

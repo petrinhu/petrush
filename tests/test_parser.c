@@ -435,6 +435,35 @@ void test_parse_redir_out_regression(void)
     petrush_cmd_free(&cmd);
 }
 
+/* UX-18: argv_quoted paralelo (aspas stripadas; flag preserva origem) */
+void test_parse_argv_quoted_flag_double(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo \"*.c\"", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(strcmp(cmd.argv[1], "*.c") == 0);
+    TEST_CHECK(cmd.argv_quoted != NULL);
+    if (cmd.argv_quoted) {
+        TEST_CHECK(cmd.argv_quoted[0] == 0);
+        TEST_CHECK(cmd.argv_quoted[1] == 1);
+    }
+    petrush_cmd_free(&cmd);
+}
+
+void test_parse_argv_quoted_flag_unquoted(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo *.c", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(strcmp(cmd.argv[1], "*.c") == 0);
+    TEST_CHECK(cmd.argv_quoted != NULL);
+    if (cmd.argv_quoted) {
+        TEST_CHECK(cmd.argv_quoted[0] == 0);
+        TEST_CHECK(cmd.argv_quoted[1] == 0);
+    }
+    petrush_cmd_free(&cmd);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -474,5 +503,7 @@ TEST_LIST = {
     { "parse_redir_err_bad_fd", test_parse_redir_err_bad_fd },
     { "parse_pipeline_redir_err_first_stage", test_parse_pipeline_redir_err_first_stage },
     { "parse_redir_out_regression", test_parse_redir_out_regression },
+    { "parse_argv_quoted_flag_double", test_parse_argv_quoted_flag_double },
+    { "parse_argv_quoted_flag_unquoted", test_parse_argv_quoted_flag_unquoted },
     { NULL, NULL }
 };

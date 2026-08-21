@@ -31,6 +31,7 @@ typedef enum {
 typedef struct {
     tok_kind_t kind;
     char *text; /* owned for TOK_WORD; NULL for operators */
+    int quoted; /* 1 se o token WORD começou com ' ou " */
 } token_t;
 
 static void free_tokens(token_t *toks, int n)
@@ -49,6 +50,7 @@ static void cmd_clear(petrush_cmd_t *cmd)
         for (int i = 0; i < cmd->argc; i++) free(cmd->argv[i]);
         free(cmd->argv);
     }
+    free(cmd->argv_quoted);
     free(cmd->redir_in);
     free(cmd->redir_out);
     free(cmd->redir_err);
@@ -95,6 +97,7 @@ static int tokenize(const char *input, token_t **out_toks, int *out_n)
 
         tok_kind_t kind = TOK_WORD;
         char *text = NULL;
+        int quoted = 0;
 
         if (!is_quote(*p)) {
             if (*p == '|') {
@@ -151,6 +154,7 @@ static int tokenize(const char *input, token_t **out_toks, int *out_n)
             char quote = 0;
             if (is_quote(*p)) {
                 quote = *p;
+                quoted = 1;
                 p++;
             }
             const char *start = p;
@@ -193,6 +197,7 @@ static int tokenize(const char *input, token_t **out_toks, int *out_n)
         }
         toks[n].kind = kind;
         toks[n].text = text;
+        toks[n].quoted = quoted;
         n++;
     }
 
@@ -201,16 +206,21 @@ static int tokenize(const char *input, token_t **out_toks, int *out_n)
     return 0;
 }
 
-static int push_arg(petrush_cmd_t *cmd, char *word, size_t *argv_cap)
+static int push_arg(petrush_cmd_t *cmd, char *word, int quoted, size_t *argv_cap)
 {
     if (cmd->argc >= (int)*argv_cap) {
         size_t nc = (*argv_cap) * 2;
         char **na = realloc(cmd->argv, sizeof(char *) * nc);
         if (!na) return -1;
         cmd->argv = na;
+        int *nq = realloc(cmd->argv_quoted, sizeof(int) * nc);
+        if (!nq) return -1;
+        cmd->argv_quoted = nq;
         *argv_cap = nc;
     }
-    cmd->argv[cmd->argc++] = word;
+    cmd->argv[cmd->argc] = word;
+    cmd->argv_quoted[cmd->argc] = quoted ? 1 : 0;
+    cmd->argc++;
     return 0;
 }
 
@@ -236,13 +246,19 @@ static int build_stage(token_t *toks, int begin, int end, petrush_cmd_t *cmd)
     size_t argv_cap = INITIAL_CAP;
     cmd->argv = malloc(sizeof(char *) * argv_cap);
     if (!cmd->argv) return -1;
+    cmd->argv_quoted = malloc(sizeof(int) * argv_cap);
+    if (!cmd->argv_quoted) {
+        free(cmd->argv);
+        cmd->argv = NULL;
+        return -1;
+    }
 
     for (int i = begin; i < end; i++) {
         tok_kind_t k = toks[i].kind;
         if (k == TOK_WORD) {
             char *dup = toks[i].text;
             toks[i].text = NULL; /* ownership transfer */
-            if (push_arg(cmd, dup, &argv_cap) != 0) {
+            if (push_arg(cmd, dup, toks[i].quoted, &argv_cap) != 0) {
                 free(dup);
                 cmd_clear(cmd);
                 return -1;
