@@ -1,5 +1,5 @@
 /*
- * test_glob.c — TDD UX-18 pathname expansion * ?
+ * test_glob.c - TDD UX-18 pathname expansion * ?
  */
 
 #include "acutest.h"
@@ -12,6 +12,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <dirent.h>
 #include <sys/stat.h>
 
 static char g_tmpdir[256];
@@ -22,6 +23,54 @@ static void free_glob(char **list, int n)
     if (!list) return;
     for (int i = 0; i < n; i++) free(list[i]);
     free(list);
+}
+
+/* Walk dir and unlink/rmdir children; ENOENT is fine. */
+static void empty_dir_best_effort(const char *dir)
+{
+    DIR *d = opendir(dir);
+    if (!d)
+        return;
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+            continue;
+        char path[768];
+        int n = snprintf(path, sizeof(path), "%s/%s", dir, ent->d_name);
+        if (n < 0 || (size_t)n >= sizeof(path))
+            continue;
+        struct stat st;
+        if (lstat(path, &st) != 0) {
+            if (errno != ENOENT)
+                TEST_CHECK_(0, "lstat(%s): %s", path, strerror(errno));
+            continue;
+        }
+        if (S_ISDIR(st.st_mode)) {
+            empty_dir_best_effort(path);
+            if (rmdir(path) != 0 && errno != ENOENT)
+                TEST_CHECK_(0, "rmdir(%s): %s", path, strerror(errno));
+        } else if (unlink(path) != 0 && errno != ENOENT) {
+            TEST_CHECK_(0, "unlink(%s): %s", path, strerror(errno));
+        }
+    }
+    closedir(d);
+}
+
+/* Primary: system(rm -rf). On failure, walk+rmdir; ignore ENOENT. */
+static void rm_rf_best_effort(const char *dir)
+{
+    char cmd[512];
+    int n = snprintf(cmd, sizeof(cmd), "rm -rf '%s'", dir);
+    if (n < 0 || (size_t)n >= sizeof(cmd)) {
+        TEST_CHECK_(0, "rm_rf path too long: %s", dir);
+        return;
+    }
+    int rc = system(cmd);
+    if (rc == 0)
+        return;
+    empty_dir_best_effort(dir);
+    if (rmdir(dir) != 0 && errno != ENOENT)
+        TEST_CHECK_(0, "rmdir(%s) after system rc=%d: %s", dir, rc, strerror(errno));
 }
 
 static int setup_tmpdir(void)
@@ -44,11 +93,11 @@ static int setup_tmpdir(void)
 
 static void teardown_tmpdir(void)
 {
-    chdir(g_oldcwd);
-    /* best-effort cleanup */
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", g_tmpdir);
-    (void)system(cmd);
+    if (chdir(g_oldcwd) != 0) {
+        TEST_CHECK_(0, "chdir(%s) failed: %s", g_oldcwd, strerror(errno));
+        return;
+    }
+    rm_rf_best_effort(g_tmpdir);
 }
 
 void test_glob_star_c(void)
@@ -235,10 +284,11 @@ void test_glob_max_fail_closed(void)
     char **m = glob_word("f*.dat", &n);
     TEST_CHECK(m == NULL); /* fail closed */
 
-    chdir(old);
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", tmp);
-    (void)system(cmd);
+    if (chdir(old) != 0) {
+        TEST_CHECK_(0, "chdir(%s) failed: %s", old, strerror(errno));
+        return;
+    }
+    rm_rf_best_effort(tmp);
 }
 
 void test_expand_var_then_glob(void)
