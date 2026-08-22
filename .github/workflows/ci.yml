@@ -1,7 +1,8 @@
 # .github/workflows/ci.yml
-# CI for petrush — container Fedora (espelha host do líder: Fedora 44)
-# Matrix: clang + gcc × Release/Debug
-# Runs: configure, build, unit tests, smoke, lint best-effort
+# CI for petrush - runners ubuntu-latest + containers por distro
+# Matrix: Fedora 44 (gcc/clang x Debug/Release), Ubuntu/Arch/CachyOS (Release gcc+clang)
+# Gates duros: check, smoke, ASan+UBSan (halt_on_error), lint so Fedora 44 clang Debug
+# SEC-02: Release instala em /usr/local (sem setuid) e smoke no binario instalado
 
 name: CI
 
@@ -11,21 +12,99 @@ on:
   pull_request:
     branches: [ main ]
 
+# Targets alinhados ao DEPENDS de `check` em CMakeLists.txt (mais petrush/pudod).
+# Atualizar aqui quando add_acutest / add_executable(test_*) mudar.
+env:
+  BUILD_TARGETS: >-
+    petrush pudod
+    test_parser test_process test_job test_pudo test_env test_info
+    test_alias test_complete test_dirstack test_hist_expand
+    test_linenoise_history test_expand test_glob test_prompt
+    test_rc_trust test_highlight test_source test_pipeline_builtin
+
 jobs:
-  build-and-test:
+  distro-matrix:
     runs-on: ubuntu-latest
-    container:
-      # Stable atual (= latest no registry Fedora em 2026-08). Host do líder: 44.
-      image: registry.fedoraproject.org/fedora:44
     strategy:
       fail-fast: false
       matrix:
-        compiler: [clang, gcc]
-        build-type: [Release, Debug]
+        include:
+          # --- Fedora 44: Debug + Release, gcc + clang (host do lider) ---
+          - name: fedora44-clang-Release
+            image: registry.fedoraproject.org/fedora:44
+            pkg: dnf
+            compiler: clang
+            build-type: Release
+            lint-hard: "false"
+          - name: fedora44-clang-Debug
+            image: registry.fedoraproject.org/fedora:44
+            pkg: dnf
+            compiler: clang
+            build-type: Debug
+            lint-hard: "true"
+          - name: fedora44-gcc-Release
+            image: registry.fedoraproject.org/fedora:44
+            pkg: dnf
+            compiler: gcc
+            build-type: Release
+            lint-hard: "false"
+          - name: fedora44-gcc-Debug
+            image: registry.fedoraproject.org/fedora:44
+            pkg: dnf
+            compiler: gcc
+            build-type: Debug
+            lint-hard: "false"
+
+          # --- Ubuntu rolling: Release only (gcc + clang) ---
+          - name: ubuntu-clang-Release
+            image: ubuntu:rolling
+            pkg: apt
+            compiler: clang
+            build-type: Release
+            lint-hard: "false"
+          - name: ubuntu-gcc-Release
+            image: ubuntu:rolling
+            pkg: apt
+            compiler: gcc
+            build-type: Release
+            lint-hard: "false"
+
+          # --- Arch: Release only (gcc + clang). CachyOS NAO e Arch renomeado. ---
+          - name: arch-clang-Release
+            image: archlinux:latest
+            pkg: pacman
+            compiler: clang
+            build-type: Release
+            lint-hard: "false"
+          - name: arch-gcc-Release
+            image: archlinux:latest
+            pkg: pacman
+            compiler: gcc
+            build-type: Release
+            lint-hard: "false"
+
+          # --- CachyOS (ID_LIKE=arch, repos proprios). Imagem Hub puxa; pacman EXIT=0. ---
+          - name: cachyos-clang-Release
+            image: docker.io/cachyos/cachyos:latest
+            pkg: pacman-cachyos
+            compiler: clang
+            build-type: Release
+            lint-hard: "false"
+          - name: cachyos-gcc-Release
+            image: docker.io/cachyos/cachyos:latest
+            pkg: pacman-cachyos
+            compiler: gcc
+            build-type: Release
+            lint-hard: "false"
+
+    name: ${{ matrix.name }}
+    container:
+      image: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install deps (dnf)
+      - name: Install deps (dnf / Fedora)
+        if: matrix.pkg == 'dnf'
         run: |
           dnf -y install \
             gcc gcc-c++ clang clang-tools-extra \
@@ -34,6 +113,42 @@ jobs:
             glibc-devel \
             diffutils findutils which
           command -v cmake
+          gcc --version | head -1
+          clang --version | head -1
+
+      - name: Install deps (apt / Ubuntu)
+        if: matrix.pkg == 'apt'
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq \
+            build-essential clang cmake make \
+            diffutils findutils ca-certificates
+          command -v cmake
+          gcc --version | head -1
+          clang --version | head -1
+
+      - name: Install deps (pacman / Arch)
+        if: matrix.pkg == 'pacman'
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed \
+            base-devel clang cmake make diffutils which
+          command -v cmake
+          gcc --version | head -1
+          clang --version | head -1
+
+      - name: Install deps (pacman / CachyOS)
+        if: matrix.pkg == 'pacman-cachyos'
+        run: |
+          # CachyOS: pacman hooks de systemd reclamam de sandbox de rede sob
+          # seccomp do Docker; o EXIT do pacman ainda e 0 e os pacotes entram.
+          # Nao e Arch renomeado (repos cachyos + ID=cachyos).
+          pacman -Sy --noconfirm --needed \
+            cmake clang gcc make diffutils which
+          command -v cmake
+          command -v clang
+          command -v gcc
           gcc --version | head -1
           clang --version | head -1
 
@@ -48,16 +163,17 @@ jobs:
             -DCMAKE_CXX_COMPILER=$CXX \
             -DENABLE_COVERAGE=OFF
 
-      - name: Build (binários + testes, sem verify ALL)
-        # evita o target verify ALL (lint/valgrind soft) no path crítico
-        run: cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo test_alias test_complete test_dirstack test_hist_expand test_expand
+      - name: Build (binarios + todos os test_*)
+        # Evita o target verify ALL (lint/valgrind soft) no path critico.
+        run: cmake --build build -j "$(nproc)" --target ${{ env.BUILD_TARGETS }}
 
-      - name: Unit tests (ctest)
+      - name: Unit tests (check)
+        # Gate duro: sem || true
         run: cmake --build build --target check
 
       # SEC-02 (NDEBUG): pudod sibling em build/ e rejeitado em Release.
-      # Instalar no prefixo canônico /usr/local (sem setuid) e smoke no binário
-      # instalado. Prefixos arbitrários (ex. /tmp/...) nao entram na allow-list.
+      # Instalar no prefixo canonico /usr/local (sem setuid) e smoke no binario
+      # instalado. Prefixos arbitrarios (ex. /tmp/...) nao entram na allow-list.
       # TST-T15: espelhar este path no pre-CI local.
       - name: Install prefix (Release, sem setuid)
         if: matrix.build-type == 'Release'
@@ -70,6 +186,7 @@ jobs:
           # NUNCA chmod u+s / setuid neste job
 
       - name: Smoke integrado
+        # Gate duro: sem || true. Release = binario instalado (SEC-02).
         run: |
           if [ "${{ matrix.build-type }}" = "Release" ]; then
             bash tests/smoke/pudo-smoke.sh /usr/local/bin/petrush
@@ -77,15 +194,16 @@ jobs:
             bash tests/smoke/pudo-smoke.sh ./build/petrush
           fi
 
-      # Lint best-effort no GHA (nao e gate duro). Gate duro de lint = TST-T15
-      # (scripts/tst-t15-preci.sh) sem || true.
-      - name: Lint (best-effort)
+      # Lint gate duro SO em Fedora 44 clang Debug. Demais celulas omitem lint.
+      - name: Lint (cppcheck + clang-tidy, gate duro)
+        if: matrix.lint-hard == 'true'
         run: |
-          cmake --build build --target cppcheck || true
-          cmake --build build --target clang-tidy || true
-          cmake --build build --target lint || true
+          cmake --build build --target cppcheck
+          cmake --build build --target clang-tidy
+          cmake --build build --target lint
 
-      - name: Valgrind pudod (best-effort)
+      - name: Valgrind pudod (best-effort, so Fedora)
+        if: matrix.pkg == 'dnf'
         run: |
           cmake --build build --target pudod-valgrind || true
 
@@ -93,15 +211,70 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-fedora44-${{ matrix.compiler }}-${{ matrix.build-type }}
+          name: build-${{ matrix.name }}
           path: |
             build/petrush
             build/pudod
             build/test_*
           retention-days: 5
 
-  # Opcional: job experimental na imagem mais nova (45/rawhide). Não bloqueia main.
-  build-fedora-next:
+  # ASan + UBSan: clang + CMAKE_BUILD_TYPE=Sanitize. Gate duro (halt_on_error).
+  asan-ubsan:
+    name: asan-ubsan-fedora44-clang
+    runs-on: ubuntu-latest
+    container:
+      image: registry.fedoraproject.org/fedora:44
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps (dnf)
+        run: |
+          dnf -y install \
+            gcc gcc-c++ clang \
+            cmake make \
+            libasan libubsan \
+            glibc-devel \
+            diffutils findutils which
+          clang --version | head -1
+
+      - name: Configure Sanitize
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Sanitize \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DENABLE_COVERAGE=OFF
+
+      - name: Build Sanitize
+        run: cmake --build build -j "$(nproc)" --target ${{ env.BUILD_TARGETS }}
+
+      - name: Unit tests sob ASan/UBSan
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:abort_on_error=1:detect_stack_use_after_return=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: cmake --build build --target check
+
+      - name: Smoke sob ASan/UBSan
+        # Sanitize != Release: SEC-02 permite sibling build/pudod.
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:abort_on_error=1:detect_stack_use_after_return=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: bash tests/smoke/pudo-smoke.sh ./build/petrush
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-asan-ubsan-fedora44-clang
+          path: |
+            build/petrush
+            build/pudod
+            build/test_*
+          retention-days: 5
+
+  # Opcional: Fedora 45 experimental. Nao bloqueia main.
+  fedora-next:
+    name: fedora45-gcc-Release-experimental
     runs-on: ubuntu-latest
     continue-on-error: true
     container:
@@ -110,11 +283,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install deps
         run: |
-          dnf -y install gcc clang cmake make valgrind cppcheck clang-tools-extra glibc-devel
+          dnf -y install gcc clang cmake make valgrind cppcheck clang-tools-extra \
+            glibc-devel diffutils findutils which
       - name: Build Release gcc + install + smoke
         run: |
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
-          cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo test_alias test_complete test_dirstack test_hist_expand test_expand test_prompt
+          cmake --build build -j "$(nproc)" --target ${{ env.BUILD_TARGETS }}
           cmake --build build --target check
           cmake --install build --prefix /usr/local
+          # NUNCA chmod u+s / setuid
           bash tests/smoke/pudo-smoke.sh /usr/local/bin/petrush

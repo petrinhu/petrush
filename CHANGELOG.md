@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CI:** matrix multi-distro no GHA (`fedora:44` Debug+Release gcc/clang; `ubuntu:rolling` / `archlinux` / `cachyos/cachyos` Release gcc+clang); job ASan+UBSan (`Sanitize`, `halt_on_error`); lint duro so em Fedora 44 clang Debug; `check`+smoke obrigatorios; Release via `/usr/local` (SEC-02, sem setuid); lista de `test_*` alinhada ao CMake.
 - **FEAT-TEST:** builtins `test` / `[` com primaries curtos (`-f -d -e -z -n = != -eq -ne -lt -gt`); `[` exige `]` final; status 0/1/2; sem `[[`, sem `-a`/`-o`/`!`; help + testes em `test_info`.
 - **FEAT-NOCLOBBER:** política UX de noclobber sempre ligada (`>`/`2>` com `O_EXCL` já em SEC-09); `help`/`info` documentam; sem `set -C`/`set -o noclobber`.
 - **FEAT-BANG:** word designators `!$` (último arg) e `!^` (primeiro arg) sobre o último evento; sem `!str`, sem modifiers `:h`/`:t`.
