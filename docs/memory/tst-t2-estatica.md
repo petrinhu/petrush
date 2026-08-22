@@ -96,3 +96,21 @@ Critério da fatia (brief): *zero erro novo crítico*.
 - Vault `TESTES.md` § T2  
 - Targets: `CMakeLists.txt` (`cppcheck`, `clang-tidy`, `lint`)  
 - Config: `.clang-tidy` (NEW-02)
+
+## Remediação parcial (backend-engineer, dispatcher.c)
+
+**Escopo:** só achados críticos/apontados em `src/mid/dispatcher.c`. Sem mexer em `execute_pipeline` / `parser.c` / complexity.
+
+| Achado | Fix |
+|---|---|
+| `nullPointerRedundantCheck` `feat_test_parse_long` | Guard `!s \|\| !out \|\| s[0]=='\\0'` **antes** de `strtol`. |
+| `clang-analyzer-security.insecureAPI.strcpy` (`strcat` em `builtin_alias`) | Concat com `snprintf` + `off`/`cap`; aborta se truncar. |
+| `bugprone-easily-swappable-parameters` `feat_test_unary` | Struct `feat_test_unary_args` (`unary_op`, `operand`) + designated init no call site. |
+
+**Prova local:**
+- `cmake --build build --target petrush test_info` OK
+- `./build/test_info` SUCCESS (incl. `builtin_test_*`)
+- `cppcheck` só em `src/mid/dispatcher.c` → exit 0
+- `clang-tidy -p=build src/mid/dispatcher.c` → sem `nullPointer` / `strcat`/`strcpy` / `easily-swappable`
+
+**Fora deste commit (ainda no gate TST-T2):** `parser.c:50` CallAndMessage; complexity em `process.c`/`parser.c`/`pudo.c`. Orquestrador re-roda lint completo; **não** marcar TODO TST-T2 `🔍` aqui.

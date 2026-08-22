@@ -571,37 +571,48 @@ int builtin_read(petrush_cmd_t *cmd)
 static int feat_test_parse_long(const char *s, long *out)
 {
     char *end = NULL;
+    if (!s || !out || s[0] == '\0') {
+        return -1;
+    }
     errno = 0;
     long v = strtol(s, &end, 10);
-    if (!s || s[0] == '\0' || end == s || *end != '\0' || errno == ERANGE) {
+    if (end == s || *end != '\0' || errno == ERANGE) {
         return -1;
     }
     *out = v;
     return 0;
 }
 
-static int feat_test_unary(const char *op, const char *arg)
+/* Struct evita bugprone-easily-swappable-parameters (dois const char*). */
+typedef struct {
+    const char *unary_op;
+    const char *operand;
+} feat_test_unary_args;
+
+static int feat_test_unary(feat_test_unary_args a)
 {
-    if (strcmp(op, "-z") == 0) {
-        return (arg[0] == '\0') ? 0 : 1;
+    const char *unary_op = a.unary_op;
+    const char *operand = a.operand;
+    if (strcmp(unary_op, "-z") == 0) {
+        return (operand[0] == '\0') ? 0 : 1;
     }
-    if (strcmp(op, "-n") == 0) {
-        return (arg[0] != '\0') ? 0 : 1;
+    if (strcmp(unary_op, "-n") == 0) {
+        return (operand[0] != '\0') ? 0 : 1;
     }
-    if (strcmp(op, "-e") == 0) {
-        return (access(arg, F_OK) == 0) ? 0 : 1;
+    if (strcmp(unary_op, "-e") == 0) {
+        return (access(operand, F_OK) == 0) ? 0 : 1;
     }
-    if (strcmp(op, "-f") == 0) {
+    if (strcmp(unary_op, "-f") == 0) {
         struct stat st;
-        if (stat(arg, &st) != 0) return 1;
+        if (stat(operand, &st) != 0) return 1;
         return S_ISREG(st.st_mode) ? 0 : 1;
     }
-    if (strcmp(op, "-d") == 0) {
+    if (strcmp(unary_op, "-d") == 0) {
         struct stat st;
-        if (stat(arg, &st) != 0) return 1;
+        if (stat(operand, &st) != 0) return 1;
         return S_ISDIR(st.st_mode) ? 0 : 1;
     }
-    fprintf(stderr, "test: %s: unary operator expected\n", op);
+    fprintf(stderr, "test: %s: unary operator expected\n", unary_op);
     return 2;
 }
 
@@ -656,7 +667,10 @@ int builtin_test(petrush_cmd_t *cmd)
     }
     if (n == 2) {
         /* unary: OP ARG (ex.: -f path). 1 arg só = string (POSIX). */
-        return feat_test_unary(argv[1], argv[2]);
+        return feat_test_unary((feat_test_unary_args){
+            .unary_op = argv[1],
+            .operand = argv[2],
+        });
     }
     if (n == 3) {
         return feat_test_binary(argv[1], argv[2], argv[3]);
@@ -830,10 +844,17 @@ int builtin_alias(petrush_cmd_t *cmd)
         for (int i = 2; i < cmd->argc; i++) total += strlen(cmd->argv[i]) + 1;
         char *val = malloc(total + 1);
         if (!val) return 1;
+        size_t off = 0;
+        size_t cap = total + 1;
         val[0] = '\0';
         for (int i = 2; i < cmd->argc; i++) {
-            if (i > 2) strcat(val, " ");
-            strcat(val, cmd->argv[i]);
+            int n = snprintf(val + off, cap - off, "%s%s",
+                             (i > 2) ? " " : "", cmd->argv[i]);
+            if (n < 0 || (size_t)n >= cap - off) {
+                free(val);
+                return 1;
+            }
+            off += (size_t)n;
         }
         int rc = alias_set(arg, val);
         free(val);
