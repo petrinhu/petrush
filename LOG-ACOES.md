@@ -48,3 +48,4 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - TST-T12 CVEs: grype+trivy+osv EXIT 0; cruzamento CVE-2025-9810↔SEC-08 (MEDIUM mitigado); fedora:44 grype 0; Actions SBOM 0; 0 CRITICAL vendor → 🔍. Relatório `docs/memory/tst-t12-cves.md`. Sem push.
 - UX-21 Opção A: highlight mínimo (aspas/CMD/OP); `test_highlight` + check 16/16; TODO 🔍. Sem push.
 - UX-22 impl: Mid source.h/c + test_source; load_rc_file=missing_ok; check 17/17 smoke 50; TODO 🔍. Sem push.
+- AUD-REPORT (W16): livro `docs/auditoria/aud-report.md` + índice `docs/auditoria/README.md`. Score 73/100, APROVADO COM RESSALVAS (unpriv early). Setuid 4755 NÃO endossado. 3 vermelhos P0 (gate 4755, fallback sudo, allow-list). `src/` intocado. TODO AUD-REPORT → 🔍. Sem push.
