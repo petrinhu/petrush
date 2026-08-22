@@ -252,6 +252,97 @@ void test_info_mentions_noclobber(void)
     TEST_CHECK(strstr(buf, "noclobber") != NULL);
 }
 
+/* FEAT-UMASK: print octal / set octal no processo do shell (sem -S). */
+void test_builtin_umask_in_table(void)
+{
+    TEST_CHECK(builtin_table_has("umask"));
+}
+
+void test_builtin_umask_print_octal(void)
+{
+    mode_t saved = umask(0022);
+    umask(0077);
+
+    char buf[64] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("umask", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strcmp(buf, "0077\n") == 0);
+
+    mode_t cur = umask(0);
+    umask(saved);
+    TEST_CHECK(cur == (mode_t)0077);
+}
+
+void test_builtin_umask_set_octal(void)
+{
+    mode_t saved = umask(0022);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("umask 077", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+
+    mode_t cur = umask(0);
+    umask(saved);
+    TEST_CHECK(cur == (mode_t)0077);
+}
+
+void test_builtin_umask_set_leading_zeros(void)
+{
+    mode_t saved = umask(0077);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("umask 0022", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+
+    mode_t cur = umask(0);
+    umask(saved);
+    TEST_CHECK(cur == (mode_t)0022);
+}
+
+void test_builtin_umask_rejects_non_octal(void)
+{
+    mode_t saved = umask(0022);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("umask 099", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) != 0);
+    petrush_cmd_free(&cmd);
+
+    TEST_CHECK(petrush_parse("umask xyz", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) != 0);
+    petrush_cmd_free(&cmd);
+
+    mode_t cur = umask(0);
+    umask(saved);
+    TEST_CHECK(cur == (mode_t)0022);
+}
+
+void test_builtin_umask_rejects_too_many_args(void)
+{
+    mode_t saved = umask(0022);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("umask 022 077", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) != 0);
+    petrush_cmd_free(&cmd);
+
+    mode_t cur = umask(0);
+    umask(saved);
+    TEST_CHECK(cur == (mode_t)0022);
+}
+
+void test_help_mentions_umask(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("help", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "umask") != NULL);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -265,5 +356,12 @@ TEST_LIST = {
     { "builtin_true_false_short_circuit", test_builtin_true_false_short_circuit },
     { "help_mentions_noclobber", test_help_mentions_noclobber },
     { "info_mentions_noclobber", test_info_mentions_noclobber },
+    { "builtin_umask_in_table", test_builtin_umask_in_table },
+    { "builtin_umask_print_octal", test_builtin_umask_print_octal },
+    { "builtin_umask_set_octal", test_builtin_umask_set_octal },
+    { "builtin_umask_set_leading_zeros", test_builtin_umask_set_leading_zeros },
+    { "builtin_umask_rejects_non_octal", test_builtin_umask_rejects_non_octal },
+    { "builtin_umask_rejects_too_many_args", test_builtin_umask_rejects_too_many_args },
+    { "help_mentions_umask", test_help_mentions_umask },
     { NULL, NULL }
 };

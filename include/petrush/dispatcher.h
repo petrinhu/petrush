@@ -59,6 +59,9 @@ int builtin_jobs(petrush_cmd_t *cmd);
 int builtin_true(petrush_cmd_t *cmd);
 int builtin_false(petrush_cmd_t *cmd);
 
+/* FEAT-UMASK: print/set máscara octal do processo do shell (sem -S) */
+int builtin_umask(petrush_cmd_t *cmd);
+
 /* Para completion: número de builtins e nome por índice */
 int petrush_builtin_count(void);
 const char *petrush_builtin_name(int index);

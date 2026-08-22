@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 
 static const builtin_entry_t builtins[] = {
@@ -50,6 +51,7 @@ static const builtin_entry_t builtins[] = {
     { "true",    builtin_true    },
     { "false",   builtin_false   },
     { ":",       builtin_true    }, /* FEAT-TRUE: null command */
+    { "umask",   builtin_umask   }, /* FEAT-UMASK: máscara do shell */
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -473,6 +475,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  jobs         - Lista jobs em background\n");
     printf("  true / :     - Sempre status 0 (no-op)\n");
     printf("  false        - Sempre status 1 (no-op)\n");
+    printf("  umask [oct]  - Mostra/define máscara octal do shell\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -501,6 +504,34 @@ int builtin_false(petrush_cmd_t *cmd)
 {
     (void)cmd;
     return 1;
+}
+
+/* FEAT-UMASK: POSIX magro; print %04o / set octal; sem -S. */
+int builtin_umask(petrush_cmd_t *cmd)
+{
+    if (cmd->argc > 2) {
+        fprintf(stderr, "umask: too many arguments\n");
+        return 1;
+    }
+
+    if (cmd->argc == 1) {
+        mode_t cur = umask(0);
+        umask(cur);
+        printf("%04o\n", (unsigned)cur);
+        return 0;
+    }
+
+    const char *arg = cmd->argv[1];
+    char *end = NULL;
+    errno = 0;
+    unsigned long v = strtoul(arg, &end, 8);
+    if (arg[0] == '\0' || end == arg || *end != '\0' || errno == ERANGE) {
+        fprintf(stderr, "umask: %s: octal number expected\n", arg);
+        return 1;
+    }
+
+    umask((mode_t)v);
+    return 0;
 }
 
 int builtin_clear(petrush_cmd_t *cmd)
