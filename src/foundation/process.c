@@ -158,7 +158,8 @@ static int apply_redirs(const petrush_cmd_t *cmd)
     }
 
     if (cmd->redir_out) {
-        int flags = O_WRONLY | O_CREAT | (cmd->redir_append ? O_APPEND : O_TRUNC);
+        /* SEC-09: `>` usa O_EXCL (noclobber); `>>` continua O_APPEND. */
+        int flags = O_WRONLY | O_CREAT | (cmd->redir_append ? O_APPEND : O_EXCL);
         int fd = open(cmd->redir_out, flags, 0644);
         if (fd < 0) {
             fprintf(stderr, "petrush: não foi possível abrir '%s' para escrita: %s\n",
@@ -174,7 +175,8 @@ static int apply_redirs(const petrush_cmd_t *cmd)
     }
 
     if (cmd->redir_err) {
-        int flags = O_WRONLY | O_CREAT | (cmd->redir_err_append ? O_APPEND : O_TRUNC);
+        /* SEC-09: `2>` usa O_EXCL; `2>>` continua O_APPEND. */
+        int flags = O_WRONLY | O_CREAT | (cmd->redir_err_append ? O_APPEND : O_EXCL);
         int fd = open(cmd->redir_err, flags, 0644);
         if (fd < 0) {
             fprintf(stderr, "petrush: não foi possível abrir '%s' para escrita: %s\n",

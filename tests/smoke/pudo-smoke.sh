@@ -109,6 +109,8 @@ fi
 echo
 
 # NEW-20: pipes e redirecionamento (externos; anti-OE)
+# SEC-09: `>` usa O_EXCL — limpar destino antes do trunc.
+rm -f /tmp/petrush-smoke-out.txt
 run_smoke "printf 'abc\\n' | cat" "abc" "pipe printf|cat"
 run_smoke "echo smoke-redir > /tmp/petrush-smoke-out.txt" "saindo|petrush 0\\." "redir out no crash"
 # leitura do arquivo escrito (se shell persistiu o arquivo)
@@ -121,6 +123,24 @@ else
     run_smoke "cat /tmp/petrush-smoke-out.txt" "smoke-redir" "redir file content via cat"
 fi
 rm -f /tmp/petrush-smoke-out.txt
+
+# SEC-09: `>` em destino existente deve falhar e preservar conteudo.
+printf 'KEEP\n' > /tmp/petrush-smoke-noclobber.txt
+run_smoke "echo OVERWRITE > /tmp/petrush-smoke-noclobber.txt" \
+    "File exists|existe|não foi possível abrir|nao foi possivel abrir" \
+    "SEC-09 noclobber > existing"
+if [ -f /tmp/petrush-smoke-noclobber.txt ] \
+    && grep -Fq 'KEEP' /tmp/petrush-smoke-noclobber.txt \
+    && ! grep -Fq 'OVERWRITE' /tmp/petrush-smoke-noclobber.txt; then
+    echo "=== SMOKE: SEC-09 content preserved ==="
+    echo "PASS: SEC-09 content preserved"
+    PASS=$((PASS+1))
+else
+    echo "=== SMOKE: SEC-09 content preserved ==="
+    echo "FAIL: SEC-09 content preserved"
+    FAIL=$((FAIL+1))
+fi
+rm -f /tmp/petrush-smoke-noclobber.txt
 
 # UX-16: stderr redirs 2> 2>> 2>&1 &>
 rm -f /tmp/petrush-smoke-err.txt /tmp/petrush-smoke-err2.txt \

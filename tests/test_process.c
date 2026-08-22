@@ -319,6 +319,101 @@ void test_execute_redir_err_open_fail(void)
     petrush_pipeline_free(&pl);
 }
 
+/* SEC-09: `>` recusa overwrite se o destino ja existe (O_EXCL). */
+void test_execute_redir_out_noclobber_existing(void)
+{
+    char out_path[] = "/tmp/petrush_test_noclobber_XXXXXX";
+    int fd = mkstemp(out_path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    TEST_CHECK(write(fd, "KEEP\n", 5) == 5);
+    close(fd);
+
+    petrush_pipeline_t pl = {0};
+    char line[256];
+    snprintf(line, sizeof(line), "/bin/echo OVERWRITE > %s", out_path);
+    TEST_CHECK(petrush_parse_pipeline(line, &pl) == 0);
+
+    int status = 0;
+    int rc = execute_pipeline(&pl, &status);
+    TEST_CHECK(rc != 0 || status != 0);
+    petrush_pipeline_free(&pl);
+
+    FILE *f = fopen(out_path, "r");
+    TEST_CHECK(f != NULL);
+    if (f) {
+        char buf[64] = {0};
+        TEST_CHECK(fgets(buf, sizeof(buf), f) != NULL);
+        TEST_CHECK(strcmp(buf, "KEEP\n") == 0);
+        TEST_CHECK(strstr(buf, "OVERWRITE") == NULL);
+        fclose(f);
+    }
+    unlink(out_path);
+}
+
+/* SEC-09: `>>` continua append em arquivo existente. */
+void test_execute_redir_append_allows_existing(void)
+{
+    char out_path[] = "/tmp/petrush_test_noclobber_app_XXXXXX";
+    int fd = mkstemp(out_path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    TEST_CHECK(write(fd, "KEEP\n", 5) == 5);
+    close(fd);
+
+    petrush_pipeline_t pl = {0};
+    char line[256];
+    snprintf(line, sizeof(line), "/bin/echo APPENDED >> %s", out_path);
+    TEST_CHECK(petrush_parse_pipeline(line, &pl) == 0);
+
+    int status = -1;
+    TEST_CHECK(execute_pipeline(&pl, &status) == 0);
+    TEST_CHECK(status == 0);
+    petrush_pipeline_free(&pl);
+
+    FILE *f = fopen(out_path, "r");
+    TEST_CHECK(f != NULL);
+    if (f) {
+        char all[128] = {0};
+        size_t n = fread(all, 1, sizeof(all) - 1, f);
+        all[n] = '\0';
+        TEST_CHECK(strstr(all, "KEEP") != NULL);
+        TEST_CHECK(strstr(all, "APPENDED") != NULL);
+        fclose(f);
+    }
+    unlink(out_path);
+}
+
+/* SEC-09: `2>` tambem recusa overwrite (mesmo trunc). */
+void test_execute_redir_err_noclobber_existing(void)
+{
+    char err_path[] = "/tmp/petrush_test_noclobber_err_XXXXXX";
+    int fd = mkstemp(err_path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    TEST_CHECK(write(fd, "KEEP\n", 5) == 5);
+    close(fd);
+
+    int status = 0;
+    TEST_CHECK(parse_run_sh_both("2>", err_path, &status) != 0 || status != 0);
+
+    FILE *f = fopen(err_path, "r");
+    TEST_CHECK(f != NULL);
+    if (f) {
+        char buf[64] = {0};
+        TEST_CHECK(fgets(buf, sizeof(buf), f) != NULL);
+        TEST_CHECK(strcmp(buf, "KEEP\n") == 0);
+        fclose(f);
+    }
+    unlink(err_path);
+}
+
 TEST_LIST = {
     { "execute_null_cmd",           test_execute_null_cmd },
     { "execute_empty_cmd",          test_execute_empty_cmd },
@@ -333,5 +428,8 @@ TEST_LIST = {
     { "execute_redir_err_merge",    test_execute_redir_err_merge_to_out },
     { "execute_redir_ampgt_both",   test_execute_redir_ampgt_both },
     { "execute_redir_err_open_fail", test_execute_redir_err_open_fail },
+    { "execute_redir_out_noclobber", test_execute_redir_out_noclobber_existing },
+    { "execute_redir_append_ok",     test_execute_redir_append_allows_existing },
+    { "execute_redir_err_noclobber", test_execute_redir_err_noclobber_existing },
     { NULL, NULL }
 };
