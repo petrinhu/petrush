@@ -78,7 +78,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | SEC-06 | W3 | Segurança | `pudod` exige `st_uid==0` e bit de exec no alvo (`pudod.c` fstat). Ver [`docs/memory/sudo-pudo-riscos.md`](docs/memory/sudo-pudo-riscos.md). | Alta | SEC-05 | Média | 🔍 Pendente verificação | — |
 | SEC-09 | W3 | Segurança | `>`/`>>` sem `O_EXCL` em `process.c` e `dispatcher.c` (irmão FEAT-NOCLOBBER; o patch pode ser o mesmo, sem duplicar). Ver [`docs/memory/shells-seguranca.md`](docs/memory/shells-seguranca.md). | Média | — | Baixa | ⏳ Pendente | — |
 | SEC-08 | W3 | Segurança | History linenoise: `fopen("w")` ainda segue symlink (CVE-2025-9810 residual). Ver [`docs/memory/shells-seguranca.md`](docs/memory/shells-seguranca.md). | Média | — | Baixa | 🔍 Pendente verificação | — |
-| SEC-10 | W3 | Segurança | `~/.petrushrc` sem checar uid/mode do arquivo. Ver [`docs/memory/shells-seguranca.md`](docs/memory/shells-seguranca.md). | Média | — | Baixa | ⏳ Pendente | — |
+| SEC-10 | W3 | Segurança | `~/.petrushrc` sem checar uid/mode do arquivo. Ver [`docs/memory/shells-seguranca.md`](docs/memory/shells-seguranca.md). | Média | — | Baixa | 🔍 Pendente verificação | — |
 | UX-18 | W4 | Shell | Glob simples `*` `?` só em tokens unquoted. | Média | UX-17 | Média | 🔍 Pendente verificação | — |
 | SEC-07 | W4 | Segurança | Fechar TOCTOU `realpath` → `open` no `pudod` (O_NOFOLLOW / mesmo fd). Ver [`docs/memory/sudo-pudo-riscos.md`](docs/memory/sudo-pudo-riscos.md). | Alta | SEC-06 | Média | 🔍 Pendente verificação | — |
 | UX-19 | W5 | Shell | Builtins no pipe (subshell-like). | Média | UX-18 | Média | ⏳ Pendente | — |

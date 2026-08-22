@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "petrush/petrush.h"
 #include "petrush/parser.h"
@@ -20,6 +21,7 @@
 #include "petrush/complete.h"
 #include "petrush/hist_expand.h"
 #include "petrush/prompt.h"
+#include "petrush/rc_trust.h"
 #include "linenoise.h"
 
 /* Caminho padrão para histórico persistente */
@@ -62,7 +64,24 @@ static void load_rc_file(void)
     const char *rcfile = get_rc_file();
     FILE *f = fopen(rcfile, "r");
     if (!f) {
-        /* Arquivo não existe é normal — não é erro */
+        /* Arquivo nao existe e normal; nao e erro. */
+        return;
+    }
+
+    /* SEC-10: recusar se nao for regular, uid alheio ou write group/other. */
+    struct stat st;
+    if (fstat(fileno(f), &st) != 0) {
+        fprintf(stderr, "petrush: erro ao inspecionar rc %s: %s\n",
+                rcfile, strerror(errno));
+        fclose(f);
+        return;
+    }
+    if (petrush_rc_stat_ok(&st, getuid()) != 0) {
+        fprintf(stderr,
+                "petrush: recusando rc inseguro %s "
+                "(nao regular, uid!=getuid() ou mode&0022)\n",
+                rcfile);
+        fclose(f);
         return;
     }
 

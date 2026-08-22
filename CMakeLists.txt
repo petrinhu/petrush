@@ -41,6 +41,7 @@ add_executable(petrush
     src/mid/expand.c
     src/mid/prompt.c
     src/front/complete.c
+    src/front/rc_trust.c
     src/foundation/process.c
     src/foundation/env.c
     vendor/linenoise/linenoise.c
@@ -362,9 +363,23 @@ target_compile_options(test_prompt PRIVATE
 )
 add_test(NAME test_prompt COMMAND test_prompt)
 
+# ~/.petrushrc uid/mode trust (SEC-10)
+add_executable(test_rc_trust
+    tests/test_rc_trust.c
+    src/front/rc_trust.c
+)
+target_include_directories(test_rc_trust PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_options(test_rc_trust PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_rc_trust COMMAND test_rc_trust)
+
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt
+    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust
     COMMENT "Executando todos os testes unitários"
 )
 
