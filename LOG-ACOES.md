@@ -23,3 +23,5 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - W2 continua: SEC-04 (fail closed argc) + SEC-03 (example allow).
 - SEC-03/04/06/07/08 no remoto. SEC-09 O_EXCL trunc + SEC-10 rc uid/mode: commits locais `587b045` / `877db3c`.
 - NEW-22 permanece ⏳ (líder AFK). Próxima fatia ROI ⏳: UX-19 builtins no pipe.
+- UX-19 `5d55236` no main: check 15/15, smoke 47/47 (`echo | cat` builtin). TODO UX-19 🔍.
+- Próxima ⏳: UX-20 Ctrl-R. NEW-22 segue bloqueado no líder.
