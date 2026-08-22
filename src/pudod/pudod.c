@@ -43,6 +43,7 @@
 
 #include "allow_resolve.h"
 #include "child_argv.h"
+#include "target_check.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -265,14 +266,13 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    if (!S_ISREG(st.st_mode)) {
-        pudod_log(LOG_ERR, "alvo não é arquivo regular: %s", resolved);
+    /* SEC-06: regular + root-owned + bit de exec (após fstat do fd aberto). */
+    if (pudod_target_is_root_exec(&st) != 0) {
+        pudod_log(LOG_ERR,
+                  "alvo recusado (não é regular root-owned executável): %s uid=%u mode=%o",
+                  resolved, (unsigned)st.st_uid, (unsigned)(st.st_mode & 07777));
         goto cleanup;
     }
-
-    /* Opcional: exigir que seja legível/executável por root.
-       Aqui aceitamos qualquer regular que passou na allow-list.
-       Em produção mais estrito: st.st_uid == 0 && (st.st_mode & 0111) */
 
     /* 9. Log de auditoria com UID REAL (getuid() é o caller original) */
     pudod_log(LOG_INFO, "executando uid=%d cmd=%s (resolved=%s) argc=%d",

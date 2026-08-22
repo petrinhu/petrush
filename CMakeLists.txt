@@ -53,6 +53,7 @@ add_executable(pudod
     src/pudod/pudod.c
     src/pudod/allow_resolve.c
     src/pudod/child_argv.c
+    src/pudod/target_check.c
 )
 target_include_directories(pudod PRIVATE
     ${CMAKE_SOURCE_DIR}/src/pudod
@@ -208,6 +209,7 @@ add_executable(test_pudo
     src/foundation/env.c
     src/pudod/allow_resolve.c
     src/pudod/child_argv.c
+    src/pudod/target_check.c
 )
 target_include_directories(test_pudo PRIVATE
     ${CMAKE_SOURCE_DIR}/tests

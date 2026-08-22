@@ -75,7 +75,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | DOC-01 | W2 | Docs | Atualizar `docs/architecture.md`: Front já tem `complete.c`; prosa “porte Solo” é informal (piso early). | Baixa | — | Baixa | 🔍 Pendente verificação | — |
 | NEW-22 | W2 | Processo | Confirmar retroativamente o escopo da Onda 3 (NEW-20 mínimo) com o líder. | Baixa | NEW-20 | Baixa | ⏳ Pendente | — |
 | UX-17 | W3 | Shell | Lista sequencial `;` (`a; b` sempre roda `b`). | Média | UX-16 | Baixa | 🔍 Pendente verificação | — |
-| SEC-06 | W3 | Segurança | `pudod` exige `st_uid==0` e bit de exec no alvo (`pudod.c` fstat). Ver [`docs/memory/sudo-pudo-riscos.md`](docs/memory/sudo-pudo-riscos.md). | Alta | SEC-05 | Média | ⏳ Pendente | — |
+| SEC-06 | W3 | Segurança | `pudod` exige `st_uid==0` e bit de exec no alvo (`pudod.c` fstat). Ver [`docs/memory/sudo-pudo-riscos.md`](docs/memory/sudo-pudo-riscos.md). | Alta | SEC-05 | Média | 🔍 Pendente verificação | — |
 | SEC-09 | W3 | Segurança | `>`/`>>` sem `O_EXCL` em `process.c` e `dispatcher.c` (irmão FEAT-NOCLOBBER; o patch pode ser o mesmo, sem duplicar). Ver [`docs/memory/shells-seguranca.md`](docs/memory/shells-seguranca.md). | Média | — | Baixa | ⏳ Pendente | — |
 | SEC-08 | W3 | Segurança | History linenoise: `fopen("w")` ainda segue symlink (CVE-2025-9810 residual). Ver [`docs/memory/shells-seguranca.md`](docs/memory/shells-seguranca.md). | Média | — | Baixa | ⏳ Pendente | — |
 | SEC-10 | W3 | Segurança | `~/.petrushrc` sem checar uid/mode do arquivo. Ver [`docs/memory/shells-seguranca.md`](docs/memory/shells-seguranca.md). | Média | — | Baixa | ⏳ Pendente | — |

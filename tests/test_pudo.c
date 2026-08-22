@@ -10,6 +10,7 @@
 #include "petrush/env.h"
 #include "allow_resolve.h"
 #include "child_argv.h"
+#include "target_check.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -283,6 +284,68 @@ void test_pudod_allow_entry_accepts_existing(void)
     TEST_CHECK(access(out, F_OK) == 0);
 }
 
+/* SEC-06: alvo deve ser regular, root-owned e com bit de exec. */
+static void sec06_fill_stat(struct stat *st, mode_t mode, uid_t uid)
+{
+    memset(st, 0, sizeof(*st));
+    st->st_mode = mode;
+    st->st_uid = uid;
+}
+
+void test_sec06_rejects_null_stat(void)
+{
+    TEST_CHECK(pudod_target_is_root_exec(NULL) == -1);
+}
+
+void test_sec06_accepts_root_owned_executable(void)
+{
+    struct stat st;
+    sec06_fill_stat(&st, S_IFREG | 0755, 0);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == 0);
+
+    sec06_fill_stat(&st, S_IFREG | 0111, 0);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == 0);
+
+    sec06_fill_stat(&st, S_IFREG | S_IXUSR, 0);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == 0);
+}
+
+void test_sec06_rejects_non_root_owner(void)
+{
+    struct stat st;
+    sec06_fill_stat(&st, S_IFREG | 0755, 1000);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == -1);
+
+    sec06_fill_stat(&st, S_IFREG | 0755, 1);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == -1);
+}
+
+void test_sec06_rejects_non_executable(void)
+{
+    struct stat st;
+    sec06_fill_stat(&st, S_IFREG | 0644, 0);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == -1);
+
+    sec06_fill_stat(&st, S_IFREG | 0600, 0);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == -1);
+
+    sec06_fill_stat(&st, S_IFREG | 0444, 0);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == -1);
+}
+
+void test_sec06_rejects_non_regular(void)
+{
+    struct stat st;
+    sec06_fill_stat(&st, S_IFDIR | 0755, 0);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == -1);
+
+    sec06_fill_stat(&st, S_IFLNK | 0777, 0);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == -1);
+
+    sec06_fill_stat(&st, S_IFCHR | 0755, 0);
+    TEST_CHECK(pudod_target_is_root_exec(&st) == -1);
+}
+
 void test_pudod_binary_refuses_without_privileges(void)
 {
     /* Testa o helper diretamente: sem setuid/root ele deve falhar cedo
@@ -377,6 +440,11 @@ TEST_LIST = {
     { "sec04_pudo_helper_accepts_small",    test_sec04_pudo_helper_accepts_small },
     { "pudod_allow_rejects_unresolvable",  test_pudod_allow_entry_rejects_unresolvable },
     { "pudod_allow_accepts_existing",      test_pudod_allow_entry_accepts_existing },
+    { "sec06_rejects_null_stat",           test_sec06_rejects_null_stat },
+    { "sec06_accepts_root_exec",           test_sec06_accepts_root_owned_executable },
+    { "sec06_rejects_non_root",            test_sec06_rejects_non_root_owner },
+    { "sec06_rejects_non_exec",            test_sec06_rejects_non_executable },
+    { "sec06_rejects_non_regular",         test_sec06_rejects_non_regular },
     { "pudod_refuses_without_privs",       test_pudod_binary_refuses_without_privileges },
     { NULL, NULL }
 };
