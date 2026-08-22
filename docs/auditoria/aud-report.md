@@ -124,14 +124,14 @@ Escala vault: 🔴 CRÍTICO · 🟠 IMPORTANTE · 🟢 COSMÉTICO.
 
 **Reclassificação (explícita, não maquiagem):** AUD-QUALITY marcou Q-GOD-01 / Q-CCN-01 / Q-COG-01 como 🔴 I9 (god-file / CCN). I9 do vault trata god-class como crítico de *qualidade*. Sem crash, UB ou priv-esc associado, o consolidado **não** empilha esses IDs no mesmo saco que setuid. Viram 🟠 (R-I17, R-I18). O capítulo-fonte continua válido; o livro não some com a dívida.
 
-Coluna **Estado Auditado:** `—` aberto (não remedado) · `✓` controle revalidado no capítulo · `⚠` gate/residual (existe mitigação, não é “fechado”).
+Coluna **Estado Auditado:** `-` aberto (não remedado) · `✓` controle revalidado no capítulo · `⚠` gate/residual (existe mitigação, não é “fechado”).
 
 ### 4.2 🔴 CRÍTICO (3)
 
 | ID | Fonte | Descrição | Evidência | Remediação | Estado |
 |----|-------|-----------|-----------|------------|--------|
 | **R-C1** | AUD-SEC-C1; DISC risco 1 | **Setuid `4755` / setcap no `pudod` não endossado.** Qualquer bit setuid transforma bug residual + allow-list larga em escalada local. CMake e `pudod-install.md` **não** aplicam 4755. Host sem `/usr/local/libexec/petrush-pudod`. Artefato Release `755`. | `aud-sec.md` §4 C1, §8; `stat` do binário; ausência do helper instalado | **Não** aplicar 4755/setcap. Se um dia for cogitado: AskUserQuestion + Narciso + allow-list ≤3 inocentes + revisão linha a linha de `pudod.c`. `DEPLOY_CHECKLIST`. | ⚠ gate ativo |
-| **R-C2** | AUD-SEC-C2; DISC 7.4 E | **Fallback Boundary B:** se `find_pudod_binary()` falha, o frontend avisa e faz `execve("/usr/bin/sudo")` e, se falhar, `execvp("sudo")`. Privilegio deixa o helper mínimo e reabre sudoers/PAM/tickets. | `src/mid/pudo.c` `run_via_pudod` (~L667-696); `aud-sec.md` C2; `sudo-pudo-riscos.md` meta-B | Fail-closed em **Release** sem pudod. Remover `execvp("sudo")`. Path absoluto só se o líder pedir lab. | — |
+| **R-C2** | AUD-SEC-C2; DISC 7.4 E | **Fallback Boundary B:** se `find_pudod_binary()` falha, o frontend avisa e faz `execve("/usr/bin/sudo")` e, se falhar, `execvp("sudo")`. Privilegio deixa o helper mínimo e reabre sudoers/PAM/tickets. | `src/mid/pudo.c` `run_via_pudod` (~L667-696); `aud-sec.md` C2; `sudo-pudo-riscos.md` meta-B | Fail-closed em **Release** sem pudod. Remover `execvp("sudo")`. Path absoluto só se o líder pedir lab. | - |
 | **R-C3** | DISC 7.5 E; SEC-03 | **Allow-list com shell genérico** (`/bin/sh`, bash, busybox) reabre o modelo POSIX **já como root**. Não é bug do parser; é falha de política. Example atual é mínimo (`id`/`whoami`/`true`). | `aud-disc.md` §7.5 composição crítica; `pudo.allow.example`; shells-seguranca §12 | Manter example mínimo. Nunca listar shells. Operador que alargar `/etc/petrush/pudo.allow` assume o risco. | ⚠ latente (example OK) |
 
 **Nenhum dos três é memory-unsafe aberto.** R-C1 é veto de processo (o código *não* instala setuid: isso é o comportamento certo). R-C2 é o único 🔴 de *código* ainda no caminho de produto. R-C3 é política.
@@ -142,27 +142,27 @@ Coluna **Estado Auditado:** `—` aberto (não remedado) · `✓` controle reval
 
 | ID | Fonte | Descrição | Evidência | Remediação | Estado |
 |----|-------|-----------|-----------|------------|--------|
-| **R-I1** | SEC-I1 | `execvp("sudo")` após falha de `/usr/bin/sudo` (PATH spoof, CWE-426) | `pudo.c` ~L694 | Remover; fail closed. Casa com R-C2. | — |
-| **R-I2** | SEC-I2 | `build_clean_envp` propaga `TZ`/`TMPDIR`/`HOME` no caminho **sudo** (pudod descarta; B não) | `pudo.c` ~L325-356 | Env mínimo também no B, ou abolir B (R-C2) | — |
-| **R-I3** | SEC-I3 | Client `pudo.conf` ausente = frontend não filtra; autoridade = pudod. Com B, sobra só sudoers. | `is_command_allowed` ~L219-223 | Fail closed no client em Release, ou documentar que B é lab | — |
-| **R-I4** | SEC-I4; DISC fontes | Docs de memória desatualizados vs SEC-03/04/05/09 (`pudo-audit.md` 2026-07-01; `shells-seguranca.md` noclobber “aberto”) | paths em `docs/security/` e `docs/memory/` | Atualizar na onda DOC (não nesta fatia) | — |
+| **R-I1** | SEC-I1 | `execvp("sudo")` após falha de `/usr/bin/sudo` (PATH spoof, CWE-426) | `pudo.c` ~L694 | Remover; fail closed. Casa com R-C2. | - |
+| **R-I2** | SEC-I2 | `build_clean_envp` propaga `TZ`/`TMPDIR`/`HOME` no caminho **sudo** (pudod descarta; B não) | `pudo.c` ~L325-356 | Env mínimo também no B, ou abolir B (R-C2) | - |
+| **R-I3** | SEC-I3 | Client `pudo.conf` ausente = frontend não filtra; autoridade = pudod. Com B, sobra só sudoers. | `is_command_allowed` ~L219-223 | Fail closed no client em Release, ou documentar que B é lab | - |
+| **R-I4** | SEC-I4; DISC fontes | Docs de memória desatualizados vs SEC-03/04/05/09 (`pudo-audit.md` 2026-07-01; `shells-seguranca.md` noclobber “aberto”) | paths em `docs/security/` e `docs/memory/` | Atualizar na onda DOC (não nesta fatia) | - |
 | **R-I5** | SEC-I5; DISC 7.1 | Superfície REPL unpriv residual: bang, alias, `source`, glob, append `>>` | `shells-seguranca.md` + código atual | Aceito no uid do user; não é priv-esc. Monitorar. | ⚠ aceito unpriv |
-| **R-I6** | SEC-I6 | Fortify parcial + símbolos não stripped (Release) | checksec T7; 367/73 symbols | Strip no pacote de produção; não bloqueia AUD-SEC | — |
+| **R-I6** | SEC-I6 | Fortify parcial + símbolos não stripped (Release) | checksec T7; 367/73 symbols | Strip no pacote de produção; não bloqueia AUD-SEC | - |
 | **R-I7** | DISC risco 6 | Jobs `&` / TTY / orphan (UX-23 ainda em evolução de superfície) | `job.c`; `aud-disc.md` §9 | Monitorar SIGTSTP/orphan; sem fg/bg de propósito | ⚠ |
 
 #### Arquitetura / deps
 
 | ID | Fonte | Descrição | Evidência | Remediação | Estado |
 |----|-------|-----------|-----------|------------|--------|
-| **R-I8** | ARCH F1 = DEPS D1 | **Mid importa linenoise** (`dispatcher` `ClearScreen`; `hist_expand` History*) | `src/mid/dispatcher.c`, `hist_expand.c` | Porta Front `petrush_ui_clear_screen` + history get/len alimentada no boot | — |
-| **R-I9** | ARCH F2 | Mid inclui `rc_trust.h` (físico Front; semântica = trust) | `source.c` → `rc_trust.h` | Mover `rc_trust.c` para Foundation ou Mid; CMake + architecture.md | — |
-| **R-I10** | ARCH F3 | Mid chama `fork`/`exec*`/`open` (bg job + pudo client) | `dispatcher.c` bg; `pudo.c` exec | Documentar exceções; opcional `petrush_spawn_background()` | — |
-| **R-I11** | ARCH F4 | Foundation inclui tipos do parser (`process.h` → `parser.h`) | `include/petrush/process.h` | Aceitar early com nota, ou extrair `cmd.h` neutro | — |
-| **R-I12** | ARCH F5 | Drift `architecture.md` / README Front (“Solo”; omite `job.c`, Mid completo, pudod) | `docs/architecture.md`; `src/front/README.md` | DOC: listar módulos reais; Solo → early | — |
-| **R-I13** | DEPS D2 | `complete.h` inclui `linenoise.h` (contrato público vaza vendor) | `include/petrush/complete.h` | Forward-declare no `.c`; header sem vendor | — |
-| **R-I14** | DEPS D3 | Fork linenoise (4 patches) pode reintroduzir CVE-2025-9810 no bump | `vendor/linenoise/README.md`; T5/T12 | Checklist de diff vs `f2558e1e` / tag a cada bump | — |
-| **R-I15** | DEPS D4 | Fan-out CMake: `linenoise.c` em petrush + ≥6 testes (sintoma de R-I8) | `CMakeLists.txt` | Após porta: lib estática única; testes Mid sem vendor | — |
-| **R-I16** | DEPS D5 (LOW no capítulo; **sobe a 🟠**) | Atribuição BSD-2 incompleta na superfície de distribuição (`LICENSE.md` só AGPL; README sem linenoise) | headers vendor BSD; `LICENSE.md` | `NOTICE` ou seção Third-party (Sanfilippo / Noordhuis, BSD-2, path) | — |
+| **R-I8** | ARCH F1 = DEPS D1 | **Mid importa linenoise** (`dispatcher` `ClearScreen`; `hist_expand` History*) | `src/mid/dispatcher.c`, `hist_expand.c` | Porta Front `petrush_ui_clear_screen` + history get/len alimentada no boot | - |
+| **R-I9** | ARCH F2 | Mid inclui `rc_trust.h` (físico Front; semântica = trust) | `source.c` → `rc_trust.h` | Mover `rc_trust.c` para Foundation ou Mid; CMake + architecture.md | - |
+| **R-I10** | ARCH F3 | Mid chama `fork`/`exec*`/`open` (bg job + pudo client) | `dispatcher.c` bg; `pudo.c` exec | Documentar exceções; opcional `petrush_spawn_background()` | - |
+| **R-I11** | ARCH F4 | Foundation inclui tipos do parser (`process.h` → `parser.h`) | `include/petrush/process.h` | Aceitar early com nota, ou extrair `cmd.h` neutro | - |
+| **R-I12** | ARCH F5 | Drift `architecture.md` / README Front (“Solo”; omite `job.c`, Mid completo, pudod) | `docs/architecture.md`; `src/front/README.md` | DOC: listar módulos reais; Solo → early | - |
+| **R-I13** | DEPS D2 | `complete.h` inclui `linenoise.h` (contrato público vaza vendor) | `include/petrush/complete.h` | Forward-declare no `.c`; header sem vendor | - |
+| **R-I14** | DEPS D3 | Fork linenoise (4 patches) pode reintroduzir CVE-2025-9810 no bump | `vendor/linenoise/README.md`; T5/T12 | Checklist de diff vs `f2558e1e` / tag a cada bump | - |
+| **R-I15** | DEPS D4 | Fan-out CMake: `linenoise.c` em petrush + ≥6 testes (sintoma de R-I8) | `CMakeLists.txt` | Após porta: lib estática única; testes Mid sem vendor | - |
+| **R-I16** | DEPS D5 (LOW no capítulo; **sobe a 🟠**) | Atribuição BSD-2 incompleta na superfície de distribuição (`LICENSE.md` só AGPL; README sem linenoise) | headers vendor BSD; `LICENSE.md` | `NOTICE` ou seção Third-party (Sanfilippo / Noordhuis, BSD-2, path) | - |
 
 R-I16 sobe de LOW para 🟠: redistribuição binária BSD-2 **exige** copyright/disclaimer. Não é 🔴 (licenças combináveis, D7). Não é só polish se o projeto publica binários.
 
@@ -170,34 +170,34 @@ R-I16 sobe de LOW para 🟠: redistribuição binária BSD-2 **exige** copyright
 
 | ID | Fonte | Descrição | Evidência | Remediação | Estado |
 |----|-------|-----------|-----------|------------|--------|
-| **R-I17** | Q-GOD-01 (🔴 no capítulo → 🟠 aqui) | God-file `dispatcher.c` (952 linhas); também `pudo` 734, `parser` 651, `expand` 531, `process` 513 | `wc`; `aud-quality.md` §4 | Fatiar: `builtins_test.c`, alias, tabela + dispatch fino. Testes já existem. | — |
-| **R-I18** | Q-CCN-01, Q-COG-01 | Avg CCN 7.6 (meta 5); 12 funções CCN>20; cognitive >50 em `expand_*` / `completion_cb` / `hl_scan` **fora** do gate tidy | lizard; clang-tidy pontual | Decompor hotspots; incluir arquivos no target tidy (R-I19) | — |
-| **R-I19** | Q-T2-GAP | Target `clang-tidy` omite `expand.c`, `complete.c`, `highlight.c`, … TST-T2 verde ≠ complexidade sob controle | `CMakeLists.txt` L514-521 | Estender lista; `NOLINT` pontual ou extrair até ≤50 | — |
-| **R-I20** | Q-DRY-01 = ARCH F6 | Redirs `open`/`dup2` duplicadas Mid × Foundation (n=2, pré-Rule-of-3) | `process.c` `apply_redirs`; `dispatcher.c` `run_builtin_with_redirs` | Extrair `petrush_apply_redirs` **antes** da 3ª cópia | — |
-| **R-I21** | Q-DRY-02 | Três blocos idênticos de expand em redirs (Rule of 3 **dispara**) | `expand.c` `expand_cmd_argv` ~520-529 | Helper `expand_inplace(char **)` | — |
-| **R-I22** | Q-CCN-02 | `match_op` CCN 40 (tabela densa, NLOC 26) | lizard; `highlight.c` | Tabela de literais / loop; não explodir em 10 funções | — |
-| **R-I23** | AUD-COV §3 | `process` 65.4%, `dispatcher` 67.7%, `pudo` 68.0% linhas (meta 70% por crítico). Funções 0 hit: `signal_name`, `pipeline_abort`, `builtin_env`/`unalias`/`dirs`. | lcov genhtml `/var/tmp/petrush-aud-cov-report` | Testes dos builtins + ramos de erro / config pudo **sem** setuid | — |
-| **R-I24** | AUD-COV §4.3 | `pudod.c` usa `_exit` (certo para setuid) e **engole** flush gcov; `main` do helper não mensurável | `.gcno` presente, `.gcda` ausente | `__gcov_dump()` antes de `_exit` **ou** harness da lógica sem o `main`. Não trocar `_exit`→`exit` no produto setuid. | — |
-| **R-I25** | LANG L1 | 0 `nullptr`; ~180 `NULL` em src+include | `aud-lang.md` §3 | Política incremental: código novo usa `nullptr`; sem big-bang | — |
-| **R-I26** | LANG L2 | Flags booleanas como `int` (`redir_*`, `background`, `notified`, …) | headers públicos | Fatia TDD: `bool` em flags; status 0/-1 permanece `int` | — |
-| **R-I27** | LANG L3 | Zero `static_assert` nos limites (`PETRUSH_JOB_MAX`, `PUDOD_MAX_ARGS`, …) | headers + arrays estáticos | `static_assert` ao lado dos `#define` (baixo risco) | — |
-| **R-I28** | LANG L4 | `.clang-tidy` sem política de idiom C23; T2 não prova modernidade | `.clang-tidy`; cppcheck `--std=c23` | Parágrafo em `docs/standards.md`; gate `rg` só se o líder quiser | — |
+| **R-I17** | Q-GOD-01 (🔴 no capítulo → 🟠 aqui) | God-file `dispatcher.c` (952 linhas); também `pudo` 734, `parser` 651, `expand` 531, `process` 513 | `wc`; `aud-quality.md` §4 | Fatiar: `builtins_test.c`, alias, tabela + dispatch fino. Testes já existem. | - |
+| **R-I18** | Q-CCN-01, Q-COG-01 | Avg CCN 7.6 (meta 5); 12 funções CCN>20; cognitive >50 em `expand_*` / `completion_cb` / `hl_scan` **fora** do gate tidy | lizard; clang-tidy pontual | Decompor hotspots; incluir arquivos no target tidy (R-I19) | - |
+| **R-I19** | Q-T2-GAP | Target `clang-tidy` omite `expand.c`, `complete.c`, `highlight.c`, … TST-T2 verde ≠ complexidade sob controle | `CMakeLists.txt` L514-521 | Estender lista; `NOLINT` pontual ou extrair até ≤50 | - |
+| **R-I20** | Q-DRY-01 = ARCH F6 | Redirs `open`/`dup2` duplicadas Mid × Foundation (n=2, pré-Rule-of-3) | `process.c` `apply_redirs`; `dispatcher.c` `run_builtin_with_redirs` | Extrair `petrush_apply_redirs` **antes** da 3ª cópia | - |
+| **R-I21** | Q-DRY-02 | Três blocos idênticos de expand em redirs (Rule of 3 **dispara**) | `expand.c` `expand_cmd_argv` ~520-529 | Helper `expand_inplace(char **)` | - |
+| **R-I22** | Q-CCN-02 | `match_op` CCN 40 (tabela densa, NLOC 26) | lizard; `highlight.c` | Tabela de literais / loop; não explodir em 10 funções | - |
+| **R-I23** | AUD-COV §3 | `process` 65.4%, `dispatcher` 67.7%, `pudo` 68.0% linhas (meta 70% por crítico). Funções 0 hit: `signal_name`, `pipeline_abort`, `builtin_env`/`unalias`/`dirs`. | lcov genhtml `/var/tmp/petrush-aud-cov-report` | Testes dos builtins + ramos de erro / config pudo **sem** setuid | - |
+| **R-I24** | AUD-COV §4.3 | `pudod.c` usa `_exit` (certo para setuid) e **engole** flush gcov; `main` do helper não mensurável | `.gcno` presente, `.gcda` ausente | `__gcov_dump()` antes de `_exit` **ou** harness da lógica sem o `main`. Não trocar `_exit`→`exit` no produto setuid. | - |
+| **R-I25** | LANG L1 | 0 `nullptr`; ~180 `NULL` em src+include | `aud-lang.md` §3 | Política incremental: código novo usa `nullptr`; sem big-bang | - |
+| **R-I26** | LANG L2 | Flags booleanas como `int` (`redir_*`, `background`, `notified`, …) | headers públicos | Fatia TDD: `bool` em flags; status 0/-1 permanece `int` | - |
+| **R-I27** | LANG L3 | Zero `static_assert` nos limites (`PETRUSH_JOB_MAX`, `PUDOD_MAX_ARGS`, …) | headers + arrays estáticos | `static_assert` ao lado dos `#define` (baixo risco) | - |
+| **R-I28** | LANG L4 | `.clang-tidy` sem política de idiom C23; T2 não prova modernidade | `.clang-tidy`; cppcheck `--std=c23` | Parágrafo em `docs/standards.md`; gate `rg` só se o líder quiser | - |
 
 ### 4.4 🟢 COSMÉTICO (11)
 
 | ID | Fonte | Descrição | Estado |
 |----|-------|-----------|--------|
-| **R-O1** | SEC-O1 | API `pudo_sanitize_environment` ainda muta `environ` (útil a testes) | — |
-| **R-O2** | SEC-O2 | Trunc de log (`LOG_BUF_SIZE` 512) | — |
+| **R-O1** | SEC-O1 | API `pudo_sanitize_environment` ainda muta `environ` (útil a testes) | - |
+| **R-O2** | SEC-O2 | Trunc de log (`LOG_BUF_SIZE` 512) | - |
 | **R-O3** | SEC-O3 | `trufflehog` / `hardening-check` ausentes (cobertos por gitleaks + checksec) | ⚠ tooling |
 | **R-O4** | SEC-O4 | Vault `AUDITORIAS.md` nesta máquina é sobretudo índice; poda do projeto carrega o operacional | ⚠ processo |
-| **R-O5** | Q-TOOL-01 | tokei ausente; LOC via `wc` | — |
-| **R-O6** | Q-TOOL-02 | cppcheck `--suppress=unusedFunction` (dead-code cego no CI) | — |
-| **R-O7** | Q-DOC-01 | `tst-t2-estatica.md` descreve gate falho antigo; TODO já `🔍` verde | — |
+| **R-O5** | Q-TOOL-01 | tokei ausente; LOC via `wc` | - |
+| **R-O6** | Q-TOOL-02 | cppcheck `--suppress=unusedFunction` (dead-code cego no CI) | - |
+| **R-O7** | Q-DOC-01 | `tst-t2-estatica.md` descreve gate falho antigo; TODO já `🔍` verde | - |
 | **R-O8** | LANG L5 | Dialeto `gnu2x` (default extensions) em vez de `c23` estrito; `__STDC_VERSION__` 202311L | ⚠ aceito (`pudod` precisa GNU) |
-| **R-O9** | LANG L6 | `typeof` / `_Generic` / `[[nodiscard]]` / `_BitInt` ausentes (sem urgência de domínio) | — |
-| **R-O10** | AUD-COV tooling | gcovr ausente; `lcov --list` 2.0 com Rate corrompida (contornado) | — |
-| **R-O11** | AUD-DISC | Threat Dragon não gerado; DFD textual basta no early | — |
+| **R-O9** | LANG L6 | `typeof` / `_Generic` / `[[nodiscard]]` / `_BitInt` ausentes (sem urgência de domínio) | - |
+| **R-O10** | AUD-COV tooling | gcovr ausente; `lcov --list` 2.0 com Rate corrompida (contornado) | - |
+| **R-O11** | AUD-DISC | Threat Dragon não gerado; DFD textual basta no early | - |
 
 OK explícitos (não são achados, ficam no livro para o auditor externo não reabrir):
 
@@ -312,13 +312,13 @@ Controles **presentes** (`aud-sec.md` §3). O livro não marca `✅` nos IDs SEC
 | SEC-01 | sem `unsetenv` no pai | API de teste ainda muta (R-O1) |
 | SEC-02 | Release: path install absoluto | Debug ainda relativos; tree smoke 51/53 esperado |
 | SEC-03 | example allow mínima | política humana (R-C3) |
-| SEC-04 | argc > MAX fail closed | — |
-| SEC-05 | `realpath` fail → skip literal | — |
-| SEC-06 | alvo regular root+exec | — |
+| SEC-04 | argc > MAX fail closed | - |
+| SEC-05 | `realpath` fail → skip literal | - |
+| SEC-06 | alvo regular root+exec | - |
 | SEC-07 | `O_NOFOLLOW` + `fexecve` | fallback non-Linux `execve(path)` |
 | SEC-08 | history `O_NOFOLLOW` + `fchmod` 0600 | CVE-2025-9810 mitigado |
 | SEC-09 | `>` / `2>` com `O_EXCL` | `>>` append esperado |
-| SEC-10 | rc uid/mode | — |
+| SEC-10 | rc uid/mode | - |
 
 ---
 

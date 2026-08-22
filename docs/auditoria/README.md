@@ -57,7 +57,7 @@ Classificação vault: 🔴 CRÍTICO / 🟠 IMPORTANTE / 🟢 COSMÉTICO.
 
 Reclassificação consciente (sem inflar): AUD-QUALITY marcou god-files/CCN como 🔴 I9 de manutenibilidade. No livro, **sem crash/UB/priv-esc associado**, esses itens sobem como 🟠. O achado não some; a escala de segurança não é misturada com tamanho de arquivo. Detalhe e IDs: [`aud-report.md`](aud-report.md) §4.
 
-Estado Auditado (coluna do livro): `—` aberto / `✓` controle presente e revalidado / `⚠` residual ou gate.
+Estado Auditado (coluna do livro): `-` aberto / `✓` controle presente e revalidado / `⚠` residual ou gate.
 
 ---
 
