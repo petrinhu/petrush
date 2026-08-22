@@ -73,7 +73,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | SEC-04 | W2 | Segurança | Fail closed se `argc` exceder `MAX_ARGS` / `pudod_argv[128]` (hoje trunca em silêncio). | Média | — | Baixa | 🔍 Pendente verificação | — |
 | SEC-03 | W2 | Segurança | Encolher `src/pudod/pudo.allow.example` a 2–3 comandos inocentes (`id`, `whoami`, `true`). Tirar apt/dnf/systemctl/passwd/cat do exemplo ativo. | Média | — | Baixa | 🔍 Pendente verificação | — |
 | DOC-01 | W2 | Docs | Atualizar `docs/architecture.md`: Front já tem `complete.c`; prosa “porte Solo” é informal (piso early). | Baixa | — | Baixa | 🔍 Pendente verificação | — |
-| NEW-22 | W2 | Processo | Confirmar retroativamente o escopo da Onda 3 (NEW-20 mínimo) com o líder. | Baixa | NEW-20 | Baixa | ⏳ Pendente | — |
+| NEW-22 | W2 | Processo | Confirmar retroativamente o escopo da Onda 3 (NEW-20 mínimo) com o líder. Confirmado 2026-08-22: líder ordenou drenar a tabela até o fim; NEW-20 já em 🔍. | Baixa | NEW-20 | Baixa | 🔍 Pendente verificação | — |
 | UX-17 | W3 | Shell | Lista sequencial `;` (`a; b` sempre roda `b`). | Média | UX-16 | Baixa | 🔍 Pendente verificação | — |
 | SEC-06 | W3 | Segurança | `pudod` exige `st_uid==0` e bit de exec no alvo (`pudod.c` fstat). Ver [`docs/memory/sudo-pudo-riscos.md`](docs/memory/sudo-pudo-riscos.md). | Alta | SEC-05 | Média | 🔍 Pendente verificação | — |
 | SEC-09 | W3 | Segurança | `>`/`>>` sem `O_EXCL` em `process.c` e `dispatcher.c` (irmão FEAT-NOCLOBBER; o patch pode ser o mesmo, sem duplicar). Ver [`docs/memory/shells-seguranca.md`](docs/memory/shells-seguranca.md). | Média | — | Baixa | 🔍 Pendente verificação | — |
@@ -97,7 +97,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | TST-T15 | W14 | Testes | Pré-CI no container local Fedora 44 (mesma imagem do `ci.yml`): build + lint + smoke + valgrind/`verify`. GHA é o espelho remoto, não o caminho pesado. Ver `TESTES.md`. | Alta | FEAT-TEST | Baixa | ⏳ Pendente | — |
 | TST-T2 | W14 | Testes | Análise estática (cppcheck + clang-tidy). Ver `TESTES.md`. Relatório: [`docs/memory/tst-t2-estatica.md`](docs/memory/tst-t2-estatica.md). Gate FALHOU (1 cppcheck + 7 clang-tidy; críticos: null check pós-strtol FEAT-TEST, strcat alias, analyzer free). | Alta | FEAT-TEST | Média | ⏳ Pendente | Gate vermelho 2026-08-22; aguarda fix + re-run |
 | TST-T4 | W14 | Testes | Análise dinâmica de memória (ASan + UBSan + valgrind). Ver `TESTES.md`. | Alta | FEAT-TEST | Média | ⏳ Pendente | — |
-| TST-T14 | W14 | Testes | Integração fim-a-fim (smoke). Ver `TESTES.md`. | Alta | FEAT-TEST | Média | ⏳ Pendente | — |
+| TST-T14 | W14 | Testes | Integração fim-a-fim (smoke). Ver `TESTES.md`. Relatório: [`docs/memory/tst-t14-smoke.md`](docs/memory/tst-t14-smoke.md). | Alta | FEAT-TEST | Média | 🔍 Pendente verificação | smoke 53/0 + check 18/18 PASS 2026-08-22 |
 | TST-T7 | W14 | Testes | Scanning de binário (checksec / hardening-check). Ver `TESTES.md`. | Média | FEAT-TEST | Baixa | ⏳ Pendente | — |
 | TST-T5 | W14 | Testes | Scanning de dependências (trivy/grype). Ver `TESTES.md`. | Média | FEAT-TEST | Baixa | ⏳ Pendente | — |
 | TST-T12 | W14 | Testes | Busca de CVEs nas deps/toolchain. Ver `TESTES.md`. | Média | FEAT-TEST | Baixa | ⏳ Pendente | — |
