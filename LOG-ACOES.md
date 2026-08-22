@@ -21,3 +21,5 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - Onda W2 ⏳: despacho 2 workers (teto) SEC-02 (`pudo.c` find_pudod) + SEC-05 (`pudod.c` realpath fail-closed). NEW-22 não puxar (líder AFK).
 - SEC-02 `ae73665` e SEC-05 `307e891` no main; `test_pudo` 13/13; check 12/12; push até `dada643`.
 - W2 continua: SEC-04 (fail closed argc) + SEC-03 (example allow).
+- SEC-03/04/06/07/08 no remoto. SEC-09 O_EXCL trunc + SEC-10 rc uid/mode: commits locais `587b045` / `877db3c`.
+- NEW-22 permanece ⏳ (líder AFK). Próxima fatia ROI ⏳: UX-19 builtins no pipe.
