@@ -186,6 +186,72 @@ void test_builtin_true_false_short_circuit(void)
     petrush_list_free(&list);
 }
 
+/* FEAT-NOCLOBBER: captura stdout de um builtin (pipe+dup2; sem freopen). */
+static int capture_builtin_stdout(const char *line, char *out, size_t outsz,
+                                  int *status_out)
+{
+    petrush_cmd_t cmd = {0};
+    if (petrush_parse(line, &cmd) != 0) {
+        petrush_cmd_free(&cmd);
+        return -1;
+    }
+
+    int fds[2];
+    if (pipe(fds) != 0) {
+        petrush_cmd_free(&cmd);
+        return -1;
+    }
+    int saved = dup(STDOUT_FILENO);
+    if (saved < 0) {
+        close(fds[0]);
+        close(fds[1]);
+        petrush_cmd_free(&cmd);
+        return -1;
+    }
+    fflush(stdout);
+    if (dup2(fds[1], STDOUT_FILENO) < 0) {
+        close(saved);
+        close(fds[0]);
+        close(fds[1]);
+        petrush_cmd_free(&cmd);
+        return -1;
+    }
+    close(fds[1]);
+
+    int st = dispatch_command(&cmd);
+    fflush(stdout);
+    dup2(saved, STDOUT_FILENO);
+    close(saved);
+
+    if (status_out) *status_out = st;
+
+    ssize_t n = read(fds[0], out, outsz > 0 ? outsz - 1 : 0);
+    close(fds[0]);
+    if (n < 0) n = 0;
+    if (outsz > 0) out[n] = '\0';
+
+    petrush_cmd_free(&cmd);
+    return 0;
+}
+
+void test_help_mentions_noclobber(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("help", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "noclobber") != NULL);
+}
+
+void test_info_mentions_noclobber(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("info", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "noclobber") != NULL);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -197,5 +263,7 @@ TEST_LIST = {
     { "builtin_colon_status_zero", test_builtin_colon_status_zero },
     { "builtin_true_false_ignore_args", test_builtin_true_false_ignore_args },
     { "builtin_true_false_short_circuit", test_builtin_true_false_short_circuit },
+    { "help_mentions_noclobber", test_help_mentions_noclobber },
+    { "info_mentions_noclobber", test_info_mentions_noclobber },
     { NULL, NULL }
 };

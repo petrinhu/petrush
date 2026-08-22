@@ -476,6 +476,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
+    printf("noclobber: > e 2> recusam overwrite se o destino existe; >> / 2>> ok.\n");
     printf("Comandos externos via PATH. Prompt: PETRUSH_PS1.\n");
     return 0;
 }
@@ -631,8 +632,8 @@ int builtin_info(petrush_cmd_t *cmd)
     printf("petrush %s\n", PETRUSH_VERSION);
     printf("C23 REPL shell\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("Features: history, rc, signals, pudo, pipes, redir, alias, PS1, complete, hints, &&/||/;/&, glob, source/., jobs.\n");
-    printf("Anti-OE: sem fg/bg/Ctrl-Z/%%n, sem []/**, sem $1/return em source\n");
+    printf("Features: history, rc, signals, pudo, pipes, redir (noclobber), alias, PS1, complete, hints, &&/||/;/&, glob, source/., jobs.\n");
+    printf("Anti-OE: sem fg/bg/Ctrl-Z/%%n, sem []/**, sem $1/return em source, sem set -C\n");
     return 0;
 }
 
