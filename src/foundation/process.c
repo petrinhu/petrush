@@ -315,11 +315,17 @@ int execute_external(petrush_cmd_t *cmd, int *exit_status)
 
 int execute_pipeline(petrush_pipeline_t *pl, int *exit_status)
 {
+    return execute_pipeline_with_hook(pl, exit_status, NULL);
+}
+
+int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
+                               pipeline_child_hook_t hook)
+{
     if (!pl || pl->ncmds <= 0) {
         return -1;
     }
 
-    /* Um estágio: reutiliza execute_external (com redirs) */
+    /* Um estágio: reutiliza execute_external (com redirs); hook ignorado */
     if (pl->ncmds == 1) {
         return execute_external(&pl->cmds[0], exit_status);
     }
@@ -356,27 +362,32 @@ int execute_pipeline(petrush_pipeline_t *pl, int *exit_status)
 
     for (int i = 0; i < n; i++) {
         petrush_cmd_t *cmd = &pl->cmds[i];
-        char *exe_path = find_executable(cmd->argv[0]);
-        if (!exe_path) {
-            int errcode = shell_error_code_for(cmd->argv[0]);
-            fprintf(stderr, "petrush: comando não encontrado: %s\n", cmd->argv[0]);
-            /* mata já forked? ainda nenhum wait — fail clean */
-            for (int j = 0; j < n - 1; j++) {
-                close(pipes[j][0]);
-                close(pipes[j][1]);
-            }
-            for (int j = 0; j < i; j++) {
-                if (pids[j] > 0) {
-                    kill(pids[j], SIGTERM);
-                    waitpid(pids[j], NULL, 0);
+        /* Sem hook: resolve PATH no pai (contrato test_process intacto).
+         * Com hook: find_builtin ANTES de PATH, no filho. */
+        char *exe_path = NULL;
+        if (!hook) {
+            exe_path = find_executable(cmd->argv[0]);
+            if (!exe_path) {
+                int errcode = shell_error_code_for(cmd->argv[0]);
+                fprintf(stderr, "petrush: comando não encontrado: %s\n",
+                        cmd->argv[0]);
+                for (int j = 0; j < n - 1; j++) {
+                    close(pipes[j][0]);
+                    close(pipes[j][1]);
                 }
+                for (int j = 0; j < i; j++) {
+                    if (pids[j] > 0) {
+                        kill(pids[j], SIGTERM);
+                        waitpid(pids[j], NULL, 0);
+                    }
+                }
+                free(pipes);
+                free(pids);
+                sigaction(SIGINT, &old_int, NULL);
+                sigaction(SIGQUIT, &old_quit, NULL);
+                if (exit_status) *exit_status = errcode;
+                return -1;
             }
-            free(pipes);
-            free(pids);
-            sigaction(SIGINT, &old_int, NULL);
-            sigaction(SIGQUIT, &old_quit, NULL);
-            if (exit_status) *exit_status = errcode;
-            return -1;
         }
 
         pid_t pid = fork();
@@ -404,7 +415,6 @@ int execute_pipeline(petrush_pipeline_t *pl, int *exit_status)
                 setpgid(0, pgid);
             }
 
-            /* stdin do pipe anterior, salvo se redir_in no primeiro */
             if (i > 0) {
                 if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) _exit(1);
             }
@@ -412,16 +422,31 @@ int execute_pipeline(petrush_pipeline_t *pl, int *exit_status)
                 if (dup2(pipes[i][1], STDOUT_FILENO) < 0) _exit(1);
             }
 
-            /* fechar todos os fds de pipe no filho */
             for (int j = 0; j < n - 1; j++) {
                 close(pipes[j][0]);
                 close(pipes[j][1]);
             }
 
-            /* redirs de arquivo sobrescrevem pipe nas pontas */
             if (apply_redirs(cmd) != 0) {
                 free(exe_path);
                 _exit(1);
+            }
+
+            /* UX-19: builtin no filho (0=handled/_exit; 1=seguir execv) */
+            if (hook) {
+                int h = hook(cmd);
+                if (h == 0) {
+                    _exit(0);
+                }
+            }
+
+            if (!exe_path) {
+                exe_path = find_executable(cmd->argv[0]);
+                if (!exe_path) {
+                    fprintf(stderr, "petrush: comando não encontrado: %s\n",
+                            cmd->argv[0]);
+                    _exit(shell_error_code_for(cmd->argv[0]));
+                }
             }
 
             execv(exe_path, cmd->argv);
@@ -442,7 +467,6 @@ int execute_pipeline(petrush_pipeline_t *pl, int *exit_status)
         free(exe_path);
     }
 
-    /* pai fecha pipes */
     for (int j = 0; j < n - 1; j++) {
         close(pipes[j][0]);
         close(pipes[j][1]);

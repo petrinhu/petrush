@@ -203,6 +203,32 @@ target_compile_options(test_info PRIVATE
 )
 add_test(NAME test_info COMMAND test_info)
 
+# UX-19: builtins no pipeline (fork por estágio + hook)
+add_executable(test_pipeline_builtin
+    tests/test_pipeline_builtin.c
+    src/mid/dispatcher.c
+    src/mid/parser.c
+    src/mid/pudo.c
+    src/mid/alias.c
+    src/mid/dirstack.c
+    src/mid/expand.c
+    src/foundation/env.c
+    src/foundation/process.c
+    vendor/linenoise/linenoise.c
+)
+target_include_directories(test_pipeline_builtin PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/vendor/linenoise
+)
+set_source_files_properties(vendor/linenoise/linenoise.c PROPERTIES
+    COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-unused-function"
+)
+target_compile_options(test_pipeline_builtin PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_pipeline_builtin COMMAND test_pipeline_builtin)
+
 # Testes do builtin 'pudo' (foco em segurança)
 add_executable(test_pudo
     tests/test_pudo.c

@@ -215,6 +215,23 @@ int dispatch_list(petrush_list_t *list)
     return status;
 }
 
+/* UX-19: no filho do pipe, builtin da tabela antes do PATH. */
+static int pipeline_child_builtin_hook(petrush_cmd_t *cmd)
+{
+    if (!cmd || cmd->argc <= 0 || !cmd->argv || !cmd->argv[0]) {
+        return 1;
+    }
+    builtin_fn_t fn = find_builtin(cmd->argv[0]);
+    if (!fn) {
+        return 1;
+    }
+    int rc = fn(cmd);
+    fflush(stdout);
+    fflush(stderr);
+    _exit(rc & 0xff);
+    return 0;
+}
+
 int dispatch_pipeline(petrush_pipeline_t *pl)
 {
     if (!pl || pl->ncmds <= 0) {
@@ -233,23 +250,12 @@ int dispatch_pipeline(petrush_pipeline_t *pl)
     }
 
     /*
-     * Multi-estágio: só externos via execute_pipeline.
-     * Builtins no meio de pipe rodam em subshell-like (fork+exec path fails
-     * for builtins) — v0.2: se algum estágio for builtin, erro claro.
-     * Decisão autônoma: anti-OE; builtins-em-pipe fica para ROI futuro.
+     * UX-19: ncmds>=2 — todo estágio em fork; builtin via hook no filho
+     * (find_builtin antes de PATH). Sem lastpipe / pipefail / jobs.
+     * cd/export/exit no pipe não alteram o pai; status = último estágio.
      */
-    for (int i = 0; i < pl->ncmds; i++) {
-        if (find_builtin(pl->cmds[i].argv[0])) {
-            fprintf(stderr,
-                    "petrush: builtin '%s' em pipeline ainda não suportado "
-                    "(use comando externo ou um estágio só)\n",
-                    pl->cmds[i].argv[0]);
-            return 1;
-        }
-    }
-
     int status = 0;
-    if (execute_pipeline(pl, &status) == 0) {
+    if (execute_pipeline_with_hook(pl, &status, pipeline_child_builtin_hook) == 0) {
         return status;
     }
     return (status != 0) ? status : 127;

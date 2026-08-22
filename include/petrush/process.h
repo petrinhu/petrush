@@ -23,12 +23,28 @@
 int execute_external(petrush_cmd_t *cmd, int *exit_status);
 
 /*
+ * Hook opcional no filho (após pipes + apply_redirs):
+ *   0 = handled (builtin; hook deve fflush + _exit)
+ *   1 = não handled → find_executable + execv
+ * process.h não inclui dispatcher.h (Foundation não conhece Mid).
+ */
+typedef int (*pipeline_child_hook_t)(petrush_cmd_t *cmd);
+
+/*
  * Executa um pipeline (1+ estágios). Estágios externos via fork/exec;
  * redirecionamentos aplicados no filho. Para 1 estágio, equivalente a
  * execute_external com redirs. Retorna 0 se o pipeline rodou; status
  * do último estágio em *exit_status (convenção shell).
+ * Equivale a execute_pipeline_with_hook(..., NULL).
  */
 int execute_pipeline(petrush_pipeline_t *pl, int *exit_status);
+
+/*
+ * Como execute_pipeline; se hook != NULL (ncmds>=2), cada filho chama
+ * hook antes do PATH. find_executable só ocorre se hook retornar 1.
+ */
+int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
+                               pipeline_child_hook_t hook);
 
 /*
  * Salva o estado atual do terminal (termios) como sendo o estado "limpo" do shell.

@@ -112,6 +112,8 @@ echo
 # SEC-09: `>` usa O_EXCL — limpar destino antes do trunc.
 rm -f /tmp/petrush-smoke-out.txt
 run_smoke "printf 'abc\\n' | cat" "abc" "pipe printf|cat"
+# UX-19: builtin echo no pipe (filho; sem lastpipe)
+run_smoke "echo hello-ux19 | cat" "hello-ux19" "builtin echo pipe cat"
 run_smoke "echo smoke-redir > /tmp/petrush-smoke-out.txt" "saindo|petrush 0\\." "redir out no crash"
 # leitura do arquivo escrito (se shell persistiu o arquivo)
 if [ -f /tmp/petrush-smoke-out.txt ] && grep -q 'smoke-redir' /tmp/petrush-smoke-out.txt 2>/dev/null; then
