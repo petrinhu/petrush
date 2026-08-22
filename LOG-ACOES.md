@@ -19,3 +19,5 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - Próximo: commit+push da pesquisa; depois onda W2 uma fatia por vez (teto 2 workers).
 - Commit `3269896` push origin/main (`1fdbfbf..3269896`). Pesquisa + WSJF no remoto.
 - Onda W2 ⏳: despacho 2 workers (teto) SEC-02 (`pudo.c` find_pudod) + SEC-05 (`pudod.c` realpath fail-closed). NEW-22 não puxar (líder AFK).
+- SEC-02 `ae73665` e SEC-05 `307e891` no main; `test_pudo` 13/13; check 12/12; push até `dada643`.
+- W2 continua: SEC-04 (fail closed argc) + SEC-03 (example allow).
