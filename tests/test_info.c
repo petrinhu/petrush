@@ -5,10 +5,12 @@
 
 #include "acutest.h"
 #include "petrush/dispatcher.h"
+#include "petrush/env.h"
 #include "petrush/parser.h"
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -343,6 +345,184 @@ void test_help_mentions_umask(void)
     TEST_CHECK(strstr(buf, "umask") != NULL);
 }
 
+/* FEAT-READ: read NAME (argc==2); 1 linha → 1 var; sem -a/-d/timeout/IFS split. */
+static int feat_read_write_temp(char *path, const char *content)
+{
+    int fd = mkstemp(path);
+    if (fd < 0) {
+        return -1;
+    }
+    if (content) {
+        size_t n = strlen(content);
+        if (write(fd, content, n) != (ssize_t)n) {
+            close(fd);
+            unlink(path);
+            return -1;
+        }
+    }
+    close(fd);
+    return 0;
+}
+
+void test_builtin_read_in_table(void)
+{
+    TEST_CHECK(builtin_table_has("read"));
+}
+
+void test_builtin_read_assigns_whole_line(void)
+{
+    char path[] = "/tmp/petrush_feat_read_XXXXXX";
+    if (feat_read_write_temp(path, "hello world\n") != 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+
+    (void)petrush_unsetenv("PETRUSH_FEAT_READ_A");
+
+    petrush_cmd_t cmd = {0};
+    char line[256];
+    snprintf(line, sizeof(line), "read PETRUSH_FEAT_READ_A < %s", path);
+    TEST_CHECK(petrush_parse(line, &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+
+    const char *got = petrush_getenv("PETRUSH_FEAT_READ_A");
+    TEST_CHECK(got != NULL);
+    if (got) {
+        TEST_CHECK(strcmp(got, "hello world") == 0);
+    }
+
+    (void)petrush_unsetenv("PETRUSH_FEAT_READ_A");
+    unlink(path);
+}
+
+void test_builtin_read_preserves_spaces_no_ifs_split(void)
+{
+    char path[] = "/tmp/petrush_feat_read_XXXXXX";
+    if (feat_read_write_temp(path, "a  b\tc\n") != 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+
+    (void)petrush_unsetenv("PETRUSH_FEAT_READ_B");
+
+    petrush_cmd_t cmd = {0};
+    char line[256];
+    snprintf(line, sizeof(line), "read PETRUSH_FEAT_READ_B < %s", path);
+    TEST_CHECK(petrush_parse(line, &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+
+    const char *got = petrush_getenv("PETRUSH_FEAT_READ_B");
+    TEST_CHECK(got != NULL);
+    if (got) {
+        TEST_CHECK(strcmp(got, "a  b\tc") == 0);
+    }
+
+    (void)petrush_unsetenv("PETRUSH_FEAT_READ_B");
+    unlink(path);
+}
+
+void test_builtin_read_empty_line_sets_empty(void)
+{
+    char path[] = "/tmp/petrush_feat_read_XXXXXX";
+    if (feat_read_write_temp(path, "\n") != 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+
+    TEST_CHECK(petrush_setenv("PETRUSH_FEAT_READ_C", "old", 1) == 0);
+
+    petrush_cmd_t cmd = {0};
+    char line[256];
+    snprintf(line, sizeof(line), "read PETRUSH_FEAT_READ_C < %s", path);
+    TEST_CHECK(petrush_parse(line, &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+
+    const char *got = petrush_getenv("PETRUSH_FEAT_READ_C");
+    TEST_CHECK(got != NULL);
+    if (got) {
+        TEST_CHECK(strcmp(got, "") == 0);
+    }
+
+    (void)petrush_unsetenv("PETRUSH_FEAT_READ_C");
+    unlink(path);
+}
+
+void test_builtin_read_eof_returns_one(void)
+{
+    char path[] = "/tmp/petrush_feat_read_XXXXXX";
+    if (feat_read_write_temp(path, NULL) != 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+
+    TEST_CHECK(petrush_setenv("PETRUSH_FEAT_READ_D", "keep", 1) == 0);
+
+    petrush_cmd_t cmd = {0};
+    char line[256];
+    snprintf(line, sizeof(line), "read PETRUSH_FEAT_READ_D < %s", path);
+    TEST_CHECK(petrush_parse(line, &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 1);
+    petrush_cmd_free(&cmd);
+
+    const char *got = petrush_getenv("PETRUSH_FEAT_READ_D");
+    TEST_CHECK(got != NULL);
+    if (got) {
+        TEST_CHECK(strcmp(got, "keep") == 0);
+    }
+
+    (void)petrush_unsetenv("PETRUSH_FEAT_READ_D");
+    unlink(path);
+}
+
+void test_builtin_read_rejects_no_name(void)
+{
+    /* redir evita hang se /usr/bin/read externo for despachado no RED */
+    char path[] = "/tmp/petrush_feat_read_XXXXXX";
+    if (feat_read_write_temp(path, "x\n") != 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+
+    petrush_cmd_t cmd = {0};
+    char line[256];
+    snprintf(line, sizeof(line), "read < %s", path);
+    TEST_CHECK(petrush_parse(line, &cmd) == 0);
+    TEST_CHECK(cmd.argc == 1);
+    TEST_CHECK(dispatch_command(&cmd) != 0);
+    petrush_cmd_free(&cmd);
+    unlink(path);
+}
+
+void test_builtin_read_rejects_too_many_args(void)
+{
+    char path[] = "/tmp/petrush_feat_read_XXXXXX";
+    if (feat_read_write_temp(path, "x\n") != 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+
+    petrush_cmd_t cmd = {0};
+    char line[256];
+    snprintf(line, sizeof(line), "read A B < %s", path);
+    TEST_CHECK(petrush_parse(line, &cmd) == 0);
+    TEST_CHECK(cmd.argc == 3);
+    TEST_CHECK(dispatch_command(&cmd) != 0);
+    petrush_cmd_free(&cmd);
+    unlink(path);
+}
+
+void test_help_mentions_read(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("help", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "read") != NULL);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -363,5 +543,13 @@ TEST_LIST = {
     { "builtin_umask_rejects_non_octal", test_builtin_umask_rejects_non_octal },
     { "builtin_umask_rejects_too_many_args", test_builtin_umask_rejects_too_many_args },
     { "help_mentions_umask", test_help_mentions_umask },
+    { "builtin_read_in_table", test_builtin_read_in_table },
+    { "builtin_read_assigns_whole_line", test_builtin_read_assigns_whole_line },
+    { "builtin_read_preserves_spaces_no_ifs_split", test_builtin_read_preserves_spaces_no_ifs_split },
+    { "builtin_read_empty_line_sets_empty", test_builtin_read_empty_line_sets_empty },
+    { "builtin_read_eof_returns_one", test_builtin_read_eof_returns_one },
+    { "builtin_read_rejects_no_name", test_builtin_read_rejects_no_name },
+    { "builtin_read_rejects_too_many_args", test_builtin_read_rejects_too_many_args },
+    { "help_mentions_read", test_help_mentions_read },
     { NULL, NULL }
 };

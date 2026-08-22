@@ -52,6 +52,7 @@ static const builtin_entry_t builtins[] = {
     { "false",   builtin_false   },
     { ":",       builtin_true    }, /* FEAT-TRUE: null command */
     { "umask",   builtin_umask   }, /* FEAT-UMASK: máscara do shell */
+    { "read",    builtin_read    }, /* FEAT-READ: 1 linha → 1 var */
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -476,6 +477,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  true / :     - Sempre status 0 (no-op)\n");
     printf("  false        - Sempre status 1 (no-op)\n");
     printf("  umask [oct]  - Mostra/define máscara octal do shell\n");
+    printf("  read NAME    - Lê 1 linha de stdin para NAME\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -531,6 +533,34 @@ int builtin_umask(petrush_cmd_t *cmd)
     }
 
     umask((mode_t)v);
+    return 0;
+}
+
+/* FEAT-READ: argc==2 only; linha inteira (sem IFS split); EOF → 1. */
+int builtin_read(petrush_cmd_t *cmd)
+{
+    if (!cmd || cmd->argc != 2 || !cmd->argv[1] || cmd->argv[1][0] == '\0') {
+        fprintf(stderr, "read: usage: read NAME\n");
+        return 1;
+    }
+
+    /* dup2 de `<` troca o FD sob stdin; limpa EOF/erro residual do stream. */
+    clearerr(stdin);
+
+    char buf[8192];
+    if (fgets(buf, (int)sizeof(buf), stdin) == NULL) {
+        return 1;
+    }
+
+    size_t len = strlen(buf);
+    if (len > 0 && buf[len - 1] == '\n') {
+        buf[len - 1] = '\0';
+    }
+
+    if (petrush_setenv(cmd->argv[1], buf, 1) != 0) {
+        perror("read");
+        return 1;
+    }
     return 0;
 }
 

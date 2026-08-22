@@ -62,6 +62,9 @@ int builtin_false(petrush_cmd_t *cmd);
 /* FEAT-UMASK: print/set máscara octal do processo do shell (sem -S) */
 int builtin_umask(petrush_cmd_t *cmd);
 
+/* FEAT-READ: read NAME — 1 linha de stdin → 1 variável (sem -a/-d/timeout/IFS) */
+int builtin_read(petrush_cmd_t *cmd);
+
 /* Para completion: número de builtins e nome por índice */
 int petrush_builtin_count(void);
 const char *petrush_builtin_name(int index);
