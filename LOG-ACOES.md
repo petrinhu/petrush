@@ -25,3 +25,5 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - NEW-22 permanece ⏳ (líder AFK). Próxima fatia ROI ⏳: UX-19 builtins no pipe.
 - UX-19 `5d55236` no main: check 15/15, smoke 47/47 (`echo | cat` builtin). TODO UX-19 🔍.
 - Próxima ⏳: UX-20 Ctrl-R. NEW-22 segue bloqueado no líder.
+- UX-20 Opção A (`75fa64e`): Ctrl-R reverse-i-search no linenoise; check 15/15. TODO 🔍.
+- Próxima ⏳: UX-21 highlight mínimo. Log segue neste arquivo.
