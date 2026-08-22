@@ -34,6 +34,11 @@
 #define PUDO_CONFIG_DIR  ".config/petrush"
 #define PUDO_CONFIG_FILE "pudo.conf"
 
+/* Path canônico do helper instalado (espelha pudod.c). */
+#ifndef PUDOD_INSTALL_PATH
+#define PUDOD_INSTALL_PATH "/usr/local/libexec/petrush-pudod"
+#endif
+
 /* Estrutura simples de configuração (será expandida) */
 typedef struct {
     int ask_password;           /* 1 = pedir senha quando necessário */
@@ -350,70 +355,208 @@ static char **build_clean_envp(void)
     return env;
 }
 
+/* Prefixos de install confiáveis (SEC-02 Release). */
+static const char *const k_pudod_install_dirs[] = {
+    "/usr/local/libexec",
+    "/usr/local/bin",
+    "/usr/libexec",
+    NULL
+};
+
+static int pudod_basename_ok(const char *base)
+{
+    return base && (strcmp(base, "pudod") == 0 || strcmp(base, "petrush-pudod") == 0);
+}
+
+/*
+ * SEC-02: política pura de aceitação do path do helper.
+ * release_mode: 1 = só absolutos em dirs de install; 0 = debug (relativos + qualquer abs).
+ * Fail closed.
+ */
+int pudo_allow_pudod_candidate(const char *path, int release_mode)
+{
+    if (!path || path[0] == '\0') {
+        return 0;
+    }
+
+    if (release_mode) {
+        /* Relativo: nunca em Release. */
+        if (path[0] != '/') {
+            return 0;
+        }
+
+        /* Match exato do path canônico / lista de install. */
+        if (strcmp(path, PUDOD_INSTALL_PATH) == 0) {
+            return 1;
+        }
+        {
+            static const char *const exact[] = {
+                "/usr/local/libexec/petrush-pudod",
+                "/usr/local/bin/petrush-pudod",
+                "/usr/local/bin/pudod",
+                "/usr/libexec/petrush-pudod",
+                NULL
+            };
+            for (int i = 0; exact[i]; i++) {
+                if (strcmp(path, exact[i]) == 0) {
+                    return 1;
+                }
+            }
+        }
+
+        /* Sibling sob dir de install: basename pudod|petrush-pudod. */
+        {
+            const char *base = strrchr(path, '/');
+            if (!base || base == path) {
+                return 0;
+            }
+            base++;
+            if (!pudod_basename_ok(base)) {
+                return 0;
+            }
+            size_t dir_len = (size_t)(base - path - 1);
+            for (int i = 0; k_pudod_install_dirs[i]; i++) {
+                size_t want = strlen(k_pudod_install_dirs[i]);
+                if (dir_len == want &&
+                    strncmp(path, k_pudod_install_dirs[i], want) == 0) {
+                    return 1;
+                }
+            }
+        }
+        return 0;
+    }
+
+    /* Debug: absolutos OK (build tree sibling); relativos só da lista conhecida. */
+    if (path[0] == '/') {
+        return 1;
+    }
+    {
+        static const char *const debug_rel[] = {
+            "build/pudod",
+            "./build/pudod",
+            "../build/pudod",
+            "./pudod",
+            "pudod",
+            NULL
+        };
+        for (int i = 0; debug_rel[i]; i++) {
+            if (strcmp(path, debug_rel[i]) == 0) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 /*
  * Encontra o binário pudod em locais conhecidos (dev + install).
  * Retorna caminho utilizável ou NULL.
  *
- * Prioridade: ao lado do executável atual (/proc/self/exe), depois
- * caminhos de build/install relativos e absolutos.
+ * SEC-02: em Release (NDEBUG), só absolutos confiáveis (install / sibling
+ * sob dir de install). Fallbacks relativos e access("pudod") só em debug.
  */
 static const char *find_pudod_binary(void)
 {
     static char found[PATH_MAX];
     char self[PATH_MAX];
+    char resolved[PATH_MAX];
     ssize_t n;
+#ifdef NDEBUG
+    const int release_mode = 1;
+#else
+    const int release_mode = 0;
+#endif
 
-    /* Mesmo diretório do binário petrush (build tree e install colocados juntos) */
+    /* Sibling de /proc/self/exe — vetor principal em Release (Cosmo/Narciso). */
     n = readlink("/proc/self/exe", self, sizeof(self) - 1);
     if (n > 0) {
         self[n] = '\0';
         char *slash = strrchr(self, '/');
         if (slash) {
             *slash = '\0';
-            if (snprintf(found, sizeof(found), "%s/pudod", self) < (int)sizeof(found) &&
-                access(found, X_OK) == 0) {
+            static const char *const names[] = { "pudod", "petrush-pudod", NULL };
+            for (int i = 0; names[i]; i++) {
+                if (snprintf(found, sizeof(found), "%s/%s", self, names[i]) >=
+                    (int)sizeof(found)) {
+                    continue;
+                }
+                if (access(found, X_OK) != 0) {
+                    continue;
+                }
+                /* Preferir path canônico absoluto; nunca devolver relativo. */
+                const char *cand = found;
+                if (realpath(found, resolved)) {
+                    cand = resolved;
+                }
+                if (cand[0] != '/') {
+                    continue; /* fail closed: sem absoluto utilizável */
+                }
+                if (!pudo_allow_pudod_candidate(cand, release_mode)) {
+                    continue;
+                }
+                if (cand != found) {
+                    snprintf(found, sizeof(found), "%s", cand);
+                }
                 return found;
             }
-            if (snprintf(found, sizeof(found), "%s/petrush-pudod", self) < (int)sizeof(found) &&
-                access(found, X_OK) == 0) {
-                return found;
+        }
+    }
+
+#ifndef NDEBUG
+    /* Desenvolvimento: caminhos relativos comuns (só debug). */
+    {
+        const char *dev_paths[] = {
+            "build/pudod",
+            "./build/pudod",
+            "../build/pudod",
+            NULL
+        };
+        for (int i = 0; dev_paths[i]; i++) {
+            if (access(dev_paths[i], X_OK) != 0) {
+                continue;
+            }
+            if (realpath(dev_paths[i], found)) {
+                if (pudo_allow_pudod_candidate(found, release_mode)) {
+                    return found;
+                }
+            } else if (pudo_allow_pudod_candidate(dev_paths[i], release_mode)) {
+                return dev_paths[i];
+            }
+        }
+    }
+#endif
+
+    /* Instalação padrão (sempre absoluto). */
+    {
+        const char *install_paths[] = {
+            PUDOD_INSTALL_PATH,
+            "/usr/local/libexec/petrush-pudod",
+            "/usr/local/bin/petrush-pudod",
+            "/usr/local/bin/pudod",
+            "/usr/libexec/petrush-pudod",
+            NULL
+        };
+        for (int i = 0; install_paths[i]; i++) {
+            if (access(install_paths[i], X_OK) != 0) {
+                continue;
+            }
+            if (realpath(install_paths[i], found)) {
+                if (pudo_allow_pudod_candidate(found, release_mode)) {
+                    return found;
+                }
+            } else if (pudo_allow_pudod_candidate(install_paths[i], release_mode)) {
+                return install_paths[i];
             }
         }
     }
 
-    /* Desenvolvimento: caminhos relativos comuns */
-    const char *dev_paths[] = {
-        "build/pudod",
-        "./build/pudod",
-        "../build/pudod",
-        NULL
-    };
-    for (int i = 0; dev_paths[i]; i++) {
-        if (access(dev_paths[i], X_OK) == 0) {
-            if (realpath(dev_paths[i], found)) return found;
-            return dev_paths[i];
-        }
-    }
-
-    /* Instalação padrão (cmake --install coloca como petrush-pudod em libexec) */
-    const char *install_paths[] = {
-        "/usr/local/libexec/petrush-pudod",
-        "/usr/local/bin/petrush-pudod",
-        "/usr/libexec/petrush-pudod",
-        NULL
-    };
-    for (int i = 0; install_paths[i]; i++) {
-        if (access(install_paths[i], X_OK) == 0) {
-            if (realpath(install_paths[i], found)) return found;
-            return install_paths[i];
-        }
-    }
-
-    /* Fallback no PATH (último recurso, menos ideal para segurança) */
-    /* NOTA: em produção o caminho deve ser hardcoded confiável */
-    if (access("pudod", X_OK) == 0) {
+#ifndef NDEBUG
+    /* Fallback relativo no cwd: só debug. */
+    if (access("pudod", X_OK) == 0 &&
+        pudo_allow_pudod_candidate("pudod", release_mode)) {
         return "pudod";
     }
+#endif
 
     return NULL;
 }

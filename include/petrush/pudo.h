@@ -23,4 +23,12 @@ int builtin_pudo(petrush_cmd_t *cmd);
  */
 int pudo_sanitize_environment(void);
 
+/*
+ * SEC-02: política de aceitação do path do helper pudod.
+ * release_mode != 0: só path absoluto em localização de install confiável.
+ * release_mode == 0: também aceita absolutos de build e fallbacks relativos de debug.
+ * Fail closed: NULL/vazio/desconhecido → 0.
+ */
+int pudo_allow_pudod_candidate(const char *path, int release_mode);
+
 #endif /* PETRUSH_PUDO_H */

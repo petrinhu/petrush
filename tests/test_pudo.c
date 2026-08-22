@@ -142,6 +142,52 @@ void test_pudo_builtin_does_not_mutate_parent_env(void)
     unsetenv("LD_PRELOAD");
 }
 
+/* ===================== SEC-02: path do pudod (Release vs debug) ===================== */
+
+void test_sec02_release_rejects_relative_fallbacks(void)
+{
+    /* Em Release, build/pudod, ./pudod e "pudod" NÃO podem ser aceitos. */
+    TEST_CHECK(pudo_allow_pudod_candidate("build/pudod", 1) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate("./build/pudod", 1) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate("../build/pudod", 1) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate("./pudod", 1) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate("pudod", 1) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate("", 1) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate(NULL, 1) == 0);
+}
+
+void test_sec02_release_rejects_untrusted_absolute_sibling(void)
+{
+    /* Vetor principal (Cosmo/Narciso): sibling sob /tmp ou cwd do atacante. */
+    TEST_CHECK(pudo_allow_pudod_candidate("/tmp/evil/pudod", 1) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate("/tmp/evil/petrush-pudod", 1) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate("/home/attacker/bin/pudod", 1) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate("/var/tmp/pudod", 1) == 0);
+}
+
+void test_sec02_release_accepts_install_absolutes(void)
+{
+    TEST_CHECK(pudo_allow_pudod_candidate("/usr/local/libexec/petrush-pudod", 1) == 1);
+    TEST_CHECK(pudo_allow_pudod_candidate("/usr/local/bin/petrush-pudod", 1) == 1);
+    TEST_CHECK(pudo_allow_pudod_candidate("/usr/local/bin/pudod", 1) == 1);
+    TEST_CHECK(pudo_allow_pudod_candidate("/usr/libexec/petrush-pudod", 1) == 1);
+}
+
+void test_sec02_debug_allows_relative_and_build_absolute(void)
+{
+    /* Debug: fallbacks relativos e sibling absoluto fora de install OK. */
+    TEST_CHECK(pudo_allow_pudod_candidate("build/pudod", 0) == 1);
+    TEST_CHECK(pudo_allow_pudod_candidate("./build/pudod", 0) == 1);
+    TEST_CHECK(pudo_allow_pudod_candidate("../build/pudod", 0) == 1);
+    TEST_CHECK(pudo_allow_pudod_candidate("pudod", 0) == 1);
+    TEST_CHECK(pudo_allow_pudod_candidate("./pudod", 0) == 1);
+    TEST_CHECK(pudo_allow_pudod_candidate("/home/dev/petrush/build/pudod", 0) == 1);
+    TEST_CHECK(pudo_allow_pudod_candidate("/usr/local/libexec/petrush-pudod", 0) == 1);
+    /* Fail closed ainda vale para NULL/vazio. */
+    TEST_CHECK(pudo_allow_pudod_candidate(NULL, 0) == 0);
+    TEST_CHECK(pudo_allow_pudod_candidate("", 0) == 0);
+}
+
 /* SEC-05: realpath falhou => recusar entrada (nunca aceitar o literal). */
 void test_pudod_allow_entry_rejects_unresolvable(void)
 {
@@ -153,7 +199,7 @@ void test_pudod_allow_entry_rejects_unresolvable(void)
     int rc = pudod_resolve_allow_entry(bogus, out, sizeof(out));
 
     TEST_CHECK(rc == -1);
-    /* Nao pode ter copiado o literal para out (SEC-05 fail closed). */
+    /* Não pode ter copiado o literal para out. */
     TEST_CHECK(strcmp(out, bogus) != 0);
 }
 
@@ -162,7 +208,7 @@ void test_pudod_allow_entry_accepts_existing(void)
     char out[PATH_MAX];
     out[0] = '\0';
 
-    /* /bin/sh existe em qualquer Linux razoavel; realpath pode canonicalizar. */
+    /* /bin/sh existe em qualquer Linux razoável; realpath pode canonicalizar. */
     int rc = pudod_resolve_allow_entry("/bin/sh", out, sizeof(out));
     TEST_CHECK(rc == 0);
     TEST_CHECK(out[0] == '/');
@@ -253,6 +299,10 @@ TEST_LIST = {
     { "pudo_config_and_allowed",           test_pudo_config_loading_and_allowed },
     { "pudo_uses_argv_not_shell",          test_pudo_uses_argv_not_shell },
     { "pudo_parent_env_intact",            test_pudo_builtin_does_not_mutate_parent_env },
+    { "sec02_release_rejects_relative",    test_sec02_release_rejects_relative_fallbacks },
+    { "sec02_release_rejects_evil_abs",    test_sec02_release_rejects_untrusted_absolute_sibling },
+    { "sec02_release_accepts_install",     test_sec02_release_accepts_install_absolutes },
+    { "sec02_debug_allows_fallbacks",      test_sec02_debug_allows_relative_and_build_absolute },
     { "pudod_allow_rejects_unresolvable",  test_pudod_allow_entry_rejects_unresolvable },
     { "pudod_allow_accepts_existing",      test_pudod_allow_entry_accepts_existing },
     { "pudod_refuses_without_privs",       test_pudod_binary_refuses_without_privileges },
