@@ -523,6 +523,192 @@ void test_help_mentions_read(void)
     TEST_CHECK(strstr(buf, "read") != NULL);
 }
 
+/* FEAT-TEST: test / [ primaries curtos; chama builtin_test direto (evita /usr/bin/test). */
+static petrush_cmd_t feat_test_cmd(char **argv, int argc)
+{
+    petrush_cmd_t cmd = {0};
+    cmd.argv = argv;
+    cmd.argc = argc;
+    return cmd;
+}
+
+void test_builtin_test_bracket_in_table(void)
+{
+    TEST_CHECK(builtin_table_has("test"));
+    TEST_CHECK(builtin_table_has("["));
+}
+
+void test_builtin_test_no_args_false(void)
+{
+    char *av[] = { "test", NULL };
+    petrush_cmd_t cmd = feat_test_cmd(av, 1);
+    TEST_CHECK(builtin_test(&cmd) == 1);
+}
+
+void test_builtin_test_string_nonzero_true(void)
+{
+    char *av[] = { "test", "hello", NULL };
+    petrush_cmd_t cmd = feat_test_cmd(av, 2);
+    TEST_CHECK(builtin_test(&cmd) == 0);
+}
+
+void test_builtin_test_string_empty_false(void)
+{
+    char *av[] = { "test", "", NULL };
+    petrush_cmd_t cmd = feat_test_cmd(av, 2);
+    TEST_CHECK(builtin_test(&cmd) == 1);
+}
+
+void test_builtin_test_z_n(void)
+{
+    char *z_empty[] = { "test", "-z", "", NULL };
+    char *z_full[] = { "test", "-z", "x", NULL };
+    char *n_empty[] = { "test", "-n", "", NULL };
+    char *n_full[] = { "test", "-n", "x", NULL };
+    petrush_cmd_t c1 = feat_test_cmd(z_empty, 3);
+    petrush_cmd_t c2 = feat_test_cmd(z_full, 3);
+    petrush_cmd_t c3 = feat_test_cmd(n_empty, 3);
+    petrush_cmd_t c4 = feat_test_cmd(n_full, 3);
+    TEST_CHECK(builtin_test(&c1) == 0);
+    TEST_CHECK(builtin_test(&c2) == 1);
+    TEST_CHECK(builtin_test(&c3) == 1);
+    TEST_CHECK(builtin_test(&c4) == 0);
+}
+
+void test_builtin_test_file_primaries(void)
+{
+    char path[] = "/tmp/petrush_feat_test_XXXXXX";
+    int fd = mkstemp(path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    close(fd);
+
+    char *e_yes[] = { "test", "-e", path, NULL };
+    char *f_yes[] = { "test", "-f", path, NULL };
+    char *d_no[] = { "test", "-d", path, NULL };
+    petrush_cmd_t ce = feat_test_cmd(e_yes, 3);
+    petrush_cmd_t cf = feat_test_cmd(f_yes, 3);
+    petrush_cmd_t cd = feat_test_cmd(d_no, 3);
+    TEST_CHECK(builtin_test(&ce) == 0);
+    TEST_CHECK(builtin_test(&cf) == 0);
+    TEST_CHECK(builtin_test(&cd) == 1);
+
+    char dir[] = "/tmp/petrush_feat_test_dir_XXXXXX";
+    if (!mkdtemp(dir)) {
+        unlink(path);
+        TEST_SKIP("mkdtemp falhou");
+        return;
+    }
+    char *d_yes[] = { "test", "-d", dir, NULL };
+    char *f_no[] = { "test", "-f", dir, NULL };
+    petrush_cmd_t cdir = feat_test_cmd(d_yes, 3);
+    petrush_cmd_t cfn = feat_test_cmd(f_no, 3);
+    TEST_CHECK(builtin_test(&cdir) == 0);
+    TEST_CHECK(builtin_test(&cfn) == 1);
+
+    char missing[] = "/tmp/petrush_feat_test_missing_nope";
+    unlink(missing);
+    char *e_no[] = { "test", "-e", missing, NULL };
+    petrush_cmd_t cm = feat_test_cmd(e_no, 3);
+    TEST_CHECK(builtin_test(&cm) == 1);
+
+    unlink(path);
+    rmdir(dir);
+}
+
+void test_builtin_test_string_ops(void)
+{
+    char *eq_yes[] = { "test", "aa", "=", "aa", NULL };
+    char *eq_no[] = { "test", "aa", "=", "bb", NULL };
+    char *ne_yes[] = { "test", "aa", "!=", "bb", NULL };
+    char *ne_no[] = { "test", "aa", "!=", "aa", NULL };
+    petrush_cmd_t c1 = feat_test_cmd(eq_yes, 4);
+    petrush_cmd_t c2 = feat_test_cmd(eq_no, 4);
+    petrush_cmd_t c3 = feat_test_cmd(ne_yes, 4);
+    petrush_cmd_t c4 = feat_test_cmd(ne_no, 4);
+    TEST_CHECK(builtin_test(&c1) == 0);
+    TEST_CHECK(builtin_test(&c2) == 1);
+    TEST_CHECK(builtin_test(&c3) == 0);
+    TEST_CHECK(builtin_test(&c4) == 1);
+}
+
+void test_builtin_test_int_ops(void)
+{
+    char *eq[] = { "test", "3", "-eq", "3", NULL };
+    char *ne[] = { "test", "3", "-ne", "4", NULL };
+    char *lt[] = { "test", "2", "-lt", "9", NULL };
+    char *gt[] = { "test", "9", "-gt", "2", NULL };
+    char *lt_no[] = { "test", "9", "-lt", "2", NULL };
+    petrush_cmd_t c1 = feat_test_cmd(eq, 4);
+    petrush_cmd_t c2 = feat_test_cmd(ne, 4);
+    petrush_cmd_t c3 = feat_test_cmd(lt, 4);
+    petrush_cmd_t c4 = feat_test_cmd(gt, 4);
+    petrush_cmd_t c5 = feat_test_cmd(lt_no, 4);
+    TEST_CHECK(builtin_test(&c1) == 0);
+    TEST_CHECK(builtin_test(&c2) == 0);
+    TEST_CHECK(builtin_test(&c3) == 0);
+    TEST_CHECK(builtin_test(&c4) == 0);
+    TEST_CHECK(builtin_test(&c5) == 1);
+}
+
+void test_builtin_test_int_rejects_non_integer(void)
+{
+    char *av[] = { "test", "x", "-eq", "1", NULL };
+    petrush_cmd_t cmd = feat_test_cmd(av, 4);
+    TEST_CHECK(builtin_test(&cmd) == 2);
+}
+
+void test_builtin_test_unary_unknown_op(void)
+{
+    /* 1 arg: string não-vazia (POSIX) → 0; unary desconhecido com operand → 2 */
+    char *one[] = { "test", "-f", NULL };
+    char *bad[] = { "test", "-x", "/tmp", NULL };
+    petrush_cmd_t c1 = feat_test_cmd(one, 2);
+    petrush_cmd_t c2 = feat_test_cmd(bad, 3);
+    TEST_CHECK(builtin_test(&c1) == 0);
+    TEST_CHECK(builtin_test(&c2) == 2);
+}
+
+void test_builtin_bracket_requires_closing(void)
+{
+    char *bad[] = { "[", "-n", "x", NULL };
+    char *ok[] = { "[", "-n", "x", "]", NULL };
+    char *empty[] = { "[", "]", NULL };
+    petrush_cmd_t cbad = feat_test_cmd(bad, 3);
+    petrush_cmd_t cok = feat_test_cmd(ok, 4);
+    petrush_cmd_t cempty = feat_test_cmd(empty, 2);
+    TEST_CHECK(builtin_test(&cbad) == 2);
+    TEST_CHECK(builtin_test(&cok) == 0);
+    TEST_CHECK(builtin_test(&cempty) == 1);
+}
+
+void test_builtin_test_short_circuit(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("test -n x && true", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+
+    TEST_CHECK(petrush_parse_list("test -z x || true", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+
+    TEST_CHECK(petrush_parse_list("[ -n x ] && true", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+}
+
+void test_help_mentions_test(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("help", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "test") != NULL);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -551,5 +737,18 @@ TEST_LIST = {
     { "builtin_read_rejects_no_name", test_builtin_read_rejects_no_name },
     { "builtin_read_rejects_too_many_args", test_builtin_read_rejects_too_many_args },
     { "help_mentions_read", test_help_mentions_read },
+    { "builtin_test_bracket_in_table", test_builtin_test_bracket_in_table },
+    { "builtin_test_no_args_false", test_builtin_test_no_args_false },
+    { "builtin_test_string_nonzero_true", test_builtin_test_string_nonzero_true },
+    { "builtin_test_string_empty_false", test_builtin_test_string_empty_false },
+    { "builtin_test_z_n", test_builtin_test_z_n },
+    { "builtin_test_file_primaries", test_builtin_test_file_primaries },
+    { "builtin_test_string_ops", test_builtin_test_string_ops },
+    { "builtin_test_int_ops", test_builtin_test_int_ops },
+    { "builtin_test_int_rejects_non_integer", test_builtin_test_int_rejects_non_integer },
+    { "builtin_test_unary_unknown_op", test_builtin_test_unary_unknown_op },
+    { "builtin_bracket_requires_closing", test_builtin_bracket_requires_closing },
+    { "builtin_test_short_circuit", test_builtin_test_short_circuit },
+    { "help_mentions_test", test_help_mentions_test },
     { NULL, NULL }
 };

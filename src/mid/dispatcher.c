@@ -53,6 +53,8 @@ static const builtin_entry_t builtins[] = {
     { ":",       builtin_true    }, /* FEAT-TRUE: null command */
     { "umask",   builtin_umask   }, /* FEAT-UMASK: máscara do shell */
     { "read",    builtin_read    }, /* FEAT-READ: 1 linha → 1 var */
+    { "test",    builtin_test    }, /* FEAT-TEST: primaries curtos */
+    { "[",       builtin_test    }, /* FEAT-TEST: [ exige ] final */
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -478,6 +480,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  false        - Sempre status 1 (no-op)\n");
     printf("  umask [oct]  - Mostra/define máscara octal do shell\n");
     printf("  read NAME    - Lê 1 linha de stdin para NAME\n");
+    printf("  test / [     - Primaries (-f -d -e -z -n = != -eq -ne -lt -gt)\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -562,6 +565,105 @@ int builtin_read(petrush_cmd_t *cmd)
         return 1;
     }
     return 0;
+}
+
+/* FEAT-TEST: 0=true, 1=false, 2=erro; sem [[ / -a/-o / !. */
+static int feat_test_parse_long(const char *s, long *out)
+{
+    char *end = NULL;
+    errno = 0;
+    long v = strtol(s, &end, 10);
+    if (!s || s[0] == '\0' || end == s || *end != '\0' || errno == ERANGE) {
+        return -1;
+    }
+    *out = v;
+    return 0;
+}
+
+static int feat_test_unary(const char *op, const char *arg)
+{
+    if (strcmp(op, "-z") == 0) {
+        return (arg[0] == '\0') ? 0 : 1;
+    }
+    if (strcmp(op, "-n") == 0) {
+        return (arg[0] != '\0') ? 0 : 1;
+    }
+    if (strcmp(op, "-e") == 0) {
+        return (access(arg, F_OK) == 0) ? 0 : 1;
+    }
+    if (strcmp(op, "-f") == 0) {
+        struct stat st;
+        if (stat(arg, &st) != 0) return 1;
+        return S_ISREG(st.st_mode) ? 0 : 1;
+    }
+    if (strcmp(op, "-d") == 0) {
+        struct stat st;
+        if (stat(arg, &st) != 0) return 1;
+        return S_ISDIR(st.st_mode) ? 0 : 1;
+    }
+    fprintf(stderr, "test: %s: unary operator expected\n", op);
+    return 2;
+}
+
+static int feat_test_binary(const char *lhs, const char *op, const char *rhs)
+{
+    if (strcmp(op, "=") == 0) {
+        return (strcmp(lhs, rhs) == 0) ? 0 : 1;
+    }
+    if (strcmp(op, "!=") == 0) {
+        return (strcmp(lhs, rhs) != 0) ? 0 : 1;
+    }
+
+    long a = 0, b = 0;
+    if (feat_test_parse_long(lhs, &a) != 0 || feat_test_parse_long(rhs, &b) != 0) {
+        fprintf(stderr, "test: integer expression expected\n");
+        return 2;
+    }
+    if (strcmp(op, "-eq") == 0) return (a == b) ? 0 : 1;
+    if (strcmp(op, "-ne") == 0) return (a != b) ? 0 : 1;
+    if (strcmp(op, "-lt") == 0) return (a < b) ? 0 : 1;
+    if (strcmp(op, "-gt") == 0) return (a > b) ? 0 : 1;
+
+    fprintf(stderr, "test: %s: binary operator expected\n", op);
+    return 2;
+}
+
+int builtin_test(petrush_cmd_t *cmd)
+{
+    if (!cmd || !cmd->argv || !cmd->argv[0]) {
+        return 2;
+    }
+
+    int bracket = (strcmp(cmd->argv[0], "[") == 0);
+    int argc = cmd->argc;
+    char **argv = cmd->argv;
+    const char *prog = bracket ? "[" : "test";
+
+    if (bracket) {
+        if (argc < 2 || !argv[argc - 1] || strcmp(argv[argc - 1], "]") != 0) {
+            fprintf(stderr, "%s: missing `]'\n", prog);
+            return 2;
+        }
+        argc--; /* descarta ] final */
+    }
+
+    int n = argc - 1; /* args da expressão (sem argv[0]) */
+    if (n == 0) {
+        return 1;
+    }
+    if (n == 1) {
+        return (argv[1][0] != '\0') ? 0 : 1;
+    }
+    if (n == 2) {
+        /* unary: OP ARG (ex.: -f path). 1 arg só = string (POSIX). */
+        return feat_test_unary(argv[1], argv[2]);
+    }
+    if (n == 3) {
+        return feat_test_binary(argv[1], argv[2], argv[3]);
+    }
+
+    fprintf(stderr, "%s: too many arguments\n", prog);
+    return 2;
 }
 
 int builtin_clear(petrush_cmd_t *cmd)

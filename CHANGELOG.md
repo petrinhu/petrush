@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **FEAT-TEST:** builtins `test` / `[` com primaries curtos (`-f -d -e -z -n = != -eq -ne -lt -gt`); `[` exige `]` final; status 0/1/2; sem `[[`, sem `-a`/`-o`/`!`; help + testes em `test_info`.
 - **FEAT-NOCLOBBER:** política UX de noclobber sempre ligada (`>`/`2>` com `O_EXCL` já em SEC-09); `help`/`info` documentam; sem `set -C`/`set -o noclobber`.
 - **FEAT-BANG:** word designators `!$` (último arg) e `!^` (primeiro arg) sobre o último evento; sem `!str`, sem modifiers `:h`/`:t`.
 - **FEAT-TRUE:** builtins `true` / `false` / `:` (status 0/1/0, silent no-op; sem `printf`; tabela `dispatcher.c` + help).
