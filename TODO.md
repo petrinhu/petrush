@@ -93,7 +93,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | FEAT-READ | W12 | Shell | Builtin `read` (1 linha → 1 variável). Sem `-a`/`-d`/timeout. Ver [`docs/memory/shells-funcoes.md`](docs/memory/shells-funcoes.md). | Alta | FEAT-UMASK, FEAT-NOCLOBBER | Média | 🔍 Pendente verificação | — |
 | FEAT-PARAM | W12 | Shell | Completar UX-13: `${VAR:-}` `${VAR:+}` `${#VAR}`. Sem nameref/`${!}`/`#` `%` strip. Ver [`docs/memory/shells-funcoes.md`](docs/memory/shells-funcoes.md). | Alta | FEAT-UMASK, FEAT-NOCLOBBER | Média | 🔍 Pendente verificação | — |
 | FEAT-TEST | W13 | Shell | Builtin `test` / `[` primaries curtos (`-f -d -e -z -n = != -eq -ne -lt -gt`). Sem `[[`, sem `if`/`$(( ))`. Ver [`docs/memory/shells-funcoes.md`](docs/memory/shells-funcoes.md). | Alta | FEAT-READ, FEAT-PARAM | Média | 🔍 Pendente verificação | — |
-| TST-T8 | W14 | Testes | Verificação de secrets (gitleaks/trufflehog). Ver `TESTES.md`. | Alta | FEAT-TEST | Baixa | ⏳ Pendente | — |
+| TST-T8 | W14 | Testes | Verificação de secrets (gitleaks/trufflehog). Ver `TESTES.md`. Relatório: [`docs/memory/tst-t8-secrets.md`](docs/memory/tst-t8-secrets.md). | Alta | FEAT-TEST | Baixa | 🔍 Pendente verificação | — |
 | TST-T15 | W14 | Testes | Pré-CI no container local Fedora 44 (mesma imagem do `ci.yml`): build + lint + smoke + valgrind/`verify`. GHA é o espelho remoto, não o caminho pesado. Ver `TESTES.md`. | Alta | FEAT-TEST | Baixa | ⏳ Pendente | — |
 | TST-T2 | W14 | Testes | Análise estática (cppcheck + clang-tidy). Ver `TESTES.md`. | Alta | FEAT-TEST | Média | ⏳ Pendente | — |
 | TST-T4 | W14 | Testes | Análise dinâmica de memória (ASan + UBSan + valgrind). Ver `TESTES.md`. | Alta | FEAT-TEST | Média | ⏳ Pendente | — |
