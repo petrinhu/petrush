@@ -55,6 +55,10 @@ int builtin_dirs(petrush_cmd_t *cmd);
 /* UX-23: lista jobs em background */
 int builtin_jobs(petrush_cmd_t *cmd);
 
+/* FEAT-TRUE: true / : → 0; false → 1; silent no-op */
+int builtin_true(petrush_cmd_t *cmd);
+int builtin_false(petrush_cmd_t *cmd);
+
 /* Para completion: número de builtins e nome por índice */
 int petrush_builtin_count(void);
 const char *petrush_builtin_name(int index);

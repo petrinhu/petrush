@@ -47,6 +47,9 @@ static const builtin_entry_t builtins[] = {
     { "source",  builtin_source  },
     { ".",       builtin_source  },
     { "jobs",    builtin_jobs    },
+    { "true",    builtin_true    },
+    { "false",   builtin_false   },
+    { ":",       builtin_true    }, /* FEAT-TRUE: null command */
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -468,6 +471,8 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  dirs         - Mostra a stack\n");
     printf("  source/.     - Executa arquivo no shell atual\n");
     printf("  jobs         - Lista jobs em background\n");
+    printf("  true / :     - Sempre status 0 (no-op)\n");
+    printf("  false        - Sempre status 1 (no-op)\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -482,6 +487,19 @@ int builtin_jobs(petrush_cmd_t *cmd)
     petrush_job_print();
     petrush_job_prune_done();
     return 0;
+}
+
+/* FEAT-TRUE: silent status helpers (sem printf). */
+int builtin_true(petrush_cmd_t *cmd)
+{
+    (void)cmd;
+    return 0;
+}
+
+int builtin_false(petrush_cmd_t *cmd)
+{
+    (void)cmd;
+    return 1;
 }
 
 int builtin_clear(petrush_cmd_t *cmd)

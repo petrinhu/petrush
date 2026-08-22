@@ -106,10 +106,96 @@ void test_builtin_redir_append_allows_existing(void)
     unlink(path);
 }
 
+/* FEAT-TRUE: true → 0; false → 1; : → 0; silent no-op (sem printf). */
+static int builtin_table_has(const char *name)
+{
+    int n = petrush_builtin_count();
+    for (int i = 0; i < n; i++) {
+        const char *bn = petrush_builtin_name(i);
+        if (bn && strcmp(bn, name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void test_builtin_true_false_colon_in_table(void)
+{
+    TEST_CHECK(builtin_table_has("true"));
+    TEST_CHECK(builtin_table_has("false"));
+    TEST_CHECK(builtin_table_has(":"));
+}
+
+void test_builtin_true_status_zero(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("true", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_builtin_false_status_one(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("false", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 1);
+    petrush_cmd_free(&cmd);
+}
+
+void test_builtin_colon_status_zero(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse(":", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_builtin_true_false_ignore_args(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("true anything here", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+
+    TEST_CHECK(petrush_parse("false anything here", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 1);
+    petrush_cmd_free(&cmd);
+
+    TEST_CHECK(petrush_parse(": anything here", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_builtin_true_false_short_circuit(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("true && false", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 1);
+    petrush_list_free(&list);
+
+    TEST_CHECK(petrush_parse_list("false || true", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+
+    TEST_CHECK(petrush_parse_list("false && true", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 1);
+    petrush_list_free(&list);
+
+    TEST_CHECK(petrush_parse_list(": && true", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
     { "builtin_redir_out_noclobber", test_builtin_redir_out_noclobber_existing },
     { "builtin_redir_append_ok",     test_builtin_redir_append_allows_existing },
+    { "builtin_true_false_colon_in_table", test_builtin_true_false_colon_in_table },
+    { "builtin_true_status_zero", test_builtin_true_status_zero },
+    { "builtin_false_status_one", test_builtin_false_status_one },
+    { "builtin_colon_status_zero", test_builtin_colon_status_zero },
+    { "builtin_true_false_ignore_args", test_builtin_true_false_ignore_args },
+    { "builtin_true_false_short_circuit", test_builtin_true_false_short_circuit },
     { NULL, NULL }
 };
