@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **FEAT-BANG:** word designators `!$` (último arg) e `!^` (primeiro arg) sobre o último evento; sem `!str`, sem modifiers `:h`/`:t`.
 - **FEAT-TRUE:** builtins `true` / `false` / `:` (status 0/1/0, silent no-op; sem `printf`; tabela `dispatcher.c` + help).
 - **UX-22:** `source` / `.` roda arquivo linha a linha no processo atual (teto depth 8, sem PATH search, `fopen`+`fstat`+`petrush_rc_stat_ok`, argc==2, sem `$1`/`return`; `load_rc_file` reusa o runner com `missing_ok=1`).
 - **UX-21:** syntax highlight mínimo no REPL (aspas fechadas/não fechadas + token grosso CMD/OP; CSI 8 cores; `NO_COLOR` desliga; scanner Front sem parser; sem PATH/keywords/`$VAR`/`#`).
