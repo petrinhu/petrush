@@ -46,14 +46,23 @@ static void free_tokens(token_t *toks, int n)
 static void cmd_clear(petrush_cmd_t *cmd)
 {
     if (!cmd) return;
+    /* argv slots must be NULL or owned (calloc + push_arg); never free garbage */
     if (cmd->argv) {
-        for (int i = 0; i < cmd->argc; i++) free(cmd->argv[i]);
+        for (int i = 0; i < cmd->argc; i++) {
+            free(cmd->argv[i]);
+            cmd->argv[i] = NULL;
+        }
         free(cmd->argv);
+        cmd->argv = NULL;
     }
     free(cmd->argv_quoted);
+    cmd->argv_quoted = NULL;
     free(cmd->redir_in);
+    cmd->redir_in = NULL;
     free(cmd->redir_out);
+    cmd->redir_out = NULL;
     free(cmd->redir_err);
+    cmd->redir_err = NULL;
     memset(cmd, 0, sizeof(*cmd));
 }
 
@@ -212,6 +221,7 @@ static int push_arg(petrush_cmd_t *cmd, char *word, int quoted, size_t *argv_cap
         size_t nc = (*argv_cap) * 2;
         char **na = realloc(cmd->argv, sizeof(char *) * nc);
         if (!na) return -1;
+        for (size_t k = *argv_cap; k < nc; k++) na[k] = NULL;
         cmd->argv = na;
         int *nq = realloc(cmd->argv_quoted, sizeof(int) * nc);
         if (!nq) return -1;
@@ -244,7 +254,8 @@ static int build_stage(token_t *toks, int begin, int end, petrush_cmd_t *cmd)
 {
     memset(cmd, 0, sizeof(*cmd));
     size_t argv_cap = INITIAL_CAP;
-    cmd->argv = malloc(sizeof(char *) * argv_cap);
+    /* calloc: unused slots NULL so cmd_clear never frees uninitialized ptrs */
+    cmd->argv = calloc(argv_cap, sizeof(char *));
     if (!cmd->argv) return -1;
     cmd->argv_quoted = malloc(sizeof(int) * argv_cap);
     if (!cmd->argv_quoted) {
