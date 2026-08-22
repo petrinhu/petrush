@@ -484,6 +484,20 @@ void test_parse_digit_space_gt_is_stdout(void)
     petrush_cmd_free(&cmd);
 }
 
+/* Caracterização tokenize: 12> = WORD "12" + TOK_GT (não 2>) */
+void test_parse_twelvegt_is_word_then_stdout(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo 12> /tmp/o.txt", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(strcmp(cmd.argv[0], "echo") == 0);
+    TEST_CHECK(strcmp(cmd.argv[1], "12") == 0);
+    TEST_CHECK(cmd.redir_out && strcmp(cmd.redir_out, "/tmp/o.txt") == 0);
+    TEST_CHECK(cmd.redir_err == NULL);
+    TEST_CHECK(cmd.redir_err_to_out == 0);
+    petrush_cmd_free(&cmd);
+}
+
 void test_parse_redir_err_incomplete(void)
 {
     petrush_cmd_t cmd = {0};
@@ -501,6 +515,10 @@ void test_parse_redir_err_bad_fd(void)
     petrush_cmd_free(&cmd);
     memset(&cmd, 0, sizeof(cmd));
     TEST_CHECK(petrush_parse("echo hi 2>&", &cmd) == -1);
+    petrush_cmd_free(&cmd);
+    memset(&cmd, 0, sizeof(cmd));
+    /* tokenizer recusa 2>&12 (não abrir arquivo "&12") */
+    TEST_CHECK(petrush_parse("echo hi 2>&12", &cmd) == -1);
     petrush_cmd_free(&cmd);
 }
 
@@ -598,6 +616,7 @@ TEST_LIST = {
     { "parse_quoted_twogt_literal", test_parse_quoted_twogt_literal },
     { "parse_quoted_ampgt_literal", test_parse_quoted_ampgt_literal },
     { "parse_digit_space_gt_is_stdout", test_parse_digit_space_gt_is_stdout },
+    { "parse_twelvegt_is_word_then_stdout", test_parse_twelvegt_is_word_then_stdout },
     { "parse_redir_err_incomplete", test_parse_redir_err_incomplete },
     { "parse_redir_err_bad_fd", test_parse_redir_err_bad_fd },
     { "parse_pipeline_redir_err_first_stage", test_parse_pipeline_redir_err_first_stage },

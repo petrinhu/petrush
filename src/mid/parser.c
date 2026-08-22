@@ -1,5 +1,5 @@
 /*
- * parser.c — Parser com pipes e redirecionamento (NEW-20 + UX-16)
+ * parser.c - Parser com pipes e redirecionamento (NEW-20 + UX-16)
  */
 
 #include "petrush/parser.h"
@@ -88,6 +88,122 @@ void petrush_pipeline_free(petrush_pipeline_t *pl)
     pl->ncmds = 0;
 }
 
+/* | < > >> &> - 1 se consumiu; 0 se não casa. */
+static int try_consume_simple_op(const char **pp, tok_kind_t *kind)
+{
+    const char *p = *pp;
+    if (*p == '|') {
+        *kind = TOK_PIPE;
+        *pp = p + 1;
+        return 1;
+    }
+    if (*p == '<') {
+        *kind = TOK_LT;
+        *pp = p + 1;
+        return 1;
+    }
+    if (*p == '&' && p[1] == '>') {
+        *kind = TOK_AMPGT;
+        *pp = p + 2;
+        return 1;
+    }
+    if (*p == '>') {
+        if (p[1] == '>') {
+            *kind = TOK_GTGT;
+            *pp = p + 2;
+        } else {
+            *kind = TOK_GT;
+            *pp = p + 1;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * 2> 2>> 2>&1 - 1 consumiu; 0 não casa; -1 forma inválida (2>&12, 2>&2, 2>&).
+ * 12> permanece WORD "12" + TOK_GT (só casa com '2' literal na ponta).
+ */
+static int try_consume_err_redir(const char **pp, tok_kind_t *kind)
+{
+    const char *p = *pp;
+    if (!(*p == '2' && p[1] == '>')) {
+        return 0;
+    }
+    if (p[2] == '>') {
+        *kind = TOK_ERRGTGT;
+        *pp = p + 3;
+        return 1;
+    }
+    if (p[2] == '&') {
+        if (p[3] == '1') {
+            char after = p[4];
+            if (after == '\0' || isspace((unsigned char)after) ||
+                after == '|' || after == '<' || after == '>' ||
+                after == '&') {
+                *kind = TOK_ERRTOOUT;
+                *pp = p + 4;
+                return 1;
+            }
+            /* 2>&12 etc. - não abrir arquivo "&12" */
+            return -1;
+        }
+        /* 2>&  / 2>&2 - inválido nesta fatia */
+        return -1;
+    }
+    *kind = TOK_ERRGT;
+    *pp = p + 2;
+    return 1;
+}
+
+/* Aspas + break em operador. Owned text ou NULL (OOM). */
+static char *scan_word(const char **pp, int *quoted_out)
+{
+    const char *p = *pp;
+    char quote = 0;
+    int quoted = 0;
+    if (is_quote(*p)) {
+        quote = *p;
+        quoted = 1;
+        p++;
+    }
+    const char *start = p;
+    while (*p) {
+        if (quote) {
+            if (*p == quote) {
+                p++;
+                break;
+            }
+        } else {
+            if (isspace((unsigned char)*p)) {
+                break;
+            }
+            if (*p == '|' || *p == '<' || *p == '>') {
+                break;
+            }
+            if (*p == '&' && p[1] == '>') {
+                break;
+            }
+        }
+        p++;
+    }
+    size_t token_len = (size_t)(p - start);
+    if (quote && token_len > 0 && start[token_len - 1] == quote) {
+        token_len--;
+    }
+    char *text = malloc(token_len + 1);
+    if (!text) {
+        *pp = p;
+        *quoted_out = quoted;
+        return NULL;
+    }
+    memcpy(text, start, token_len);
+    text[token_len] = '\0';
+    *pp = p;
+    *quoted_out = quoted;
+    return text;
+}
+
 /*
  * Tokeniza input em words + operadores.
  * Retorna 0 e preenche *out_toks / *out_n; -1 em OOM/erro.
@@ -95,103 +211,39 @@ void petrush_pipeline_free(petrush_pipeline_t *pl)
 static int tokenize(const char *input, token_t **out_toks, int *out_n)
 {
     token_t *toks = malloc(sizeof(token_t) * INITIAL_CAP);
-    if (!toks) return -1;
+    if (!toks) {
+        return -1;
+    }
     int n = 0;
     size_t cap = INITIAL_CAP;
     const char *p = input;
 
     while (*p) {
-        while (*p && isspace((unsigned char)*p)) p++;
-        if (!*p) break;
+        while (*p && isspace((unsigned char)*p)) {
+            p++;
+        }
+        if (!*p) {
+            break;
+        }
 
         tok_kind_t kind = TOK_WORD;
         char *text = NULL;
         int quoted = 0;
 
-        if (!is_quote(*p)) {
-            if (*p == '|') {
-                kind = TOK_PIPE;
-                p++;
-            } else if (*p == '<') {
-                kind = TOK_LT;
-                p++;
-            } else if (*p == '&' && p[1] == '>') {
-                /* &> — não tratar & sozinho */
-                kind = TOK_AMPGT;
-                p += 2;
-            } else if (*p == '2' && p[1] == '>') {
-                /* 2 colado em > (12> permanece WORD "12" + TOK_GT) */
-                if (p[2] == '>') {
-                    kind = TOK_ERRGTGT;
-                    p += 3;
-                } else if (p[2] == '&') {
-                    if (p[3] == '1') {
-                        char after = p[4];
-                        if (after == '\0' || isspace((unsigned char)after) ||
-                            after == '|' || after == '<' || after == '>' ||
-                            after == '&') {
-                            kind = TOK_ERRTOOUT;
-                            p += 4;
-                        } else {
-                            /* 2>&12 etc. — não abrir arquivo "&12" */
-                            free_tokens(toks, n);
-                            return -1;
-                        }
-                    } else {
-                        /* 2>&  / 2>&2 — inválido nesta fatia */
-                        free_tokens(toks, n);
-                        return -1;
-                    }
-                } else {
-                    kind = TOK_ERRGT;
-                    p += 2;
-                }
-            } else if (*p == '>') {
-                if (p[1] == '>') {
-                    kind = TOK_GTGT;
-                    p += 2;
-                } else {
-                    kind = TOK_GT;
-                    p++;
-                }
+        if (!is_quote(*p) && !try_consume_simple_op(&p, &kind)) {
+            int er = try_consume_err_redir(&p, &kind);
+            if (er < 0) {
+                free_tokens(toks, n);
+                return -1;
             }
         }
 
-        if (kind != TOK_WORD) {
-            /* operator token */
-        } else {
-            char quote = 0;
-            if (is_quote(*p)) {
-                quote = *p;
-                quoted = 1;
-                p++;
-            }
-            const char *start = p;
-            while (*p) {
-                if (quote) {
-                    if (*p == quote) {
-                        p++;
-                        break;
-                    }
-                } else {
-                    if (isspace((unsigned char)*p)) break;
-                    /* operador quebra palavra (| < > e &> colado) */
-                    if (*p == '|' || *p == '<' || *p == '>') break;
-                    if (*p == '&' && p[1] == '>') break;
-                }
-                p++;
-            }
-            size_t token_len = (size_t)(p - start);
-            if (quote && token_len > 0 && start[token_len - 1] == quote) {
-                token_len--;
-            }
-            text = malloc(token_len + 1);
+        if (kind == TOK_WORD) {
+            text = scan_word(&p, &quoted);
             if (!text) {
                 free_tokens(toks, n);
                 return -1;
             }
-            memcpy(text, start, token_len);
-            text[token_len] = '\0';
         }
 
         if (n >= (int)cap) {
@@ -237,7 +289,7 @@ static int push_arg(petrush_cmd_t *cmd, char *word, int quoted, size_t *argv_cap
 static int finalize_argv(petrush_cmd_t *cmd)
 {
     if (!cmd->argv) {
-        /* estágio vazio — válido só se for erro depois */
+        /* estágio vazio - válido só se for erro depois */
         return 0;
     }
     char **final_argv = realloc(cmd->argv, sizeof(char *) * ((size_t)cmd->argc + 1));
@@ -489,7 +541,7 @@ static int find_list_connector(const char *s, size_t from, size_t *out_pos,
             return 1;
         }
         if (c == '&' && s[i + 1] == '>') {
-            continue; /* &> redir — não é separador de lista */
+            continue; /* &> redir - não é separador de lista */
         }
         if (c == '&') {
             /* 2>&1: o '&' no meio não é background */
