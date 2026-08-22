@@ -37,5 +37,11 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - Próxima onda W14 TST-* (T2 estática, T8 secrets, T15 pré-CI…). NEW-22 segue ⏳ (líder AFK). Log canônico: este arquivo.
 - TST-T8 LIMPO (`693e66f`) → 🔍. TST-T2 gate FALHOU (cppcheck/clang-tidy); críticos dispatcher/parser remediados (`ebcafb3`, `3983fff`). Residual: complexidade cognitiva (pipeline/tokenize/find_pudod). TST-T2 permanece ⏳ até lint completo.
 - check 18/18. Próximo: re-rodar lint TST-T2 ou TST-T15 pré-CI.
+- 2026-08-22 líder voltou: ordem de seguir até o fim da tabela, mesmo modo (C-level 4.6 planeja, workers 4.5 teto 2). NEW-22 tratado como confirmação (Onda 3 = NEW-20 já 🔍). Retoma W14: fechar TST-T2 (lint residual) e drenar TST restantes, depois AUD, depois NEW-23.
+- TST-T14 smoke 53/0 + check 18/18 → 🔍 (`521f7b1`). NEW-22 → 🔍 (confirmação do líder).
+- Despacho BE-1 tokenize + BE-2 pipeline/find_pudod (complexidade <50, sem NOLINT).
+- TST-T2 gate verde: cppcheck 0, clang-tidy 0 (após double-free exe_path + struct try_abs_candidate). TODO → 🔍. check 18/18.
+- W14 fatia 1: TST-T15 (container Fedora 44) + TST-T5 (trivy/grype).
+- TST-T5 deps: grype+trivy+osv-scanner EXIT 0; linenoise CVE-2025-9810 MEDIUM mitigado (SEC-08); 0 CRITICAL vendor → 🔍. Relatório `docs/memory/tst-t5-deps.md`. Sem push.
 - UX-21 Opção A: highlight mínimo (aspas/CMD/OP); `test_highlight` + check 16/16; TODO 🔍. Sem push.
 - UX-22 impl: Mid source.h/c + test_source; load_rc_file=missing_ok; check 17/17 smoke 50; TODO 🔍. Sem push.
