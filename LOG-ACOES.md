@@ -35,5 +35,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - Onda W10: despacho FEAT-BANG + FEAT-TRUE (teto 2, paralelos, pré-req UX-23).
 - W10/W11/W12/W13 FEAT fechadas em 🔍: BANG TRUE UMASK NOCLOBBER READ PARAM TEST. HEAD inclui `dd93dda` FEAT-TEST.
 - Próxima onda W14 TST-* (T2 estática, T8 secrets, T15 pré-CI…). NEW-22 segue ⏳ (líder AFK). Log canônico: este arquivo.
+- TST-T8 LIMPO (`693e66f`) → 🔍. TST-T2 gate FALHOU (cppcheck/clang-tidy); críticos dispatcher/parser remediados (`ebcafb3`, `3983fff`). Residual: complexidade cognitiva (pipeline/tokenize/find_pudod). TST-T2 permanece ⏳ até lint completo.
+- check 18/18. Próximo: re-rodar lint TST-T2 ou TST-T15 pré-CI.
 - UX-21 Opção A: highlight mínimo (aspas/CMD/OP); `test_highlight` + check 16/16; TODO 🔍. Sem push.
 - UX-22 impl: Mid source.h/c + test_source; load_rc_file=missing_ok; check 17/17 smoke 50; TODO 🔍. Sem push.
