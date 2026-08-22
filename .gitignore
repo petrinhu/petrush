@@ -1,6 +1,8 @@
 # Build
 build/
 build-sanitize/
+build-preci-rel/
+build-preci-dbg/
 *.o
 *.a
 *.so
