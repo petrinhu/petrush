@@ -1,5 +1,5 @@
 /*
- * test_hist_expand.c — TDD for !! and !n (NEW-26)
+ * test_hist_expand.c — TDD for !! / !n / !$ / !^ (NEW-26 + FEAT-BANG)
  */
 
 #include "acutest.h"
@@ -41,9 +41,61 @@ void test_no_expand(void)
     TEST_CHECK(exp == NULL);
 }
 
+/* FEAT-BANG: !$ = último arg do último evento */
+void test_bang_dollar_last_arg(void)
+{
+    linenoiseHistorySetMaxLen(50);
+    linenoiseHistoryAdd("echo hello world");
+    char *exp = hist_expand_line("!$");
+    TEST_CHECK(exp != NULL);
+    if (exp) {
+        TEST_CHECK(strcmp(exp, "world") == 0);
+        free(exp);
+    }
+}
+
+/* FEAT-BANG: !^ = primeiro arg (word 1) do último evento */
+void test_bang_caret_first_arg(void)
+{
+    linenoiseHistorySetMaxLen(50);
+    linenoiseHistoryAdd("cp src dst");
+    char *exp = hist_expand_line("!^");
+    TEST_CHECK(exp != NULL);
+    if (exp) {
+        TEST_CHECK(strcmp(exp, "src") == 0);
+        free(exp);
+    }
+}
+
+/* FEAT-BANG: !$ com uma só palavra = essa palavra (bash) */
+void test_bang_dollar_single_word(void)
+{
+    linenoiseHistorySetMaxLen(50);
+    linenoiseHistoryAdd("ls");
+    char *exp = hist_expand_line("!$");
+    TEST_CHECK(exp != NULL);
+    if (exp) {
+        TEST_CHECK(strcmp(exp, "ls") == 0);
+        free(exp);
+    }
+}
+
+/* FEAT-BANG: !^ sem args = falha (sem word 1) */
+void test_bang_caret_no_arg(void)
+{
+    linenoiseHistorySetMaxLen(50);
+    linenoiseHistoryAdd("pwd");
+    char *exp = hist_expand_line("!^");
+    TEST_CHECK(exp == NULL);
+}
+
 TEST_LIST = {
     { "bang_bang_last", test_bang_bang_last },
     { "bang_number", test_bang_number },
     { "no_expand", test_no_expand },
+    { "bang_dollar_last_arg", test_bang_dollar_last_arg },
+    { "bang_caret_first_arg", test_bang_caret_first_arg },
+    { "bang_dollar_single_word", test_bang_dollar_single_word },
+    { "bang_caret_no_arg", test_bang_caret_no_arg },
     { NULL, NULL }
 };

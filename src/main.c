@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
         }
 
         if (strlen(line) > 0) {
-            /* !! / !n antes de history add (não gravar o bang cru) */
+            /* !! / !n / !$ / !^ antes de history add (não gravar o bang cru) */
             char *hist_exp = hist_expand_line(line);
             const char *after_hist = hist_exp ? hist_exp : line;
             if (hist_exp) {
