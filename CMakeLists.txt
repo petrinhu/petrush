@@ -296,6 +296,23 @@ target_compile_options(test_hist_expand PRIVATE
 )
 add_test(NAME test_hist_expand COMMAND test_hist_expand)
 
+# linenoise history save: no symlink follow (SEC-08 / CVE-2025-9810 residual)
+add_executable(test_linenoise_history
+    tests/test_linenoise_history.c
+    vendor/linenoise/linenoise.c
+)
+target_include_directories(test_linenoise_history PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/vendor/linenoise
+)
+set_source_files_properties(vendor/linenoise/linenoise.c PROPERTIES
+    COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-unused-function"
+)
+target_compile_options(test_linenoise_history PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_linenoise_history COMMAND test_linenoise_history)
+
 # Word expansion ~ and $VAR (UX-12 UX-13)
 add_executable(test_expand
     tests/test_expand.c
@@ -344,7 +361,7 @@ add_test(NAME test_prompt COMMAND test_prompt)
 
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_expand test_glob test_prompt
+    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt
     COMMENT "Executando todos os testes unitários"
 )
 

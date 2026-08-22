@@ -15,7 +15,7 @@ Legenda petrush: **SIM** = superfície presente e análoga; **PARCIAL** = superf
 | Classe | CVE / referência (shells típicos) | bash | zsh | fish | dash | ksh | mksh | tcsh | busybox ash | yash | osh (Oils) | petrush | Evidência petrush |
 |--------|-----------------------------------|------|-----|------|------|-----|------|------|-------------|------|------------|---------|-------------------|
 | Function export (Shellshock) | CVE-2014-6271 (+7169,6277,6278,7186,7187) | SIM | NÃO (sem export de função via env) | NÃO | NÃO | PARCIAL (env eval CVE-2019-14868) | NÃO típico | NÃO | NÃO | NÃO | NÃO (sem export de função bash) | **NÃO** | Sem funções exportáveis; `expand.c` só `$VAR`/`${VAR}` literal |
-| History file perms / symlink | CVE-2025-9810 (linenoise); histórico world-readable clássico | SIM | SIM | SIM (fish_history) | N/A (sem hist interativo rico) | SIM | SIM | SIM | limitado | SIM | SIM | **PARCIAL** | `linenoise.c:2338-2346` `fopen`+`fchmod(fd,0600)`; TOCTOU de symlink no path permanece |
+| History file perms / symlink | CVE-2025-9810 (linenoise); histórico world-readable clássico | SIM | SIM | SIM (fish_history) | N/A (sem hist interativo rico) | SIM | SIM | SIM | limitado | SIM | SIM | **NÃO** (mitigado) | `linenoiseHistorySave`: `open(O_NOFOLLOW\|O_CREAT\|O_TRUNC\|O_CLOEXEC)` + `fchmod(fd,0600)` (SEC-08) |
 | History expansion `!!` / `!n` | abuso de bang em input compartilhado | SIM | SIM | NÃO (sem bang) | NÃO | SIM (ksh) | SIM | SIM | NÃO típico | SIM | SIM (OSH) | **SIM** | `hist_expand.c:19-42` (`!!`, `!n`) |
 | IFS word-split | clássico unquoted `$var`; dash/POSIX | SIM | SIM | NÃO (sem IFS split implícito) | SIM (POSIX) | SIM | SIM | NÃO (csh) | SIM | SIM | PARCIAL (OSH legado; YSH `simple_word_eval` remove) | **NÃO** | `expand_word` substitui valor inteiro; sem split pós-expansão |
 | Glob / globstar | path injection, DoS de matches | SIM (`**` c/ globstar) | SIM | SIM (globs próprios) | SIM (`* ? []`) | SIM | SIM | SIM | SIM | SIM | SIM (estático; YSH sem glob dinâmico implícito) | **PARCIAL** | `expand.c` `*`/`?` unquoted; sem `[]`/`**`; teto `PETRUSH_GLOB_MAX` 256 fail-closed (`expand.h:10`) |
@@ -29,7 +29,7 @@ Legenda petrush: **SIM** = superfície presente e análoga; **PARCIAL** = superf
 | Fish universal vars | sync/persistência cross-session | NÃO | NÃO | SIM | NÃO | NÃO | NÃO | NÃO | NÃO | NÃO | NÃO | **NÃO** | Sem store universal; env = libc `getenv`/`setenv` (`env.c`) |
 | BusyBox applet confusion | wget SSL, ash parser, netstat VT | NÃO | NÃO | NÃO | NÃO | NÃO | NÃO | NÃO | SIM | NÃO | NÃO | **NÃO** | Não é multi-call BusyBox |
 | Parser OOB / realloc argv | Shellshock irmãos; NEW-01 | hist. SIM | hist. | hist. | hist. | hist. | hist. | hist. | CVE-2021-42375 / 2022-48174 | hist. | foco em parse seguro | **NÃO** (mitigado) | NEW-01 ✅ `finalize_argv` garante `argv[argc]=NULL` (`parser.c:227-237`) |
-| linenoise history TOCTOU | CVE-2025-9810 | N/A (readline) | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | **PARCIAL** | Vendor com `fchmod` no fd; TODO.md nota CVE já tratada parcialmente |
+| linenoise history TOCTOU | CVE-2025-9810 | N/A (readline) | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | **NÃO** (mitigado) | Vendor: `O_NOFOLLOW` + `fchmod` no fd (SEC-08) |
 | `source` / `.` | execução de arquivo no shell | SIM | SIM | SIM (`.`/`source`) | SIM | SIM | SIM | SIM (`source`) | SIM | SIM | SIM | **NÃO** | UX-22 ⏳; vira **PARCIAL** se UX-22 ligar |
 | Background `&` / jobs | race TTY, orphan, signal | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | **NÃO** | UX-23 ⏳; `SIGTSTP` ignorado (`main.c:174-176`); vira **PARCIAL** se UX-23 ligar |
 
@@ -267,7 +267,7 @@ Referência: https://oils.pub/release/0.37.0/doc/simple-word-eval.html
 | Alias | `src/mid/alias.c` | Expande 1ª palavra; tabela 64×512 |
 | Complete | `src/front/complete.c` | Varre PATH/fs (DoS local / info leak menor) |
 | rc | `main.c:load_rc_file` | Executa linhas do `~/.petrushrc` (confiança no dono do home) |
-| History file | `vendor/linenoise/linenoise.c:2338+` | `umask` + `fchmod(0600)` no fd; symlink race residual |
+| History file | `vendor/linenoise/linenoise.c:linenoiseHistorySave` | `umask` + `open(O_NOFOLLOW\|…)` + `fchmod(0600)` no fd (SEC-08) |
 | Redir write (noclobber ausente) | `process.c:161` + `dispatcher.c:108` | **SIM** superfície overwrite; `O_CREAT\|O_TRUNC` sem `O_EXCL` nos dois sítios |
 | Env | `src/foundation/env.c` | Pass-through libc; sem interpretador de `ENV` |
 
@@ -283,16 +283,16 @@ Referência: https://oils.pub/release/0.37.0/doc/simple-word-eval.html
 
 ### Mitigações já creditadas
 - **NEW-01** ✅: terminator NULL em argv após realloc.
-- **CVE-2025-9810**: `fchmod` no fd do history (melhor que `chmod(path)`); residual: `fopen("w")` segue symlink se o path for link.
+- **CVE-2025-9810** / **SEC-08**: `open(O_NOFOLLOW|O_CREAT|O_TRUNC|O_CLOEXEC)` + `fchmod` no fd do history (não segue symlink; melhor que `chmod(path)`).
 - Glob fail-closed no overflow.
 - Prompt sem substituição de comando.
 
 ### Riscos residuais do REPL (prioridade)
-1. **History symlink TOCTOU** (médio-baixo, local; SEC-08 sugerido): `fopen` segue symlink; preferir `open(O_NOFOLLOW|O_CLOEXEC)` + write, ou `O_EXCL` create.
-2. **Sem noclobber** (baixo-médio, SEC-09 sugerido): `>` destrói arquivo existente em `process.c:161` e `dispatcher.c:108`.
-3. **`~/.petrushrc` confiado** (médio se home compartilhado/NFS; SEC-10 sugerido): qualquer linha vira comando; sem checar uid/mode do arquivo.
-4. **`!!` em contexto de input colado** (baixo): ecoa e executa última linha do histórico.
-5. **Complete PATH walk** (baixo): custo/DoS local.
+1. **Sem noclobber** (baixo-médio, SEC-09 sugerido): `>` destrói arquivo existente em `process.c:161` e `dispatcher.c:108`.
+2. **`~/.petrushrc` confiado** (médio se home compartilhado/NFS; SEC-10 sugerido): qualquer linha vira comando; sem checar uid/mode do arquivo.
+3. **`!!` em contexto de input colado** (baixo): ecoa e executa última linha do histórico.
+4. **Complete PATH walk** (baixo): custo/DoS local.
+5. ~~History symlink TOCTOU~~ (SEC-08 fechado em impl: `O_NOFOLLOW` + teste `test_linenoise_history`).
 
 ---
 

@@ -111,6 +111,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -2334,16 +2335,31 @@ int linenoiseHistorySetMaxLen(int len) {
 }
 
 /* Save the history in the specified file. On success 0 is returned
- * otherwise -1 is returned. */
+ * otherwise -1 is returned.
+ *
+ * petrush SEC-08 / CVE-2025-9810 residual: open with O_NOFOLLOW so a
+ * symlink at filename cannot redirect the truncate/write onto another file.
+ * fchmod stays on the already-opened fd (0600). */
 int linenoiseHistorySave(const char *filename) {
     mode_t old_umask = umask(S_IXUSR|S_IRWXG|S_IRWXO);
     FILE *fp;
+    int fd;
     int j;
 
-    fp = fopen(filename,"w");
+    fd = open(filename,
+              O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW|O_CLOEXEC,
+              S_IRUSR|S_IWUSR);
     umask(old_umask);
-    if (fp == NULL) return -1;
-    fchmod(fileno(fp),S_IRUSR|S_IWUSR);
+    if (fd == -1) return -1;
+    if (fchmod(fd,S_IRUSR|S_IWUSR) == -1) {
+        close(fd);
+        return -1;
+    }
+    fp = fdopen(fd,"w");
+    if (fp == NULL) {
+        close(fd);
+        return -1;
+    }
     for (j = 0; j < history_len; j++) {
         char *p = history[j];
         /* Keep the history file newline-separated: embedded newlines in an
