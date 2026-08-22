@@ -175,6 +175,58 @@ void test_scan_errtoout(void)
     TEST_CHECK(found);
 }
 
+/* UX-23: lone `&` é OP; depois de && e &>; não parte de 2>&1 */
+void test_scan_bg_amp(void)
+{
+    petrush_hl_span_t sp[16];
+    const char *buf = "echo a &";
+    int n = petrush_hl_scan(buf, strlen(buf), sp, 16);
+    TEST_CHECK(n >= 2);
+    int saw = 0;
+    for (int i = 0; i < n; i++) {
+        if (sp[i].kind == PETRUSH_HL_OP && sp[i].len == 1 &&
+            buf[sp[i].start] == '&')
+            saw = 1;
+    }
+    TEST_CHECK(saw);
+}
+
+void test_scan_bg_amp_after_and(void)
+{
+    petrush_hl_span_t sp[16];
+    const char *buf = "true && echo x &";
+    int n = petrush_hl_scan(buf, strlen(buf), sp, 16);
+    int saw_and = 0, saw_bg = 0;
+    for (int i = 0; i < n; i++) {
+        if (sp[i].kind == PETRUSH_HL_OP && sp[i].len == 2 &&
+            memcmp(buf + sp[i].start, "&&", 2) == 0)
+            saw_and = 1;
+        if (sp[i].kind == PETRUSH_HL_OP && sp[i].len == 1 &&
+            buf[sp[i].start] == '&')
+            saw_bg = 1;
+    }
+    TEST_CHECK(saw_and);
+    TEST_CHECK(saw_bg);
+}
+
+void test_scan_ampgt_not_lone_bg(void)
+{
+    petrush_hl_span_t sp[16];
+    const char *buf = "echo hi &> /tmp/x";
+    int n = petrush_hl_scan(buf, strlen(buf), sp, 16);
+    int saw_ampgt = 0, saw_lone = 0;
+    for (int i = 0; i < n; i++) {
+        if (sp[i].kind == PETRUSH_HL_OP && sp[i].len == 2 &&
+            memcmp(buf + sp[i].start, "&>", 2) == 0)
+            saw_ampgt = 1;
+        if (sp[i].kind == PETRUSH_HL_OP && sp[i].len == 1 &&
+            buf[sp[i].start] == '&')
+            saw_lone = 1;
+    }
+    TEST_CHECK(saw_ampgt);
+    TEST_CHECK(!saw_lone);
+}
+
 void test_scan_empty_quotes(void)
 {
     petrush_hl_span_t sp[16];
@@ -215,6 +267,9 @@ void test_colorize_strip_invariant(void)
         "true && false",
         "echo a; echo b",
         "echo 2>&1",
+        "echo a &",
+        "true && echo x &",
+        "echo hi &> /tmp/x",
         "\"\"",
         "''",
         "",
@@ -260,6 +315,9 @@ TEST_LIST = {
     { "scan_and_and", test_scan_and_and },
     { "scan_semicolon", test_scan_semicolon },
     { "scan_errtoout", test_scan_errtoout },
+    { "scan_bg_amp", test_scan_bg_amp },
+    { "scan_bg_amp_after_and", test_scan_bg_amp_after_and },
+    { "scan_ampgt_not_lone_bg", test_scan_ampgt_not_lone_bg },
     { "scan_empty_quotes", test_scan_empty_quotes },
     { "scan_null_empty", test_scan_null_empty },
     { "colorize_strip_invariant", test_colorize_strip_invariant },

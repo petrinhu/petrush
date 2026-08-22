@@ -247,6 +247,40 @@ fi
 rm -rf "$src_dir"
 echo
 
+# UX-23: background `&` + builtin jobs + notify no prompt
+echo "=== SMOKE: background & / jobs ==="
+bg_out=$(printf '/bin/sleep 0.35 &\njobs\n/bin/sleep 0.5\njobs\nexit\n' | "$PETRUSH" 2>&1 || true)
+if echo "$bg_out" | grep -Eq '\[1\]' \
+    && echo "$bg_out" | grep -Eq 'Running|Done|sleep'; then
+    echo "PASS: background & launches and jobs sees it"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: background & launches and jobs sees it"
+    echo "$bg_out" | tail -12
+    FAIL=$((FAIL+1))
+fi
+if echo "$bg_out" | grep -Eq 'Done'; then
+    echo "PASS: background job Done notify or jobs"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: background job Done notify or jobs"
+    echo "$bg_out" | tail -12
+    FAIL=$((FAIL+1))
+fi
+ampgt_bg=$(printf 'echo ampgt-ok &> /tmp/petrush-smoke-ampgt-ux23.txt\nexit\n' | "$PETRUSH" 2>&1 || true)
+if [ -f /tmp/petrush-smoke-ampgt-ux23.txt ] \
+    && grep -q 'ampgt-ok' /tmp/petrush-smoke-ampgt-ux23.txt \
+    && ! echo "$ampgt_bg" | grep -Eq '\[1\]'; then
+    echo "PASS: &> is redir not background"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: &> is redir not background"
+    echo "$ampgt_bg" | tail -8
+    FAIL=$((FAIL+1))
+fi
+rm -f /tmp/petrush-smoke-ampgt-ux23.txt
+echo
+
 echo "=== SMOKE SUMMARY ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

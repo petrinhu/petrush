@@ -5,6 +5,7 @@
 #include "petrush/dispatcher.h"
 #include "petrush/petrush.h"
 #include "petrush/process.h"
+#include "petrush/job.h"
 #include "petrush/env.h"
 #include "petrush/pudo.h"
 #include "petrush/alias.h"
@@ -21,6 +22,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <signal.h>
+#include <sys/types.h>
 
 static const builtin_entry_t builtins[] = {
     { "cd",      builtin_cd      },
@@ -43,6 +46,7 @@ static const builtin_entry_t builtins[] = {
     { "dirs",    builtin_dirs    },
     { "source",  builtin_source  },
     { ".",       builtin_source  },
+    { "jobs",    builtin_jobs    },
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -197,6 +201,105 @@ int dispatch_command(petrush_cmd_t *cmd)
     return (status != 0) ? status : 127;
 }
 
+/* Rótulo curto pro job table (argv do 1º estágio; "|…" se pipeline). */
+static char *pipeline_job_label(const petrush_pipeline_t *pl)
+{
+    if (!pl || pl->ncmds <= 0 || !pl->cmds[0].argv || !pl->cmds[0].argv[0]) {
+        return strdup("?");
+    }
+    const petrush_cmd_t *cmd = &pl->cmds[0];
+    size_t cap = 64;
+    char *buf = malloc(cap);
+    if (!buf) return NULL;
+    buf[0] = '\0';
+    size_t len = 0;
+    for (int i = 0; i < cmd->argc; i++) {
+        const char *a = cmd->argv[i] ? cmd->argv[i] : "";
+        size_t alen = strlen(a);
+        size_t need = len + alen + (i ? 1 : 0) + 1;
+        if (need > cap) {
+            size_t ncap = need + 32;
+            char *nbuf = realloc(buf, ncap);
+            if (!nbuf) {
+                free(buf);
+                return NULL;
+            }
+            buf = nbuf;
+            cap = ncap;
+        }
+        if (i) buf[len++] = ' ';
+        memcpy(buf + len, a, alen);
+        len += alen;
+        buf[len] = '\0';
+    }
+    if (pl->ncmds > 1) {
+        const char *suf = " |...";
+        size_t sl = strlen(suf);
+        if (len + sl + 1 > cap) {
+            char *nbuf = realloc(buf, len + sl + 1);
+            if (!nbuf) {
+                free(buf);
+                return NULL;
+            }
+            buf = nbuf;
+        }
+        memcpy(buf + len, suf, sl + 1);
+    }
+    return buf;
+}
+
+/* UX-23: subshell por item bg; não altera execute_external/execute_pipeline. */
+static int dispatch_pipeline_background(petrush_pipeline_t *pl)
+{
+    if (!pl) return 1;
+    petrush_job_reap();
+    if (petrush_job_count() >= PETRUSH_JOB_MAX) {
+        fprintf(stderr, "petrush: teto de %d jobs em background\n",
+                PETRUSH_JOB_MAX);
+        return 1;
+    }
+
+    char *label = pipeline_job_label(pl);
+    if (!label) return 1;
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        free(label);
+        return 1;
+    }
+    if (pid == 0) {
+        setpgid(0, 0);
+        signal(SIGINT, SIG_DFL);
+        signal(SIGQUIT, SIG_DFL);
+        signal(SIGTSTP, SIG_DFL);
+        /* stdin /dev/null se tty e sem `<` no 1º estágio */
+        if (pl->ncmds > 0 && isatty(STDIN_FILENO) &&
+            !pl->cmds[0].redir_in) {
+            int fd = open("/dev/null", O_RDONLY);
+            if (fd >= 0) {
+                if (dup2(fd, STDIN_FILENO) < 0) {
+                    /* segue com stdin atual */
+                }
+                close(fd);
+            }
+        }
+        int st = dispatch_pipeline(pl);
+        _exit(st & 0xff);
+    }
+
+    setpgid(pid, pid);
+    int id = petrush_job_add(pid, label);
+    free(label);
+    if (id < 0) {
+        fprintf(stderr, "petrush: não foi possível registrar job\n");
+        return 1;
+    }
+    printf("[%d] %d\n", id, (int)pid);
+    fflush(stdout);
+    return 0;
+}
+
 int dispatch_list(petrush_list_t *list)
 {
     if (!list || list->nitems <= 0) {
@@ -213,7 +316,11 @@ int dispatch_list(petrush_list_t *list)
                 continue; /* short-circuit || */
             }
         }
-        status = dispatch_pipeline(&it->pl);
+        if (it->background) {
+            status = dispatch_pipeline_background(&it->pl);
+        } else {
+            status = dispatch_pipeline(&it->pl);
+        }
     }
     return status;
 }
@@ -360,10 +467,20 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  pushd/popd   - Stack de diretórios\n");
     printf("  dirs         - Mostra a stack\n");
     printf("  source/.     - Executa arquivo no shell atual\n");
+    printf("  jobs         - Lista jobs em background\n");
     printf("\n");
-    printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ;,\n");
+    printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
     printf("Comandos externos via PATH. Prompt: PETRUSH_PS1.\n");
+    return 0;
+}
+
+int builtin_jobs(petrush_cmd_t *cmd)
+{
+    (void)cmd;
+    petrush_job_reap();
+    petrush_job_print();
+    petrush_job_prune_done();
     return 0;
 }
 
@@ -496,8 +613,8 @@ int builtin_info(petrush_cmd_t *cmd)
     printf("petrush %s\n", PETRUSH_VERSION);
     printf("C23 REPL shell\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("Features: history, rc, signals, pudo, pipes, redir, alias, PS1, complete, hints, &&/||/;, glob, source/.\n");
-    printf("Anti-OE: sem background, sem []/**, sem $1/return em source\n");
+    printf("Features: history, rc, signals, pudo, pipes, redir, alias, PS1, complete, hints, &&/||/;/&, glob, source/., jobs.\n");
+    printf("Anti-OE: sem fg/bg/Ctrl-Z/%%n, sem []/**, sem $1/return em source\n");
     return 0;
 }
 

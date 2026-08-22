@@ -16,6 +16,7 @@
 #include "petrush/parser.h"
 #include "petrush/dispatcher.h"
 #include "petrush/process.h"
+#include "petrush/job.h"
 #include "petrush/env.h"
 #include "petrush/alias.h"
 #include "petrush/complete.h"
@@ -152,6 +153,9 @@ int main(int argc, char *argv[])
     char *line;
     while (1) {
         errno = 0;
+        /* UX-23: reap + notify Done antes do prompt */
+        petrush_job_reap();
+        petrush_job_notify();
         /* PETRUSH_PS1 + escapes \w \u \h \n \$ \\ (UX-15) */
         const char *ps1 = petrush_getenv("PETRUSH_PS1");
         char prompt_buf[512];

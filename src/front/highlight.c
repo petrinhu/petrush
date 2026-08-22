@@ -37,6 +37,9 @@ static size_t match_op(const char *p, size_t remain)
         return 2;
     if (remain >= 2 && p[0] == '&' && p[1] == '&')
         return 2;
+    /* UX-23: lone `&` depois de && e &> */
+    if (remain >= 1 && p[0] == '&')
+        return 1;
     if (remain >= 1 && (p[0] == '|' || p[0] == ';' || p[0] == '<' || p[0] == '>'))
         return 1;
     return 0;
@@ -44,7 +47,7 @@ static size_t match_op(const char *p, size_t remain)
 
 static int op_resets_cmd(const char *p, size_t oplen)
 {
-    if (oplen == 1 && (p[0] == '|' || p[0] == ';'))
+    if (oplen == 1 && (p[0] == '|' || p[0] == ';' || p[0] == '&'))
         return 1;
     if (oplen == 2 && ((p[0] == '|' && p[1] == '|') ||
                        (p[0] == '&' && p[1] == '&')))
@@ -57,7 +60,7 @@ static int word_break_here(const char *p, size_t remain)
 {
     if (remain >= 1 && (p[0] == '|' || p[0] == ';' || p[0] == '<' || p[0] == '>'))
         return 1;
-    if (remain >= 2 && p[0] == '&' && (p[1] == '>' || p[1] == '&'))
+    if (remain >= 1 && p[0] == '&')
         return 1;
     return 0;
 }
@@ -127,7 +130,6 @@ int petrush_hl_scan(const char *buf, size_t len,
             if (is_space(buf[i])) break;
             if (buf[i] == '"' || buf[i] == '\'') break;
             if (word_break_here(buf + i, len - i)) break;
-            /* Lone '&' stays in the word (UX-23 ainda não). */
             i++;
         }
         enum petrush_hl_kind kind = expect_cmd ? PETRUSH_HL_CMD : PETRUSH_HL_PLAIN;

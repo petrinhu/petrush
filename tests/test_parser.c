@@ -272,6 +272,96 @@ void test_parse_list_pipe_then_seq(void)
     petrush_list_free(&list);
 }
 
+/* UX-23: background `&` (separador; && / &> / 2>&1 não contam) */
+void test_parse_list_bg_trailing(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a &", &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[0].background == 1);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_bg_then_fg(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a & echo b", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].background == 1);
+    TEST_CHECK(list.items[0].cond == PETRUSH_COND_ALWAYS);
+    TEST_CHECK(list.items[1].background == 0);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_ALWAYS);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_bg_two(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a & echo b &", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].background == 1);
+    TEST_CHECK(list.items[1].background == 1);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_and_not_bg(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("/bin/true && /bin/true", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].background == 0);
+    TEST_CHECK(list.items[1].background == 0);
+    TEST_CHECK(list.items[1].cond == PETRUSH_COND_AND);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_ampgt_not_bg(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo hi &> /tmp/both-ux23.txt", &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].background == 0);
+    TEST_CHECK(list.items[0].pl.cmds[0].redir_err_to_out == 1);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_errtoout_not_bg(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo hi 2>&1", &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].background == 0);
+    TEST_CHECK(list.items[0].pl.cmds[0].redir_err_to_out == 1);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_bg_quoted_literal(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo 'a & b'", &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].background == 0);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_bg_leading_empty(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("& echo a", &list) != 0);
+    petrush_list_free(&list);
+}
+
+void test_parse_list_fg_default(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a ; echo b", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].background == 0);
+    TEST_CHECK(list.items[1].background == 0);
+    petrush_list_free(&list);
+}
+
 void test_parse_list_redir_err_then_seq(void)
 {
     petrush_list_t list = {0};
@@ -490,6 +580,15 @@ TEST_LIST = {
     { "parse_list_and_trailing_empty", test_parse_list_and_trailing_empty },
     { "parse_list_pipe_then_seq", test_parse_list_pipe_then_seq },
     { "parse_list_redir_err_then_seq", test_parse_list_redir_err_then_seq },
+    { "parse_list_bg_trailing", test_parse_list_bg_trailing },
+    { "parse_list_bg_then_fg", test_parse_list_bg_then_fg },
+    { "parse_list_bg_two", test_parse_list_bg_two },
+    { "parse_list_and_not_bg", test_parse_list_and_not_bg },
+    { "parse_list_ampgt_not_bg", test_parse_list_ampgt_not_bg },
+    { "parse_list_errtoout_not_bg", test_parse_list_errtoout_not_bg },
+    { "parse_list_bg_quoted_literal", test_parse_list_bg_quoted_literal },
+    { "parse_list_bg_leading_empty", test_parse_list_bg_leading_empty },
+    { "parse_list_fg_default", test_parse_list_fg_default },
     { "parse_redir_err", test_parse_redir_err },
     { "parse_redir_err_glued", test_parse_redir_err_glued },
     { "parse_redir_err_append", test_parse_redir_err_append },

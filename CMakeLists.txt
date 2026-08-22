@@ -45,6 +45,7 @@ add_executable(petrush
     src/front/highlight.c
     src/front/rc_trust.c
     src/foundation/process.c
+    src/foundation/job.c
     src/foundation/env.c
     vendor/linenoise/linenoise.c
 )
@@ -164,6 +165,20 @@ target_compile_options(test_process PRIVATE
 )
 add_test(NAME test_process COMMAND test_process)
 
+# UX-23: tabela de jobs (Foundation)
+add_executable(test_job
+    tests/test_job.c
+    src/foundation/job.c
+)
+target_include_directories(test_job PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_options(test_job PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_job COMMAND test_job)
+
 # Testes ENV (PR-07 / NEW-04)
 add_executable(test_env
     tests/test_env.c
@@ -192,6 +207,7 @@ add_executable(test_info
     src/front/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
+    src/foundation/job.c
     vendor/linenoise/linenoise.c
 )
 target_include_directories(test_info PRIVATE
@@ -220,6 +236,7 @@ add_executable(test_pipeline_builtin
     src/front/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
+    src/foundation/job.c
     vendor/linenoise/linenoise.c
 )
 target_include_directories(test_pipeline_builtin PRIVATE
@@ -287,6 +304,7 @@ add_executable(test_complete
     src/front/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
+    src/foundation/job.c
     vendor/linenoise/linenoise.c
 )
 target_include_directories(test_complete PRIVATE
@@ -439,6 +457,7 @@ add_executable(test_source
     src/front/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
+    src/foundation/job.c
     vendor/linenoise/linenoise.c
 )
 target_include_directories(test_source PRIVATE
@@ -456,7 +475,7 @@ add_test(NAME test_source COMMAND test_source)
 
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust test_highlight test_source test_pipeline_builtin
+    DEPENDS test_parser test_process test_job test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust test_highlight test_source test_pipeline_builtin
     COMMENT "Executando todos os testes unitários"
 )
 
@@ -497,6 +516,7 @@ if(CLANG_TIDY_EXE)
             ${CMAKE_SOURCE_DIR}/src/mid/dispatcher.c
             ${CMAKE_SOURCE_DIR}/src/mid/pudo.c
             ${CMAKE_SOURCE_DIR}/src/foundation/process.c
+            ${CMAKE_SOURCE_DIR}/src/foundation/job.c
             ${CMAKE_SOURCE_DIR}/src/foundation/env.c
             ${CMAKE_SOURCE_DIR}/src/pudod/pudod.c
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

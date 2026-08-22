@@ -439,12 +439,16 @@ void petrush_list_free(petrush_list_t *list)
     list->nitems = 0;
 }
 
-/* Encontra próximo &&, || ou ; fora de aspas. Retorna 1 se achou.
- * *out_len = comprimento do conector (2 para &&/||, 1 para ;). */
+/* Encontra próximo &&, ||, ; ou & (bg) fora de aspas. Retorna 1 se achou.
+ * *out_len = comprimento do conector (2 para &&/||, 1 para ;/&).
+ * *out_bg = 1 se o conector é `&` (marca o item anterior como background).
+ * Ordem: && antes de &; pula &> e o `&` de 2>&1. */
 static int find_list_connector(const char *s, size_t from, size_t *out_pos,
-                               petrush_run_cond_t *out_cond, size_t *out_len)
+                               petrush_run_cond_t *out_cond, size_t *out_len,
+                               int *out_bg)
 {
     char quote = 0;
+    if (out_bg) *out_bg = 0;
     for (size_t i = from; s[i]; i++) {
         char c = s[i];
         if (quote) {
@@ -473,6 +477,21 @@ static int find_list_connector(const char *s, size_t from, size_t *out_pos,
             *out_len = 1;
             return 1;
         }
+        if (c == '&' && s[i + 1] == '>') {
+            continue; /* &> redir — não é separador de lista */
+        }
+        if (c == '&') {
+            /* 2>&1: o '&' no meio não é background */
+            if (i >= 2 && s[i - 2] == '2' && s[i - 1] == '>' &&
+                s[i + 1] == '1') {
+                continue;
+            }
+            *out_pos = i;
+            *out_cond = PETRUSH_COND_ALWAYS; /* próximo item como após ';' */
+            *out_len = 1;
+            if (out_bg) *out_bg = 1;
+            return 1;
+        }
     }
     return 0;
 }
@@ -488,7 +507,8 @@ int petrush_parse_list(const char *input, petrush_list_t *out)
     petrush_run_cond_t dummy;
     size_t cpos;
     size_t clen = 0;
-    while (find_list_connector(input, pos, &cpos, &dummy, &clen)) {
+    int dummy_bg = 0;
+    while (find_list_connector(input, pos, &cpos, &dummy, &clen, &dummy_bg)) {
         nitems++;
         pos = cpos + clen;
     }
@@ -504,7 +524,9 @@ int petrush_parse_list(const char *input, petrush_list_t *out)
         size_t conn_pos = 0;
         size_t conn_len = 0;
         petrush_run_cond_t conn = PETRUSH_COND_ALWAYS;
-        int has = find_list_connector(input, pos, &conn_pos, &conn, &conn_len);
+        int marks_bg = 0;
+        int has = find_list_connector(input, pos, &conn_pos, &conn, &conn_len,
+                                      &marks_bg);
 
         size_t end = has ? conn_pos : strlen(input);
         /* extrair substring [start, end) */
@@ -514,7 +536,7 @@ int petrush_parse_list(const char *input, petrush_list_t *out)
         size_t seglen = e - start;
 
         if (seglen == 0) {
-            /* trailing ';' → drop empty last */
+            /* trailing ';' ou '&' → drop empty last (bg já marcado no prev) */
             if (!has && next_cond == PETRUSH_COND_ALWAYS && idx > 0) {
                 break;
             }
@@ -525,7 +547,7 @@ int petrush_parse_list(const char *input, petrush_list_t *out)
                 out->nitems = 0;
                 return 0;
             }
-            /* leading, middle, or empty after &&/|| */
+            /* leading, middle, or empty after &&/||/& */
             for (int j = 0; j < idx; j++) petrush_pipeline_free(&items[j].pl);
             free(items);
             return -1;
@@ -541,6 +563,7 @@ int petrush_parse_list(const char *input, petrush_list_t *out)
         seg[seglen] = '\0';
 
         items[idx].cond = next_cond;
+        items[idx].background = 0;
         if (petrush_parse_pipeline(seg, &items[idx].pl) != 0) {
             free(seg);
             for (int j = 0; j < idx; j++) petrush_pipeline_free(&items[j].pl);
@@ -548,6 +571,9 @@ int petrush_parse_list(const char *input, petrush_list_t *out)
             return -1;
         }
         free(seg);
+        if (has && marks_bg) {
+            items[idx].background = 1;
+        }
         idx++;
 
         if (!has) break;

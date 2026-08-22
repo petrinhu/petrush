@@ -6,7 +6,8 @@
  * - redirecionamento `>`, `>>`, `<`
  * UX-16: `2>`, `2>>`, `2>&1`, `&>`
  * UX-18: `argv_quoted` paralelo (1 = token nasceu quoted; sem re-glob).
- * NÃO: background `&`, `2>&N` genérico, `[]`/`**`, scripting de arquivo.
+ * UX-23: sufixo/separador `&` → `petrush_list_item_t.background`.
+ * NÃO: `2>&N` genérico, `[]`/`**`, scripting de arquivo, fg/bg/Ctrl-Z/%n.
  */
 
 #ifndef PETRUSH_PARSER_H
@@ -64,6 +65,7 @@ typedef enum {
 typedef struct {
     petrush_pipeline_t pl;
     petrush_run_cond_t cond;
+    int background; /* UX-23: 1 se o item terminou com `&` */
 } petrush_list_item_t;
 
 typedef struct {
