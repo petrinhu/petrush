@@ -313,6 +313,92 @@ int execute_external(petrush_cmd_t *cmd, int *exit_status)
     }
 }
 
+static void pipeline_close_pipes(int (*pipes)[2], int n_pipes)
+{
+    for (int j = 0; j < n_pipes; j++) {
+        close(pipes[j][0]);
+        close(pipes[j][1]);
+    }
+}
+
+static void pipeline_restore_signals(const struct sigaction *old_int,
+                                     const struct sigaction *old_quit)
+{
+    sigaction(SIGINT, old_int, NULL);
+    sigaction(SIGQUIT, old_quit, NULL);
+}
+
+/* Fecha pipes, mata n_kill filhos (0 = nenhum), libera e restaura sinais. */
+static void pipeline_abort(int (*pipes)[2], int n_pipes, pid_t *pids, int n_kill,
+                           const struct sigaction *old_int,
+                           const struct sigaction *old_quit)
+{
+    pipeline_close_pipes(pipes, n_pipes);
+    for (int j = 0; j < n_kill; j++) {
+        if (pids[j] > 0) {
+            kill(pids[j], SIGTERM);
+            waitpid(pids[j], NULL, 0);
+        }
+    }
+    free(pipes);
+    free(pids);
+    pipeline_restore_signals(old_int, old_quit);
+}
+
+_Noreturn static void pipeline_child(petrush_cmd_t *cmd, int i, int n,
+                                     int (*pipes)[2], pid_t pgid, char *exe_path,
+                                     pipeline_child_hook_t hook)
+{
+    signal(SIGINT, SIG_DFL);
+    signal(SIGQUIT, SIG_DFL);
+
+    if (i == 0) {
+        setpgid(0, 0);
+    } else {
+        setpgid(0, pgid);
+    }
+
+    if (i > 0) {
+        if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
+            _exit(1);
+        }
+    }
+    if (i < n - 1) {
+        if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
+            _exit(1);
+        }
+    }
+
+    pipeline_close_pipes(pipes, n - 1);
+
+    if (apply_redirs(cmd) != 0) {
+        free(exe_path);
+        _exit(1);
+    }
+
+    /* UX-19: builtin no filho (0=handled/_exit; 1=seguir execv) */
+    if (hook) {
+        int h = hook(cmd);
+        if (h == 0) {
+            _exit(0);
+        }
+    }
+
+    if (!exe_path) {
+        exe_path = find_executable(cmd->argv[0]);
+        if (!exe_path) {
+            fprintf(stderr, "petrush: comando não encontrado: %s\n",
+                    cmd->argv[0]);
+            _exit(shell_error_code_for(cmd->argv[0]));
+        }
+    }
+
+    execv(exe_path, cmd->argv);
+    perror("execv");
+    free(exe_path);
+    _exit(127);
+}
+
 int execute_pipeline(petrush_pipeline_t *pl, int *exit_status)
 {
     return execute_pipeline_with_hook(pl, exit_status, NULL);
@@ -342,10 +428,7 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
     for (int i = 0; i < n - 1; i++) {
         if (pipe(pipes[i]) < 0) {
             perror("pipe");
-            for (int j = 0; j < i; j++) {
-                close(pipes[j][0]);
-                close(pipes[j][1]);
-            }
+            pipeline_close_pipes(pipes, i);
             free(pipes);
             free(pids);
             return -1;
@@ -371,21 +454,10 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
                 int errcode = shell_error_code_for(cmd->argv[0]);
                 fprintf(stderr, "petrush: comando não encontrado: %s\n",
                         cmd->argv[0]);
-                for (int j = 0; j < n - 1; j++) {
-                    close(pipes[j][0]);
-                    close(pipes[j][1]);
+                pipeline_abort(pipes, n - 1, pids, i, &old_int, &old_quit);
+                if (exit_status) {
+                    *exit_status = errcode;
                 }
-                for (int j = 0; j < i; j++) {
-                    if (pids[j] > 0) {
-                        kill(pids[j], SIGTERM);
-                        waitpid(pids[j], NULL, 0);
-                    }
-                }
-                free(pipes);
-                free(pids);
-                sigaction(SIGINT, &old_int, NULL);
-                sigaction(SIGQUIT, &old_quit, NULL);
-                if (exit_status) *exit_status = errcode;
                 return -1;
             }
         }
@@ -394,65 +466,12 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
         if (pid < 0) {
             perror("fork");
             free(exe_path);
-            for (int j = 0; j < n - 1; j++) {
-                close(pipes[j][0]);
-                close(pipes[j][1]);
-            }
-            free(pipes);
-            free(pids);
-            sigaction(SIGINT, &old_int, NULL);
-            sigaction(SIGQUIT, &old_quit, NULL);
+            pipeline_abort(pipes, n - 1, pids, 0, &old_int, &old_quit);
             return -1;
         }
 
         if (pid == 0) {
-            signal(SIGINT, SIG_DFL);
-            signal(SIGQUIT, SIG_DFL);
-
-            if (i == 0) {
-                setpgid(0, 0);
-            } else {
-                setpgid(0, pgid);
-            }
-
-            if (i > 0) {
-                if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) _exit(1);
-            }
-            if (i < n - 1) {
-                if (dup2(pipes[i][1], STDOUT_FILENO) < 0) _exit(1);
-            }
-
-            for (int j = 0; j < n - 1; j++) {
-                close(pipes[j][0]);
-                close(pipes[j][1]);
-            }
-
-            if (apply_redirs(cmd) != 0) {
-                free(exe_path);
-                _exit(1);
-            }
-
-            /* UX-19: builtin no filho (0=handled/_exit; 1=seguir execv) */
-            if (hook) {
-                int h = hook(cmd);
-                if (h == 0) {
-                    _exit(0);
-                }
-            }
-
-            if (!exe_path) {
-                exe_path = find_executable(cmd->argv[0]);
-                if (!exe_path) {
-                    fprintf(stderr, "petrush: comando não encontrado: %s\n",
-                            cmd->argv[0]);
-                    _exit(shell_error_code_for(cmd->argv[0]));
-                }
-            }
-
-            execv(exe_path, cmd->argv);
-            perror("execv");
-            free(exe_path);
-            _exit(127);
+            pipeline_child(cmd, i, n, pipes, pgid, exe_path, hook);
         }
 
         /* pai */
@@ -467,10 +486,7 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
         free(exe_path);
     }
 
-    for (int j = 0; j < n - 1; j++) {
-        close(pipes[j][0]);
-        close(pipes[j][1]);
-    }
+    pipeline_close_pipes(pipes, n - 1);
 
     int last_status = 0;
     for (int i = 0; i < n; i++) {
@@ -478,12 +494,13 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
         if (waitpid(pids[i], &st, WUNTRACED) == -1) {
             perror("waitpid");
         }
-        if (i == n - 1) last_status = st;
+        if (i == n - 1) {
+            last_status = st;
+        }
     }
 
     take_terminal_back();
-    sigaction(SIGINT, &old_int, NULL);
-    sigaction(SIGQUIT, &old_quit, NULL);
+    pipeline_restore_signals(&old_int, &old_quit);
 
     free(pipes);
     free(pids);

@@ -472,17 +472,49 @@ int pudo_allow_pudod_candidate(const char *path, int release_mode)
 }
 
 /*
+ * Candidato absoluto: access + realpath + allow. Copia o path aceito em out.
+ * Fail closed se não houver absoluto utilizável. Nao muda pudo_allow_*.
+ */
+static const char *try_abs_candidate(const char *path, char *out, size_t out_sz,
+                                     int release_mode)
+{
+    char resolved[PATH_MAX];
+    const char *cand;
+
+    if (!path || path[0] == '\0' || !out || out_sz == 0) {
+        return NULL;
+    }
+    if (access(path, X_OK) != 0) {
+        return NULL;
+    }
+    cand = path;
+    if (realpath(path, resolved)) {
+        cand = resolved;
+    }
+    if (cand[0] != '/') {
+        return NULL;
+    }
+    if (!pudo_allow_pudod_candidate(cand, release_mode)) {
+        return NULL;
+    }
+    if (snprintf(out, out_sz, "%s", cand) >= (int)out_sz) {
+        return NULL;
+    }
+    return out;
+}
+
+/*
  * Encontra o binário pudod em locais conhecidos (dev + install).
  * Retorna caminho utilizável ou NULL.
  *
  * SEC-02: em Release (NDEBUG), só absolutos confiáveis (install / sibling
  * sob dir de install). Fallbacks relativos e access("pudod") só em debug.
+ * Sibling e install permanecem loops separados (nao unificar).
  */
 static const char *find_pudod_binary(void)
 {
     static char found[PATH_MAX];
     char self[PATH_MAX];
-    char resolved[PATH_MAX];
     ssize_t n;
 #ifdef NDEBUG
     const int release_mode = 1;
@@ -499,28 +531,14 @@ static const char *find_pudod_binary(void)
             *slash = '\0';
             static const char *const names[] = { "pudod", "petrush-pudod", NULL };
             for (int i = 0; names[i]; i++) {
-                if (snprintf(found, sizeof(found), "%s/%s", self, names[i]) >=
-                    (int)sizeof(found)) {
+                char cand[PATH_MAX];
+                if (snprintf(cand, sizeof(cand), "%s/%s", self, names[i]) >=
+                    (int)sizeof(cand)) {
                     continue;
                 }
-                if (access(found, X_OK) != 0) {
-                    continue;
+                if (try_abs_candidate(cand, found, sizeof(found), release_mode)) {
+                    return found;
                 }
-                /* Preferir path canônico absoluto; nunca devolver relativo. */
-                const char *cand = found;
-                if (realpath(found, resolved)) {
-                    cand = resolved;
-                }
-                if (cand[0] != '/') {
-                    continue; /* fail closed: sem absoluto utilizável */
-                }
-                if (!pudo_allow_pudod_candidate(cand, release_mode)) {
-                    continue;
-                }
-                if (cand != found) {
-                    snprintf(found, sizeof(found), "%s", cand);
-                }
-                return found;
             }
         }
     }
@@ -549,7 +567,7 @@ static const char *find_pudod_binary(void)
     }
 #endif
 
-    /* Instalação padrão (sempre absoluto). */
+    /* Instalação padrão (sempre absoluto). Loop separado do sibling (SEC-02). */
     {
         const char *install_paths[] = {
             PUDOD_INSTALL_PATH,
@@ -560,15 +578,9 @@ static const char *find_pudod_binary(void)
             NULL
         };
         for (int i = 0; install_paths[i]; i++) {
-            if (access(install_paths[i], X_OK) != 0) {
-                continue;
-            }
-            if (realpath(install_paths[i], found)) {
-                if (pudo_allow_pudod_candidate(found, release_mode)) {
-                    return found;
-                }
-            } else if (pudo_allow_pudod_candidate(install_paths[i], release_mode)) {
-                return install_paths[i];
+            if (try_abs_candidate(install_paths[i], found, sizeof(found),
+                                  release_mode)) {
+                return found;
             }
         }
     }
