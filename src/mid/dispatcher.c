@@ -10,6 +10,7 @@
 #include "petrush/alias.h"
 #include "petrush/dirstack.h"
 #include "petrush/expand.h"
+#include "petrush/source.h"
 
 #include "linenoise.h"
 
@@ -40,6 +41,8 @@ static const builtin_entry_t builtins[] = {
     { "pushd",   builtin_pushd   },
     { "popd",    builtin_popd    },
     { "dirs",    builtin_dirs    },
+    { "source",  builtin_source  },
+    { ".",       builtin_source  },
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -356,6 +359,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  which        - Localiza comando (builtin ou PATH)\n");
     printf("  pushd/popd   - Stack de diretórios\n");
     printf("  dirs         - Mostra a stack\n");
+    printf("  source/.     - Executa arquivo no shell atual\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ;,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -492,8 +496,8 @@ int builtin_info(petrush_cmd_t *cmd)
     printf("petrush %s\n", PETRUSH_VERSION);
     printf("C23 REPL shell\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("Features: history, rc, signals, pudo, pipes, redir, alias, PS1, complete, hints, &&/||/;, glob\n");
-    printf("Anti-OE: sem background, sem []/**, sem scripting de arquivo\n");
+    printf("Features: history, rc, signals, pudo, pipes, redir, alias, PS1, complete, hints, &&/||/;, glob, source/.\n");
+    printf("Anti-OE: sem background, sem []/**, sem $1/return em source\n");
     return 0;
 }
 

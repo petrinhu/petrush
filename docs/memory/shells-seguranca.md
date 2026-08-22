@@ -3,7 +3,7 @@
 **Data:** 2026-08-22  
 **SHA HEAD:** `1fdbfbfe8e9000ef490bf531f898340704fa4210`  
 **Premissa:** petrush = **REPL unpriv** (C23, parser próprio). O binário interativo **não** é setuid. Mapping = “o petrush corre o mesmo risco de shell?”  
-**Features pendentes (hoje ausentes):** UX-22 `source`/`.` e UX-23 background `&` → células **NÃO**; nota “vira PARCIAL se UX-22/23 ligar”.  
+**Features:** UX-22 `source`/`.` = **PARCIAL** (path explícito + rc_stat_ok + depth 8; sem PATH/`$1`). UX-23 background `&` ainda ausente → **NÃO**.  
 **Escopo:** defensivo. Sem PoC. Sem clone de git alheio.
 
 Legenda petrush: **SIM** = superfície presente e análoga; **PARCIAL** = superfície menor/mitigada; **NÃO** = classe inexistente hoje.
@@ -30,7 +30,7 @@ Legenda petrush: **SIM** = superfície presente e análoga; **PARCIAL** = superf
 | BusyBox applet confusion | wget SSL, ash parser, netstat VT | NÃO | NÃO | NÃO | NÃO | NÃO | NÃO | NÃO | SIM | NÃO | NÃO | **NÃO** | Não é multi-call BusyBox |
 | Parser OOB / realloc argv | Shellshock irmãos; NEW-01 | hist. SIM | hist. | hist. | hist. | hist. | hist. | hist. | CVE-2021-42375 / 2022-48174 | hist. | foco em parse seguro | **NÃO** (mitigado) | NEW-01 ✅ `finalize_argv` garante `argv[argc]=NULL` (`parser.c:227-237`) |
 | linenoise history TOCTOU | CVE-2025-9810 | N/A (readline) | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | **NÃO** (mitigado) | Vendor: `O_NOFOLLOW` + `fchmod` no fd (SEC-08) |
-| `source` / `.` | execução de arquivo no shell | SIM | SIM | SIM (`.`/`source`) | SIM | SIM | SIM | SIM (`source`) | SIM | SIM | SIM | **NÃO** | UX-22 ⏳; vira **PARCIAL** se UX-22 ligar |
+| `source` / `.` | execução de arquivo no shell | SIM | SIM | SIM (`.`/`source`) | SIM | SIM | SIM | SIM (`source`) | SIM | SIM | SIM | **PARCIAL** | UX-22 🔍: path explícito, `rc_stat_ok`, depth 8, sem PATH/`$1` |
 | Background `&` / jobs | race TTY, orphan, signal | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | **NÃO** | UX-23 ⏳; `SIGTSTP` ignorado (`main.c:174-176`); vira **PARCIAL** se UX-23 ligar |
 
 **Resposta curta ao mapping:** petrush **não** corre o mesmo risco de Shellshock, privileged-mode, prompt-RCE, IFS-split nem arith/nameref. Corre riscos **análogos menores** em history bang, alias/rc, redir/pipe, glob limitado e history-file TOCTOU. Features pendentes `source`/`&` reabririam superfície.
@@ -95,7 +95,7 @@ Shell poderoso com `PROMPT_SUBST`, módulos carregáveis, privileged mode, globb
 ### petrush mapeia?
 - Prompt RCE: **NÃO** (sem PROMPT_SUBST / cmdsubst).
 - Privileged drop: **NÃO**.
-- Shebang trunc: **NÃO** (petrush não interpreta scripts `#!` como loader de arquivo; UX-22 ausente).
+- Shebang trunc: **NÃO** (source lê linhas; não há loader `#!`).
 - History bang: **SIM** (subconjunto `!!`/`!n`).
 
 ---
@@ -229,7 +229,7 @@ Ash embutido no binário multi-call BusyBox (IoT, containers mínimos). Parser p
 Shell POSIX com foco em conformidade e previsibilidade. Pouca “marca” de CVE no NVD (keyword search 0 em 2026-08-22). Superfície = classes POSIX padrão (IFS, ENV, glob, noclobber, rc).
 
 ### petrush mapeia?
-- Mesmo padrão dash/POSIX: IFS **NÃO** no petrush; redir/pipe **SIM**; `source` **NÃO** até UX-22.
+- Mesmo padrão dash/POSIX: IFS **NÃO** no petrush; redir/pipe **SIM**; `source` **PARCIAL** (UX-22).
 - Ausência de CVE famosa ≠ ausência de risco de classe.
 
 ---
@@ -274,7 +274,7 @@ Referência: https://oils.pub/release/0.37.0/doc/simple-word-eval.html
 ### Ausente (NÃO) com nota de futuro
 | Peça | Status TODO | Se ligar |
 |------|-------------|----------|
-| `source` / `.` | UX-22 ⏳ | **PARCIAL**: rc-like on demand; risco de path controlado |
+| `source` / `.` | UX-22 🔍 | **PARCIAL**: on demand + `rc_stat_ok`; path controlado sem PATH search |
 | `&` / jobs | UX-23 ⏳ | **PARCIAL**: TTY/SIGTSTP/orphan |
 | Funções / export -f | fora | manter **NÃO** |
 | `$(( ))` / nameref | fora | manter **NÃO** |

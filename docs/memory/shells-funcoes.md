@@ -51,7 +51,7 @@ Fontes: `src/mid/dispatcher.c` (tabela `builtins[]`), `include/petrush/parser.h`
 | Redir `> >> < 2> 2>> 2>&1 &>` | `parser.h` + UX-16 Unreleased |
 | Bang `!!` `!n` | `hist_expand.h` (só linha inteira `!!`/`!N`; sem `!$`/`!str`) |
 | `cd -` / OLDPWD | `builtin_cd` (`dispatcher.c:258+`) |
-| `~/.petrushrc` no boot | `load_rc_file` (`main.c:59-106`); **não** é builtin `source` |
+| `~/.petrushrc` no boot | `load_rc_file` → `petrush_source_file(..., missing_ok=1)` (UX-22) |
 | SIGINT graceful | `sigint_handler` + EINTR (`main.c:132-167`) |
 | SIGTSTP ignorado | job control ainda mínimo (`main.c:174-176`) |
 
@@ -62,7 +62,7 @@ Fontes: `src/mid/dispatcher.c` (tabela `builtins[]`), `include/petrush/parser.h`
 | UX-19 | Builtins no pipe (subshell-like) | ⏳ |
 | UX-20 | Ctrl-R history search | ⏳ |
 | UX-21 | Syntax highlight mínimo | 🔍 |
-| UX-22 | `source` / `.` | ⏳ |
+| UX-22 | `source` / `.` | 🔍 |
 | UX-23 | Background `&` + jobs mínimos | ⏳ |
 
 ### Skip permanente (anti-OE)
@@ -124,7 +124,7 @@ Abreviações de coluna: **bb-ash** = busybox ash; **osh** = Oils OSH (compat pa
 | 32 | Glob avançado `[]` / `**` | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | **N** | `parser.h`/`expand.h` excluem |
 | 33 | History bang `!!` / `!n` | Y | Y | N | N | Y | Y | Y | N | Y | Y | **P** | só `!!` e `!n` linha inteira |
 | 34 | `cd -` / OLDPWD | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | **Y** | UX-14 |
-| 35 | `source` / `.` | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | **N** | UX-22; rc ≠ builtin |
+| 35 | `source` / `.` | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | **Y** | UX-22 🔍; rc via mesmo runner |
 | 36 | Command substitution `$()` / `` ` ` `` | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | **N** | |
 | 37 | Arithmetic `$(( ))` | Y | Y | Y | Y | Y | Y | P | Y | Y | Y | **N** | |
 | 38 | Funções shell | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | **N** | |

@@ -212,6 +212,41 @@ fi
 rm -f /tmp/petrush-smoke-err.txt /tmp/petrush-smoke-err2.txt \
       /tmp/petrush-smoke-both.txt /tmp/petrush-smoke-cderr.txt
 
+# UX-22: source / . no processo atual
+echo "=== SMOKE: source / . ==="
+src_dir=$(mktemp -d /tmp/petrush-smoke-src-XXXXXX)
+printf 'export UX22_SMOKE=from-source\necho sourced-line\n' > "$src_dir/a.sh"
+chmod 600 "$src_dir/a.sh"
+src_out=$(printf 'source %s/a.sh\necho $UX22_SMOKE\nexit\n' "$src_dir" | "$PETRUSH" 2>&1 || true)
+if echo "$src_out" | grep -Fq 'sourced-line' && echo "$src_out" | grep -Fq 'from-source'; then
+    echo "PASS: source file current process"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: source file current process"
+    echo "$src_out" | tail -8
+    FAIL=$((FAIL+1))
+fi
+dot_out=$(printf '. %s/a.sh\necho $UX22_SMOKE\nexit\n' "$src_dir" | "$PETRUSH" 2>&1 || true)
+if echo "$dot_out" | grep -Fq 'from-source'; then
+    echo "PASS: dot builtin aliases source"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: dot builtin aliases source"
+    echo "$dot_out" | tail -8
+    FAIL=$((FAIL+1))
+fi
+miss_out=$(printf 'source /tmp/petrush-smoke-no-such-ux22\nexit\n' | "$PETRUSH" 2>&1 || true)
+if echo "$miss_out" | grep -Eqi 'No such|nao|não|source:'; then
+    echo "PASS: source missing file errors"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: source missing file errors"
+    echo "$miss_out" | tail -8
+    FAIL=$((FAIL+1))
+fi
+rm -rf "$src_dir"
+echo
+
 echo "=== SMOKE SUMMARY ==="
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

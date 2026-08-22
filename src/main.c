@@ -22,6 +22,7 @@
 #include "petrush/hist_expand.h"
 #include "petrush/prompt.h"
 #include "petrush/rc_trust.h"
+#include "petrush/source.h"
 #include "linenoise.h"
 
 /* Caminho padrão para histórico persistente */
@@ -58,70 +59,10 @@ static const char *get_rc_file(void)
     return path;
 }
 
-/* Carrega e executa ~/.petrushrc (se existir) */
+/* Carrega e executa ~/.petrushrc (se existir) via runner UX-22 */
 static void load_rc_file(void)
 {
-    const char *rcfile = get_rc_file();
-    FILE *f = fopen(rcfile, "r");
-    if (!f) {
-        /* Arquivo nao existe e normal; nao e erro. */
-        return;
-    }
-
-    /* SEC-10: recusar se nao for regular, uid alheio ou write group/other. */
-    struct stat st;
-    if (fstat(fileno(f), &st) != 0) {
-        fprintf(stderr, "petrush: erro ao inspecionar rc %s: %s\n",
-                rcfile, strerror(errno));
-        fclose(f);
-        return;
-    }
-    if (petrush_rc_stat_ok(&st, getuid()) != 0) {
-        fprintf(stderr,
-                "petrush: recusando rc inseguro %s "
-                "(nao regular, uid!=getuid() ou mode&0022)\n",
-                rcfile);
-        fclose(f);
-        return;
-    }
-
-    char linebuf[4096];
-    int lineno = 0;
-
-    while (fgets(linebuf, sizeof(linebuf), f)) {
-        lineno++;
-
-        /* Remove newline */
-        size_t len = strlen(linebuf);
-        if (len > 0 && linebuf[len-1] == '\n') {
-            linebuf[len-1] = '\0';
-        }
-
-        /* Ignora linhas vazias e comentários */
-        char *start = linebuf;
-        while (*start == ' ' || *start == '\t') {
-            start++;
-        }
-        if (*start == '\0' || *start == '#') {
-            continue;
-        }
-
-        /* Executa a linha como lista/pipeline (rc); expande alias */
-        char *expanded = alias_expand_line(start);
-        const char *to_run = expanded ? expanded : start;
-        petrush_list_t list = {0};
-        if (petrush_parse_list(to_run, &list) == 0) {
-            if (list.nitems > 0) {
-                (void)dispatch_list(&list);
-            }
-        } else {
-            fprintf(stderr, "petrush: erro no rc (linha %d): %s\n", lineno, start);
-        }
-        petrush_list_free(&list);
-        free(expanded);
-    }
-
-    fclose(f);
+    (void)petrush_source_file(get_rc_file(), 1);
 }
 
 /* ==================== PR-09: Tratamento robusto de sinais ==================== */

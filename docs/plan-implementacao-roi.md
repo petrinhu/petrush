@@ -44,7 +44,7 @@ Escala **1–10** (10 = melhor ROI).
 | UX-19 | **Builtins no pipe** | **6** | M | 🔲 PENDENTE | subshell-like |
 | UX-20 | **Ctrl-R history search** | **6** | A | 🔲 PENDENTE | linenoise TODO nativo; portar/minimal |
 | UX-21 | **Syntax highlight mínimo** | **5** | A | 🔲 PENDENTE | aspas/erro; não full tokens |
-| UX-22 | **`source` / `.` script** | **5** | M | 🔲 PENDENTE | rodar arquivo linha a linha |
+| UX-22 | **`source` / `.` script** | **5** | M | 🔍 | rodar arquivo linha a linha |
 | UX-23 | **Background `&`** | **4** | A | 🔲 PENDENTE | job control mínimo |
 | UX-24 | Abbreviations (Fish) | 3 | M | ❌ skip | Alias cobre 90% |
 | UX-25 | Plugin system (OMZ) | 2 | XL | ❌ skip | anti-OE explícito |

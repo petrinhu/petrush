@@ -37,6 +37,7 @@ add_executable(petrush
     src/mid/pudo.c
     src/mid/alias.c
     src/mid/dirstack.c
+    src/mid/source.c
     src/mid/hist_expand.c
     src/mid/expand.c
     src/mid/prompt.c
@@ -186,7 +187,9 @@ add_executable(test_info
     src/mid/pudo.c
     src/mid/alias.c
     src/mid/dirstack.c
+    src/mid/source.c
     src/mid/expand.c
+    src/front/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
     vendor/linenoise/linenoise.c
@@ -212,7 +215,9 @@ add_executable(test_pipeline_builtin
     src/mid/pudo.c
     src/mid/alias.c
     src/mid/dirstack.c
+    src/mid/source.c
     src/mid/expand.c
+    src/front/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
     vendor/linenoise/linenoise.c
@@ -277,7 +282,9 @@ add_executable(test_complete
     src/mid/pudo.c
     src/mid/alias.c
     src/mid/dirstack.c
+    src/mid/source.c
     src/mid/expand.c
+    src/front/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
     vendor/linenoise/linenoise.c
@@ -419,9 +426,37 @@ target_compile_options(test_highlight PRIVATE
 )
 add_test(NAME test_highlight COMMAND test_highlight)
 
+# UX-22: source / . (arquivo no processo atual)
+add_executable(test_source
+    tests/test_source.c
+    src/mid/source.c
+    src/mid/dispatcher.c
+    src/mid/parser.c
+    src/mid/pudo.c
+    src/mid/alias.c
+    src/mid/dirstack.c
+    src/mid/expand.c
+    src/front/rc_trust.c
+    src/foundation/env.c
+    src/foundation/process.c
+    vendor/linenoise/linenoise.c
+)
+target_include_directories(test_source PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/vendor/linenoise
+)
+set_source_files_properties(vendor/linenoise/linenoise.c PROPERTIES
+    COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-unused-function"
+)
+target_compile_options(test_source PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_source COMMAND test_source)
+
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust test_highlight
+    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust test_highlight test_source test_pipeline_builtin
     COMMENT "Executando todos os testes unitários"
 )
 
