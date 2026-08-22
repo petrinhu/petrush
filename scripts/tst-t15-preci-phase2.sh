@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Fase 2: Debug gcc + smoke Release apos install sem setuid
+# Fase 2 (legado diagnostico): Debug gcc + smoke Release apos install sem setuid.
+# O path canonico TST-T15 agora e scripts/tst-t15-preci.sh (ja faz install_rel +
+# smoke no prefixo /usr/local). Manter este script so para re-prova pontual.
 set -u
 set -o pipefail
 REPO=/src

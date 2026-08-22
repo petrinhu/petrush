@@ -55,9 +55,30 @@ jobs:
       - name: Unit tests (ctest)
         run: cmake --build build --target check
 
-      - name: Smoke integrado
-        run: bash tests/smoke/pudo-smoke.sh ./build/petrush
+      # SEC-02 (NDEBUG): pudod sibling em build/ e rejeitado em Release.
+      # Instalar no prefixo canônico /usr/local (sem setuid) e smoke no binário
+      # instalado. Prefixos arbitrários (ex. /tmp/...) nao entram na allow-list.
+      # TST-T15: espelhar este path no pre-CI local.
+      - name: Install prefix (Release, sem setuid)
+        if: matrix.build-type == 'Release'
+        run: |
+          cmake --install build --prefix /usr/local
+          test -x /usr/local/bin/petrush
+          test -x /usr/local/libexec/petrush-pudod \
+            || test -x /usr/local/libexec/pudod \
+            || test -x /usr/local/bin/pudod
+          # NUNCA chmod u+s / setuid neste job
 
+      - name: Smoke integrado
+        run: |
+          if [ "${{ matrix.build-type }}" = "Release" ]; then
+            bash tests/smoke/pudo-smoke.sh /usr/local/bin/petrush
+          else
+            bash tests/smoke/pudo-smoke.sh ./build/petrush
+          fi
+
+      # Lint best-effort no GHA (nao e gate duro). Gate duro de lint = TST-T15
+      # (scripts/tst-t15-preci.sh) sem || true.
       - name: Lint (best-effort)
         run: |
           cmake --build build --target cppcheck || true
@@ -90,9 +111,10 @@ jobs:
       - name: Install deps
         run: |
           dnf -y install gcc clang cmake make valgrind cppcheck clang-tools-extra glibc-devel
-      - name: Build Release gcc
+      - name: Build Release gcc + install + smoke
         run: |
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
           cmake --build build -j "$(nproc)" --target petrush pudod test_parser test_process test_env test_info test_pudo test_alias test_complete test_dirstack test_hist_expand test_expand test_prompt
           cmake --build build --target check
-          bash tests/smoke/pudo-smoke.sh ./build/petrush
+          cmake --install build --prefix /usr/local
+          bash tests/smoke/pudo-smoke.sh /usr/local/bin/petrush

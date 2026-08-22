@@ -39,6 +39,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - check 18/18. Próximo: re-rodar lint TST-T2 ou TST-T15 pré-CI.
 - 2026-08-22 líder voltou: ordem de seguir até o fim da tabela, mesmo modo (C-level 4.6 planeja, workers 4.5 teto 2). NEW-22 tratado como confirmação (Onda 3 = NEW-20 já 🔍). Retoma W14: fechar TST-T2 (lint residual) e drenar TST restantes, depois AUD, depois NEW-23.
 - TST-T15 pré-CI Fedora 44 (docker; podman ausente): Debug gcc PASS (check 18/18, smoke 53/53, cppcheck+clang-tidy 0). Release smoke FAIL (SEC-02, espelha GHA); Release clang-tidy ArrayBound FAIL. Com install sem setuid, smoke Release 53/53. Relatório `docs/memory/tst-t15-preci.md`. Status permanece ⏳ (não 🔍). Sem push.
+- TST-T15 remediação CI/preci: Release smoke via `cmake --install --prefix /usr/local` (sem setuid) em `ci.yml` + `scripts/tst-t15-preci.sh`. Re-prova container: tree 51/53 FAIL (SEC-02), installed 53/53 PASS. TODO → 🔍. ArrayBound residual. Sem push.
 - TST-T14 smoke 53/0 + check 18/18 → 🔍 (`521f7b1`). NEW-22 → 🔍 (confirmação do líder).
 - Despacho BE-1 tokenize + BE-2 pipeline/find_pudod (complexidade <50, sem NOLINT).
 - TST-T2 gate verde: cppcheck 0, clang-tidy 0 (após double-free exe_path + struct try_abs_candidate). TODO → 🔍. check 18/18.

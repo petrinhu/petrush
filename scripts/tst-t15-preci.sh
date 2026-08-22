@@ -56,30 +56,48 @@ run_step build_rel cmake --build "$BD_REL" -j "$(nproc)" --target $TARGETS
 
 run_step check_rel cmake --build "$BD_REL" --target check
 
-run_step smoke_rel bash "$REPO/tests/smoke/pudo-smoke.sh" "$BD_REL/petrush"
+# SEC-02: em Release, sibling build/pudod e rejeitado. Smoke DEVE usar o
+# binario instalado. Prefixo canônico /usr/local (allow-list SEC-02); sem setuid.
+# Prefixo arbitrario (/tmp/...) nao e aceito por pudo_allow_pudod_candidate.
+PREFIX_REL=/usr/local
+run_step install_rel cmake --install "$BD_REL" --prefix "$PREFIX_REL"
+log "ls install (sem setuid):"
+ls -la "$PREFIX_REL/bin/petrush" \
+  "$PREFIX_REL/libexec/petrush-pudod" \
+  "$PREFIX_REL/bin/pudod" 2>&1 | tee -a "$LOG" || true
 
+run_step smoke_rel bash "$REPO/tests/smoke/pudo-smoke.sh" "$PREFIX_REL/bin/petrush"
+
+# Lint e gate duro neste script (sem || true). GHA mantem best-effort.
 run_step cppcheck_rel cmake --build "$BD_REL" --target cppcheck
 
 run_step clang_tidy_rel cmake --build "$BD_REL" --target clang-tidy
 
-# Valgrind direto (exit honesto; target cmake engole com || echo)
-if [[ -x "$BD_REL/pudod" ]] && command -v valgrind >/dev/null; then
+# Valgrind no pudod instalado (exit honesto; target cmake engole com || echo)
+PUDOD_INST=""
+if [[ -x "$PREFIX_REL/libexec/petrush-pudod" ]]; then
+  PUDOD_INST="$PREFIX_REL/libexec/petrush-pudod"
+elif [[ -x "$PREFIX_REL/bin/pudod" ]]; then
+  PUDOD_INST="$PREFIX_REL/bin/pudod"
+fi
+if [[ -n "$PUDOD_INST" ]] && command -v valgrind >/dev/null; then
   run_step valgrind_rel valgrind --leak-check=full --error-exitcode=1 --quiet \
-    "$BD_REL/pudod" /usr/bin/true
+    "$PUDOD_INST" /usr/bin/true
 else
   log "EXIT_valgrind_rel=SKIP"
   printf 'SKIP\n' > /tmp/exit_valgrind_rel
 fi
 
-# --- Debug gcc (se Release passou nos gates duros) ---
+# --- Debug gcc (se Release passou nos gates duros de build/smoke) ---
+# clang-tidy Release pode falhar (ArrayBound FP) sem bloquear Debug smoke;
+# mas conta no OVERALL_FAIL abaixo.
 RC_CHECK=$(cat /tmp/exit_check_rel)
 RC_SMOKE=$(cat /tmp/exit_smoke_rel)
-RC_CPP=$(cat /tmp/exit_cppcheck_rel)
-RC_TIDY=$(cat /tmp/exit_clang_tidy_rel)
+RC_INSTALL=$(cat /tmp/exit_install_rel)
 DO_DEBUG=1
-if [[ "$RC_CHECK" != 0 || "$RC_SMOKE" != 0 || "$RC_CPP" != 0 || "$RC_TIDY" != 0 ]]; then
+if [[ "$RC_CHECK" != 0 || "$RC_SMOKE" != 0 || "$RC_INSTALL" != 0 ]]; then
   DO_DEBUG=0
-  log "SKIP Debug: Release gates falharam"
+  log "SKIP Debug: Release build/install/smoke falharam"
 fi
 
 if [[ "$DO_DEBUG" == 1 ]]; then
@@ -91,6 +109,7 @@ if [[ "$DO_DEBUG" == 1 ]]; then
   # shellcheck disable=SC2086
   run_step build_dbg cmake --build "$BD_DBG" -j "$(nproc)" --target $TARGETS
   run_step check_dbg cmake --build "$BD_DBG" --target check
+  # Debug: SEC-02 permite sibling; smoke no tree e o path correto.
   run_step smoke_dbg bash "$REPO/tests/smoke/pudo-smoke.sh" "$BD_DBG/petrush"
 fi
 
@@ -100,7 +119,8 @@ for f in /tmp/exit_*; do
 done
 
 FAIL=0
-for key in dnf cmake_rel build_rel check_rel smoke_rel cppcheck_rel clang_tidy_rel; do
+# Gate duro Release: build + install + smoke. Lint sem || true (conta no FAIL).
+for key in dnf cmake_rel build_rel check_rel install_rel smoke_rel cppcheck_rel clang_tidy_rel; do
   v=$(cat "/tmp/exit_$key" 2>/dev/null || echo MISSING)
   if [[ "$v" != 0 ]]; then FAIL=1; fi
 done

@@ -4,7 +4,7 @@
 **SHA HEAD (pré-commit do relatório):** `eb05fdef4812d88c6ee36c55b067db971f3f6f4f`  
 **Agent:** devops-sre  
 **Item:** TST-T15 (W14)  
-**Veredicto:** **FAIL** (Release smoke sem install + clang-tidy Release; Debug gcc completo PASS)
+**Veredicto:** **parcial → smoke Release PASS** após remediação CI/install (apêndice). clang-tidy Release ArrayBound ainda residual.
 
 ## Escopo
 
@@ -98,14 +98,15 @@ Com `bufsiz = sizeof(self)-1`, `n` máximo é `PATH_MAX-1` e `self[n]` é o últ
 - [x] Lint sem `|| true`
 - [x] Sem setuid
 - [x] Relatório em `docs/memory/tst-t15-preci.md`
-- [ ] Tudo verde — **NÃO** (Release smoke tree + clang-tidy Release)
-- [ ] Status `🔍` — **bloqueado** até remediação (CI Release smoke e/ou ArrayBound)
+- [x] Release smoke no prefixo instalado — **PASS 53/53** (apêndice; tree continua FAIL = SEC-02 ok)
+- [ ] Tudo verde — **NÃO** (clang-tidy Release ArrayBound residual)
+- [x] Status `🔍` — smoke Release instalado verde (2026-08-22); ArrayBound segue residual
 
 ## Handoff sugerido
 
-1. **CI / SEC-02:** ou instalar `pudod` no job Release antes do smoke (sem setuid), ou restringir smoke duro a Debug, ou alargar política de sibling só para path do próprio binário sob teste.  
+1. ~~**CI / SEC-02:** instalar antes do smoke~~ — **feito** (`ci.yml` + `tst-t15-preci.sh`; prefixo `/usr/local`, sem setuid).  
 2. **clang-tidy:** silenciar FP `ArrayBound` em `self[n]` pós-`readlink` (assert `n < sizeof self` / cast tamanho) e re-rodar target Release.  
-3. Re-rodar este script (`scripts/tst-t15-preci*.sh`) até overall verde → aí sim `🔍`.
+3. Re-rodar `scripts/tst-t15-preci.sh` completo até overall verde (lint incluso) antes de ✅ pós-AUD.
 
 ## Referências
 
@@ -114,3 +115,43 @@ Com `bufsiz = sizeof(self)-1`, `n` máximo é `PATH_MAX-1` e `self[n]` é o últ
 - Workflow: `.github/workflows/ci.yml`  
 - GHA vermelho Release: run 32572058696  
 - Sibling SEC-02: `src/mid/pudo.c` `pudo_allow_pudod_candidate` / `find_pudod_binary`
+
+---
+
+## Apêndice — remediação CI/preci Release install (2026-08-22T20:00:45-03:00)
+
+**Agent:** devops-sre  
+**SHA base (antes do commit desta fatia):** `994322c3ae57f7d7f400cbd8ab40f113b9df7437`  
+**Veredicto smoke Release:** **PASS 53/53** no binário instalado (sem setuid). SEC-02 **não** enfraquecido.
+
+### Mudança
+
+| Arquivo | O que |
+|---|---|
+| `.github/workflows/ci.yml` | Matrix Release: `cmake --install build --prefix /usr/local` (sem setuid) → smoke em `/usr/local/bin/petrush`. Debug: smoke continua em `./build/petrush`. Job `build-fedora-next` alinhado. Lint GHA permanece best-effort (`\|\| true`); gate duro de lint = script preci. |
+| `scripts/tst-t15-preci.sh` | Após `check_rel`: `install_rel` + `smoke_rel` no prefixo instalado (não no tree). Lint sem `\|\| true`. |
+
+### Por que `/usr/local` e não `/tmp/petrush-prefix`
+
+`pudo_allow_pudod_candidate` (Release) só aceita absolutos sob `/usr/local/{bin,libexec}` e `/usr/libexec` (e paths exactos). Prefixo arbitrário em `/tmp/...` seria rejeitado pela mesma política SEC-02 — instalar lá **sem** alargar a allow-list quebraria o smoke. No container CI (root efêmero) `/usr/local` é o layout de produção que a policy já confia.
+
+### Re-prova container Fedora 44 (docker)
+
+Imagem: `registry.fedoraproject.org/fedora:44`. Build tree reutilizado: `build-preci-rel` (Release gcc).
+
+| Step | Resultado |
+|---|---|
+| smoke tree `build-preci-rel/petrush` | **FAIL** 51/53 — `pudo: aviso: pudod não encontrado, usando sudo como fallback` (SEC-02 rejeita sibling `build/pudod`) |
+| `cmake --install build-preci-rel --prefix /usr/local` | EXIT 0; modes `755`; **sem** setuid/`chmod u+s` |
+| smoke `/usr/local/bin/petrush` | **PASS 53/53** (`EXIT_smoke_installed=0`) |
+
+Log: [`docs/memory/tst-t15-smoke-rel-installed.log`](tst-t15-smoke-rel-installed.log) (e espelho da corrida tree no output da sessão).
+
+### Residual
+
+- **clang-tidy Release ArrayBound** em `pudo.c` (`self[n]` pós-`readlink`) — fora deste brief; não bloqueia o path de smoke Release.  
+- CMake instalou `libexec/pudod` (além de `bin/pudod`); allow-list cobre `bin/pudod` e basename sob `/usr/local/libexec`.
+
+### Status TODO
+
+`TST-T15` → **🔍 Pendente verificação** (smoke Release instalado verde; sem push).
