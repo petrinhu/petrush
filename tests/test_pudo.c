@@ -8,6 +8,7 @@
 #include "acutest.h"
 #include "petrush/pudo.h"
 #include "petrush/env.h"
+#include "allow_resolve.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -141,6 +142,33 @@ void test_pudo_builtin_does_not_mutate_parent_env(void)
     unsetenv("LD_PRELOAD");
 }
 
+/* SEC-05: realpath falhou => recusar entrada (nunca aceitar o literal). */
+void test_pudod_allow_entry_rejects_unresolvable(void)
+{
+    char out[PATH_MAX];
+    memset(out, 'X', sizeof(out));
+    out[sizeof(out) - 1] = '\0';
+
+    const char *bogus = "/tmp/petrush-sec05-no-such-dir/no-binary";
+    int rc = pudod_resolve_allow_entry(bogus, out, sizeof(out));
+
+    TEST_CHECK(rc == -1);
+    /* Nao pode ter copiado o literal para out (SEC-05 fail closed). */
+    TEST_CHECK(strcmp(out, bogus) != 0);
+}
+
+void test_pudod_allow_entry_accepts_existing(void)
+{
+    char out[PATH_MAX];
+    out[0] = '\0';
+
+    /* /bin/sh existe em qualquer Linux razoavel; realpath pode canonicalizar. */
+    int rc = pudod_resolve_allow_entry("/bin/sh", out, sizeof(out));
+    TEST_CHECK(rc == 0);
+    TEST_CHECK(out[0] == '/');
+    TEST_CHECK(access(out, F_OK) == 0);
+}
+
 void test_pudod_binary_refuses_without_privileges(void)
 {
     /* Testa o helper diretamente: sem setuid/root ele deve falhar cedo
@@ -225,6 +253,8 @@ TEST_LIST = {
     { "pudo_config_and_allowed",           test_pudo_config_loading_and_allowed },
     { "pudo_uses_argv_not_shell",          test_pudo_uses_argv_not_shell },
     { "pudo_parent_env_intact",            test_pudo_builtin_does_not_mutate_parent_env },
+    { "pudod_allow_rejects_unresolvable",  test_pudod_allow_entry_rejects_unresolvable },
+    { "pudod_allow_accepts_existing",      test_pudod_allow_entry_accepts_existing },
     { "pudod_refuses_without_privs",       test_pudod_binary_refuses_without_privileges },
     { NULL, NULL }
 };

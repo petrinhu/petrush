@@ -41,6 +41,8 @@
 #include <syslog.h>
 #include <stdarg.h>
 
+#include "allow_resolve.h"
+
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
@@ -133,19 +135,16 @@ static int load_allow_list(void)
 
         if (*p == '/' && allowed_count < MAX_ALLOWED) {
             char canonical[PATH_MAX];
-            if (realpath(p, canonical)) {
+            /* SEC-05: realpath falhou => skip (fail closed; nunca aceitar literal). */
+            if (pudod_resolve_allow_entry(p, canonical, sizeof(canonical)) == 0) {
                 size_t len = strlen(canonical);
                 if (len >= PATH_MAX) len = PATH_MAX - 1;
                 memcpy(allowed_paths[allowed_count], canonical, len);
                 allowed_paths[allowed_count][len] = '\0';
                 allowed_count++;
             } else {
-                /* If realpath fails, fall back to literal (will likely fail later) */
-                size_t len = strlen(p);
-                if (len >= PATH_MAX) len = PATH_MAX - 1;
-                memcpy(allowed_paths[allowed_count], p, len);
-                allowed_paths[allowed_count][len] = '\0';
-                allowed_count++;
+                pudod_log(LOG_WARNING,
+                          "allow-list entry skipped (realpath failed): %s", p);
             }
         }
     }

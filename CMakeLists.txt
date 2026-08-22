@@ -51,6 +51,10 @@ add_executable(petrush
 # Hardening forte. Tamanho mínimo para auditoria.
 add_executable(pudod
     src/pudod/pudod.c
+    src/pudod/allow_resolve.c
+)
+target_include_directories(pudod PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/pudod
 )
 target_compile_definitions(pudod PRIVATE _GNU_SOURCE)
 
@@ -201,10 +205,12 @@ add_executable(test_pudo
     src/mid/pudo.c
     src/mid/parser.c
     src/foundation/env.c
+    src/pudod/allow_resolve.c
 )
 target_include_directories(test_pudo PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/pudod
 )
 target_compile_options(test_pudo PRIVATE
     -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
