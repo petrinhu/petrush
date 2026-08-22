@@ -29,5 +29,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - Próxima ⏳: UX-21 highlight mínimo. Log segue neste arquivo.
 - UX-21 `d5ccfa4` no main: highlight mínimo aspas/tokens; check 16/16. TODO 🔍.
 - Próxima ⏳ na fila: UX-22 `source` / `.`. NEW-22 ainda espera o líder.
+- UX-22 `5a6c097` no main: source/. teto 8, rc_trust; check 17/17. TODO 🔍.
+- Próxima ⏳: UX-23 background `&` + job control mínimo. NEW-22 segue AFK.
 - UX-21 Opção A: highlight mínimo (aspas/CMD/OP); `test_highlight` + check 16/16; TODO 🔍. Sem push.
 - UX-22 impl: Mid source.h/c + test_source; load_rc_file=missing_ok; check 17/17 smoke 50; TODO 🔍. Sem push.
