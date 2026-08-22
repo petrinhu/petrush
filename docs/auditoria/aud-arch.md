@@ -1,4 +1,4 @@
-# AUD-ARCH — Arquitetura e 4 camadas (petrush)
+# AUD-ARCH - Arquitetura e 4 camadas (petrush)
 
 | Campo | Valor |
 |-------|-------|
@@ -76,7 +76,7 @@ pudod/* → só headers locais do diretório pudod
 
 Severidade: **HIGH** = viola CONTRACT §5 de forma clara; **MEDIUM** = fronteira inconsistente ou doc defasado com risco; **LOW** = dívida / polish; **OK** = conforme.
 
-### F1 — HIGH — Mid importa linenoise (lib de UI)
+### F1 - HIGH - Mid importa linenoise (lib de UI)
 
 | | |
 |--|--|
@@ -85,7 +85,7 @@ Severidade: **HIGH** = viola CONTRACT §5 de forma clara; **MEDIUM** = fronteira
 | **Impacto** | Mid acoplado ao vendor de line-editing; troca/mock de history e `clear` exige Mid. Contamina AUD-DEPS. |
 | **Mitigação sugerida** | (a) `builtin_clear` chamar API Front (`petrush_ui_clear_screen`) implementada junto de linenoise; (b) `hist_expand` ler history via porta Foundation/Back (`petrush_history_get/len`) alimentada pelo Front no boot. Sem mudar comportamento nesta auditoria. |
 
-### F2 — MEDIUM — Mid depende de unidade fisicamente Front (`rc_trust`)
+### F2 - MEDIUM - Mid depende de unidade fisicamente Front (`rc_trust`)
 
 | | |
 |--|--|
@@ -94,7 +94,7 @@ Severidade: **HIGH** = viola CONTRACT §5 de forma clara; **MEDIUM** = fronteira
 | **Leitura** | `petrush_rc_stat_ok` é política de trust (uid/mode), não apresentação. Classificação física em Front está errada; o include Mid→Front é sintoma. |
 | **Mitigação sugerida** | Mover `rc_trust.c` para `src/foundation/` (ou Mid) e atualizar `architecture.md` + CMake. Preferível a inverter a dependência. |
 
-### F3 — MEDIUM — Mid chama `fork` / `exec*` / `open` de processo
+### F3 - MEDIUM - Mid chama `fork` / `exec*` / `open` de processo
 
 | | |
 |--|--|
@@ -103,7 +103,7 @@ Severidade: **HIGH** = viola CONTRACT §5 de forma clara; **MEDIUM** = fronteira
 | **Contexto** | Comentário UX-23: bg job propositalmente **fora** de `execute_external`/`execute_pipeline`. `pudo` exec no cliente após sanitização é desenho de segurança (helper separado). |
 | **Mitigação sugerida** | Documentar exceções nomeadas em `architecture.md` (bg spawn + pudo client exec). Opcional futuro: `petrush_spawn_background()` em Foundation. Não bloquear early. |
 
-### F4 — MEDIUM — Foundation inclui tipos do parser (Mid)
+### F4 - MEDIUM - Foundation inclui tipos do parser (Mid)
 
 | | |
 |--|--|
@@ -112,7 +112,7 @@ Severidade: **HIGH** = viola CONTRACT §5 de forma clara; **MEDIUM** = fronteira
 | **Contexto** | `process.h` documenta de propósito **não** incluir `dispatcher.h` (bom). O AST é o “DTO” do shell. |
 | **Mitigação sugerida** | Aceitar no porte early **com nota no architecture.md**, ou extrair `petrush_cmd_t` / pipeline para header neutro (`petrush/cmd.h`) sem lógica Mid. |
 
-### F5 — MEDIUM — Drift de `docs/architecture.md` e READMEs de pasta
+### F5 - MEDIUM - Drift de `docs/architecture.md` e READMEs de pasta
 
 | Lacuna | Detalhe |
 |--------|---------|
@@ -125,11 +125,11 @@ Severidade: **HIGH** = viola CONTRACT §5 de forma clara; **MEDIUM** = fronteira
 
 **Mitigação:** atualizar `architecture.md` + README Front (DOC); não exige mover arquivos agora.
 
-### F6 — LOW — DRY de redirs (`open`/`dup2`) Mid × Foundation
+### F6 - LOW - DRY de redirs (`open`/`dup2`) Mid × Foundation
 
 Lógica de aplicar redirecionamentos aparece em `dispatcher.c` e `process.c`. Rule of 3 ainda não obriga extrair (2 cópias), mas é dívida de fronteira: Mid reimplementa primitiva que Foundation já tem. Encaminhar também a AUD-QUALITY.
 
-### F7 — OK — Direção geral respeitada
+### F7 - OK - Direção geral respeitada
 
 - Front (`complete`) → Mid (`dispatcher`) + Foundation (`env`): correto.
 - Mid → Foundation (`process`, `job`, `env`): correto.
@@ -138,7 +138,7 @@ Lógica de aplicar redirecionamentos aparece em `dispatcher.c` e `process.c`. Ru
 - `main.c` como composition root na raiz de `src/`: documentado e aceitável no early.
 - Back thin: alinhado a anti-over-engineering.
 
-### F8 — OK — Adaptação de nomenclatura Back ≠ domínio universal
+### F8 - OK - Adaptação de nomenclatura Back ≠ domínio universal
 
 Nos princípios universais, Back = domínio. No petrush, Mid concentra parser/builtins (o “domínio do shell”) e Back reserva persistência. Isso está **explícito** em `docs/architecture.md` / `docs/standards.md`. Não é violação se o mapa local for a fonte de verdade; AUD-REPORT deve usar o mapa petrush, não o de Qt/web.
 
@@ -154,14 +154,14 @@ Nos princípios universais, Back = domínio. No petrush, Mid concentra parser/bu
 
 | Item | Resultado |
 |------|-----------|
-| Unidade pertence a exatamente uma camada? | **Parcial** — `rc_trust` físico Front / uso Mid (F2); `hist_expand` Mid com API linenoise |
-| Sem dependência para cima? | **Falha parcial** — F1 (UI), F2 (rc_trust) |
-| Chamadas cross-layer via contrato/header? | **OK pragmático** — headers `include/petrush/`; sem include relativo `../` |
-| Domínio livre de UI/DB? | **Falha parcial** — Mid+linenoise (F1); sem DB |
+| Unidade pertence a exatamente uma camada? | **Parcial** - `rc_trust` físico Front / uso Mid (F2); `hist_expand` Mid com API linenoise |
+| Sem dependência para cima? | **Falha parcial** - F1 (UI), F2 (rc_trust) |
+| Chamadas cross-layer via contrato/header? | **OK pragmático** - headers `include/petrush/`; sem include relativo `../` |
+| Domínio livre de UI/DB? | **Falha parcial** - Mid+linenoise (F1); sem DB |
 
 ## 7. Score e veredito
 
-| Dimensão | Nota (0–20) | Nota |
+| Dimensão | Nota (0-20) | Nota |
 |----------|-------------|------|
 | Separação física/lógica early | 16 | Pastas e CMake refletem Front/Mid/Foundation; Back placeholder honesto |
 | Direção de includes | 12 | F1+F2 pesam; resto limpo |
@@ -176,10 +176,10 @@ Nos princípios universais, Back = domínio. No petrush, Mid concentra parser/bu
 
 ## 8. Patches recomendados (ordem)
 
-1. **DOC** — Atualizar `docs/architecture.md`: listar `job.c`, Mid completo, `rc_trust`, nota `pudod`, exceções F3/F4. Corrigir `src/front/README.md` (Solo → early).
-2. **MOVE+DOC** — Reclassificar `rc_trust` para Foundation (ou Mid); ajustar CMake (F2).
-3. **API** — Porta de history + clear sem `#include "linenoise.h"` no Mid (F1).
-4. **Opcional** — `petrush_spawn_background` em Foundation; extrair `cmd` types neutros (F3/F4).
+1. **DOC** - Atualizar `docs/architecture.md`: listar `job.c`, Mid completo, `rc_trust`, nota `pudod`, exceções F3/F4. Corrigir `src/front/README.md` (Solo → early).
+2. **MOVE+DOC** - Reclassificar `rc_trust` para Foundation (ou Mid); ajustar CMake (F2).
+3. **API** - Porta de history + clear sem `#include "linenoise.h"` no Mid (F1).
+4. **Opcional** - `petrush_spawn_background` em Foundation; extrair `cmd` types neutros (F3/F4).
 5. Encaminhar F6 e tamanho de `dispatcher.c` para **AUD-QUALITY** / **AUD-DEPS**.
 
 ## 9. Evidências (comandos / paths)
@@ -198,7 +198,7 @@ Nos princípios universais, Back = domínio. No petrush, Mid concentra parser/bu
 | AUD-QUALITY | F6, god-file dispatcher |
 | AUD-SEC | pudo/pudod (fronteira de processo; não aprofundado aqui) |
 | AUD-DISC | superfície REPL/pudo (entrada para ameaça) |
-| AUD-REPORT | consolidar score 70 e patches 1–4 |
+| AUD-REPORT | consolidar score 70 e patches 1-4 |
 
 ---
 
