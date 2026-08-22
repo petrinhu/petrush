@@ -372,7 +372,7 @@ _Noreturn static void pipeline_child(petrush_cmd_t *cmd, int i, int n,
     pipeline_close_pipes(pipes, n - 1);
 
     if (apply_redirs(cmd) != 0) {
-        free(exe_path);
+        /* exe_path: ownership no pai (ou heap do filho morre no _exit). */
         _exit(1);
     }
 
@@ -395,7 +395,6 @@ _Noreturn static void pipeline_child(petrush_cmd_t *cmd, int i, int n,
 
     execv(exe_path, cmd->argv);
     perror("execv");
-    free(exe_path);
     _exit(127);
 }
 
@@ -466,6 +465,7 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
         if (pid < 0) {
             perror("fork");
             free(exe_path);
+            exe_path = NULL;
             pipeline_abort(pipes, n - 1, pids, 0, &old_int, &old_quit);
             return -1;
         }
@@ -474,7 +474,7 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
             pipeline_child(cmd, i, n, pipes, pgid, exe_path, hook);
         }
 
-        /* pai */
+        /* pai: unico free de exe_path (filho nao libera; espelha execute_external) */
         if (i == 0) {
             pgid = pid;
             setpgid(pid, pgid);
@@ -484,6 +484,7 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
         }
         pids[i] = pid;
         free(exe_path);
+        exe_path = NULL;
     }
 
     pipeline_close_pipes(pipes, n - 1);
