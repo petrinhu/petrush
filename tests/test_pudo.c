@@ -11,8 +11,10 @@
 #include "allow_resolve.h"
 #include "child_argv.h"
 #include "target_check.h"
+#include "target_open.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -346,6 +348,105 @@ void test_sec06_rejects_non_regular(void)
     TEST_CHECK(pudod_target_is_root_exec(&st) == -1);
 }
 
+/* SEC-07: open do alvo com O_NOFOLLOW (fecha TOCTOU realpath -> open). */
+void test_sec07_open_flags_include_nofollow(void)
+{
+    int flags = pudod_target_open_flags();
+    TEST_CHECK((flags & O_ACCMODE) == O_RDONLY);
+    TEST_CHECK((flags & O_CLOEXEC) == O_CLOEXEC);
+    TEST_CHECK((flags & O_NOFOLLOW) == O_NOFOLLOW);
+}
+
+void test_sec07_open_rejects_null(void)
+{
+    errno = 0;
+    TEST_CHECK(pudod_open_target(NULL) == -1);
+}
+
+void test_sec07_open_regular_ok(void)
+{
+    char dir[] = "/var/tmp/petrush-sec07-reg-XXXXXX";
+    char *d = mkdtemp(dir);
+    TEST_CHECK(d != NULL);
+    if (!d) {
+        return;
+    }
+
+    char path[sizeof(dir) + 16];
+    int n = snprintf(path, sizeof(path), "%s/file", dir);
+    TEST_CHECK(n > 0 && (size_t)n < sizeof(path));
+    if (n <= 0 || (size_t)n >= sizeof(path)) {
+        rmdir(dir);
+        return;
+    }
+
+    int tfd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+    TEST_CHECK(tfd >= 0);
+    if (tfd < 0) {
+        rmdir(dir);
+        return;
+    }
+    close(tfd);
+
+    int fd = pudod_open_target(path);
+    TEST_CHECK(fd >= 0);
+    if (fd >= 0) {
+        close(fd);
+    }
+
+    unlink(path);
+    rmdir(dir);
+}
+
+void test_sec07_open_rejects_symlink(void)
+{
+    char dir[] = "/var/tmp/petrush-sec07-lnk-XXXXXX";
+    char *d = mkdtemp(dir);
+    TEST_CHECK(d != NULL);
+    if (!d) {
+        return;
+    }
+
+    char target[sizeof(dir) + 16];
+    char linkpath[sizeof(dir) + 16];
+    int n1 = snprintf(target, sizeof(target), "%s/real", dir);
+    int n2 = snprintf(linkpath, sizeof(linkpath), "%s/link", dir);
+    TEST_CHECK(n1 > 0 && (size_t)n1 < sizeof(target));
+    TEST_CHECK(n2 > 0 && (size_t)n2 < sizeof(linkpath));
+    if (n1 <= 0 || (size_t)n1 >= sizeof(target) ||
+        n2 <= 0 || (size_t)n2 >= sizeof(linkpath)) {
+        rmdir(dir);
+        return;
+    }
+
+    int tfd = open(target, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+    TEST_CHECK(tfd >= 0);
+    if (tfd < 0) {
+        rmdir(dir);
+        return;
+    }
+    close(tfd);
+
+    TEST_CHECK(symlink(target, linkpath) == 0);
+
+    errno = 0;
+    int fd = pudod_open_target(linkpath);
+    TEST_CHECK(fd < 0);
+    /* Linux: O_NOFOLLOW em symlink final => ELOOP */
+    TEST_CHECK(errno == ELOOP);
+
+    /* O arquivo real (nao-symlink) continua abrivel. */
+    fd = pudod_open_target(target);
+    TEST_CHECK(fd >= 0);
+    if (fd >= 0) {
+        close(fd);
+    }
+
+    unlink(linkpath);
+    unlink(target);
+    rmdir(dir);
+}
+
 void test_pudod_binary_refuses_without_privileges(void)
 {
     /* Testa o helper diretamente: sem setuid/root ele deve falhar cedo
@@ -445,6 +546,10 @@ TEST_LIST = {
     { "sec06_rejects_non_root",            test_sec06_rejects_non_root_owner },
     { "sec06_rejects_non_exec",            test_sec06_rejects_non_executable },
     { "sec06_rejects_non_regular",         test_sec06_rejects_non_regular },
+    { "sec07_open_flags_nofollow",         test_sec07_open_flags_include_nofollow },
+    { "sec07_open_rejects_null",           test_sec07_open_rejects_null },
+    { "sec07_open_regular_ok",             test_sec07_open_regular_ok },
+    { "sec07_open_rejects_symlink",        test_sec07_open_rejects_symlink },
     { "pudod_refuses_without_privs",       test_pudod_binary_refuses_without_privileges },
     { NULL, NULL }
 };

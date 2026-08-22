@@ -44,6 +44,7 @@
 #include "allow_resolve.h"
 #include "child_argv.h"
 #include "target_check.h"
+#include "target_open.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -254,8 +255,8 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    /* 8. Verificar o arquivo no disco (após realpath) */
-    fd = open(resolved, O_RDONLY | O_CLOEXEC);
+    /* SEC-07: open com O_NOFOLLOW (fecha TOCTOU realpath -> open); fexecve no fd. */
+    fd = pudod_open_target(resolved);
     if (fd < 0) {
         pudod_log(LOG_ERR, "open falhou para %s: %s", resolved, strerror(errno));
         goto cleanup;
