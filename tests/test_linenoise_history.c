@@ -68,7 +68,75 @@ void test_history_save_refuses_symlink(void)
     rmdir(dir);
 }
 
+/* UX-20: substring search, newest-first, start_exclusive. */
+void test_history_search_newest_first(void)
+{
+    int i0, i1, i2, i3;
+
+    linenoiseHistorySetMaxLen(64);
+    linenoiseHistoryAdd("ux20-alpha-unique-zzz");
+    linenoiseHistoryAdd("ux20-beta-unique-zzz");
+    linenoiseHistoryAdd("ux20-gamma-unique-zzz");
+
+    i0 = linenoiseHistorySearch("ux20-", linenoiseHistoryLen());
+    TEST_ASSERT(i0 >= 0);
+    TEST_CHECK(strcmp(linenoiseHistoryGet(i0), "ux20-gamma-unique-zzz") == 0);
+
+    i1 = linenoiseHistorySearch("ux20-", i0);
+    TEST_ASSERT(i1 >= 0);
+    TEST_CHECK(strcmp(linenoiseHistoryGet(i1), "ux20-beta-unique-zzz") == 0);
+
+    i2 = linenoiseHistorySearch("ux20-", i1);
+    TEST_ASSERT(i2 >= 0);
+    TEST_CHECK(strcmp(linenoiseHistoryGet(i2), "ux20-alpha-unique-zzz") == 0);
+
+    i3 = linenoiseHistorySearch("ux20-", i2);
+    TEST_CHECK(i3 == -1);
+}
+
+void test_history_search_substring_and_miss(void)
+{
+    int idx;
+
+    linenoiseHistorySetMaxLen(64);
+    linenoiseHistoryAdd("ux20-cat-meow-unique");
+    linenoiseHistoryAdd("ux20-dog-bark-unique");
+
+    idx = linenoiseHistorySearch("dog-bark", linenoiseHistoryLen());
+    TEST_ASSERT(idx >= 0);
+    TEST_CHECK(strcmp(linenoiseHistoryGet(idx), "ux20-dog-bark-unique") == 0);
+
+    TEST_CHECK(linenoiseHistorySearch("ux20-no-such-token", linenoiseHistoryLen()) == -1);
+}
+
+void test_history_search_empty_query_and_bounds(void)
+{
+    int idx;
+    const char *newest;
+
+    linenoiseHistorySetMaxLen(64);
+    linenoiseHistoryAdd("ux20-empty-q-unique-one");
+    linenoiseHistoryAdd("ux20-empty-q-unique-two");
+
+    newest = linenoiseHistoryGet(linenoiseHistoryLen() - 1);
+    TEST_ASSERT(newest != NULL);
+
+    idx = linenoiseHistorySearch("", linenoiseHistoryLen());
+    TEST_ASSERT(idx >= 0);
+    TEST_CHECK(strcmp(linenoiseHistoryGet(idx), newest) == 0);
+
+    idx = linenoiseHistorySearch(NULL, linenoiseHistoryLen());
+    TEST_ASSERT(idx >= 0);
+    TEST_CHECK(strcmp(linenoiseHistoryGet(idx), newest) == 0);
+
+    TEST_CHECK(linenoiseHistorySearch("ux20-empty-q", 0) == -1);
+    TEST_CHECK(linenoiseHistorySearch("ux20-empty-q", -5) == -1);
+}
+
 TEST_LIST = {
     { "history_save_refuses_symlink", test_history_save_refuses_symlink },
+    { "history_search_newest_first", test_history_search_newest_first },
+    { "history_search_substring_and_miss", test_history_search_substring_and_miss },
+    { "history_search_empty_query_and_bounds", test_history_search_empty_query_and_bounds },
     { NULL, NULL }
 };

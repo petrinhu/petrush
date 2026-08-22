@@ -82,7 +82,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | UX-18 | W4 | Shell | Glob simples `*` `?` só em tokens unquoted. | Média | UX-17 | Média | 🔍 Pendente verificação | — |
 | SEC-07 | W4 | Segurança | Fechar TOCTOU `realpath` → `open` no `pudod` (O_NOFOLLOW / mesmo fd). Ver [`docs/memory/sudo-pudo-riscos.md`](docs/memory/sudo-pudo-riscos.md). | Alta | SEC-06 | Média | 🔍 Pendente verificação | — |
 | UX-19 | W5 | Shell | Builtins no pipe (subshell-like). | Média | UX-18 | Média | 🔍 Pendente verificação | — |
-| UX-20 | W6 | Shell | Ctrl-R history search. Patch mínimo no linenoise; se a API bloquear, documentar degradação (setas + hints + `!!`) e seguir. | Média | UX-19 | Alta | ⏳ Pendente | — |
+| UX-20 | W6 | Shell | Ctrl-R history search. Patch mínimo no linenoise; se a API bloquear, documentar degradação (setas + hints + `!!`) e seguir. | Média | UX-19 | Alta | 🔍 Pendente verificação | — |
 | UX-21 | W7 | Shell | Syntax highlight mínimo (aspas não fechadas / token grosso; não full highlighter). | Baixa | UX-20 | Alta | ⏳ Pendente | — |
 | UX-22 | W8 | Shell | `source` / `.`: rodar arquivo linha a linha. | Baixa | UX-21 | Média | ⏳ Pendente | — |
 | UX-23 | W9 | Shell | Background `&` + job control mínimo. | Baixa | UX-22 | Alta | ⏳ Pendente | — |

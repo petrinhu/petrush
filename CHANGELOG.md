@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **UX-20:** Ctrl-R reverse-i-search no linenoise (`linenoiseHistorySearch` substring newest-first; Enter aceita; ESC aborta; sem Ctrl-S/regex/vi).
 - **UX-19:** builtins no pipe (cada estágio `n>=2` em fork; hook `find_builtin` antes do PATH; sem lastpipe/pipefail; `cd`/`export`/`exit` no pipe não alteram o pai; estágio único intacto).
 - **UX-18:** glob simples `*` `?` em tokens unquoted (depois de `~`/`$VAR`; quoted fica literal; sem `[]`/`**`; sem glob em redir).
 - **UX-17:** listas sequenciais `;` (`a; b` sempre roda `b`; reusa `PETRUSH_COND_ALWAYS`).

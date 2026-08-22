@@ -499,6 +499,7 @@ enum KEY_ACTION{
 	ENTER = 13,         /* Enter */
 	CTRL_N = 14,        /* Ctrl-n */
 	CTRL_P = 16,        /* Ctrl-p */
+	CTRL_R = 18,        /* Ctrl-r — petrush UX-20 reverse-i-search */
 	CTRL_T = 20,        /* Ctrl-t */
 	CTRL_U = 21,        /* Ctrl+u */
 	CTRL_W = 23,        /* Ctrl+w */
@@ -506,8 +507,16 @@ enum KEY_ACTION{
 	BACKSPACE =  127    /* Backspace */
 };
 
+/* petrush UX-20: query + prompt scratch for reverse-i-search mini-mode. */
+#define LINENOISE_SEARCH_QUERY_MAX 200
+static char search_query[LINENOISE_SEARCH_QUERY_MAX];
+static size_t search_qlen = 0;
+static char search_prompt_buf[LINENOISE_SEARCH_QUERY_MAX + 40];
+
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
+int linenoiseHistorySearch(const char *query, int start_exclusive);
+const char *linenoiseHistoryGet(int index);
 #define REFRESH_CLEAN (1<<0)    // Clean the old prompt from the screen
 #define REFRESH_WRITE (1<<1)    // Rewrite the prompt on the screen.
 #define REFRESH_ALL (REFRESH_CLEAN|REFRESH_WRITE) // Do both.
@@ -1687,6 +1696,12 @@ int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd, ch
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
     l->in_completion = 0;
+    l->in_search = 0;
+    l->search_match = -1;
+    l->search_saved_buf = NULL;
+    l->search_saved_pos = 0;
+    l->search_orig_prompt = NULL;
+    l->search_orig_plen = 0;
     l->ifd = stdin_fd != -1 ? stdin_fd : STDIN_FILENO;
     l->ofd = stdout_fd != -1 ? stdout_fd : STDOUT_FILENO;
     l->buf = buf;
@@ -1855,6 +1870,125 @@ static void linenoiseEditPaste(struct linenoiseState *l) {
 
 char *linenoiseEditMore = "If you see this, you are misusing the API: when linenoiseEditFeed() is called, if it returns linenoiseEditMore the user is yet editing the line. See the README file for more information.";
 
+/* ----- petrush UX-20: Ctrl-R reverse-i-search mini-mode ----- */
+
+/* Skip the ephemeral current-edit slot (history_len-1) when present. */
+static int linenoiseSearchStartBound(void) {
+    return history_len > 0 ? history_len - 1 : 0;
+}
+
+static void linenoiseSearchRefresh(struct linenoiseState *l) {
+    const char *hit;
+    size_t len;
+
+    snprintf(search_prompt_buf, sizeof(search_prompt_buf),
+             l->search_match >= 0 ? "(bck-i-search)`%s': " :
+                                    "(failed bck-i-search)`%s': ",
+             search_query);
+    l->prompt = search_prompt_buf;
+    l->plen = strlen(search_prompt_buf);
+
+    hit = (l->search_match >= 0) ? linenoiseHistoryGet(l->search_match) : "";
+    if (hit == NULL) hit = "";
+    len = strlen(hit);
+    if (linenoiseEditGrow(l, len) == -1 && len > l->buflen)
+        len = l->buflen;
+    memcpy(l->buf, hit, len);
+    l->buf[len] = '\0';
+    l->pos = l->len = len;
+    linenoiseFoldClear(l);
+    refreshLine(l);
+}
+
+static void linenoiseSearchAbort(struct linenoiseState *l) {
+    size_t len;
+
+    if (!l->in_search) return;
+    l->in_search = 0;
+    l->prompt = l->search_orig_prompt;
+    l->plen = l->search_orig_plen;
+    if (l->search_saved_buf) {
+        len = strlen(l->search_saved_buf);
+        if (linenoiseEditGrow(l, len) == -1 && len > l->buflen)
+            len = l->buflen;
+        memcpy(l->buf, l->search_saved_buf, len);
+        l->buf[len] = '\0';
+        l->len = len;
+        l->pos = l->search_saved_pos <= len ? l->search_saved_pos : len;
+        free(l->search_saved_buf);
+        l->search_saved_buf = NULL;
+    }
+    linenoiseFoldClear(l);
+    refreshLine(l);
+}
+
+static void linenoiseSearchAccept(struct linenoiseState *l) {
+    if (!l->in_search) return;
+    l->in_search = 0;
+    l->prompt = l->search_orig_prompt;
+    l->plen = l->search_orig_plen;
+    free(l->search_saved_buf);
+    l->search_saved_buf = NULL;
+    /* Match (or failed empty) stays in buf; restore normal prompt. */
+    refreshLine(l);
+}
+
+static void linenoiseSearchRun(struct linenoiseState *l, int restart) {
+    int start;
+
+    if (restart)
+        start = linenoiseSearchStartBound();
+    else if (l->search_match >= 0)
+        start = l->search_match;
+    else
+        start = linenoiseSearchStartBound();
+
+    l->search_match = linenoiseHistorySearch(search_query, start);
+    if (l->search_match < 0)
+        linenoiseBeep();
+    linenoiseSearchRefresh(l);
+}
+
+static int linenoiseSearchEnter(struct linenoiseState *l) {
+    if (l->in_search) {
+        linenoiseSearchRun(l, 0); /* older match */
+        return 0;
+    }
+    free(l->search_saved_buf);
+    l->search_saved_buf = strdup(l->buf);
+    if (l->search_saved_buf == NULL) {
+        linenoiseBeep();
+        return -1;
+    }
+    l->search_saved_pos = l->pos;
+    l->search_orig_prompt = l->prompt;
+    l->search_orig_plen = l->plen;
+    l->in_search = 1;
+    search_qlen = 0;
+    search_query[0] = '\0';
+    linenoiseSearchRun(l, 1);
+    return 0;
+}
+
+static void linenoiseSearchQueryAdd(struct linenoiseState *l, char ch) {
+    if (search_qlen + 1 >= LINENOISE_SEARCH_QUERY_MAX) {
+        linenoiseBeep();
+        return;
+    }
+    search_query[search_qlen++] = ch;
+    search_query[search_qlen] = '\0';
+    linenoiseSearchRun(l, 1);
+}
+
+static void linenoiseSearchQueryBackspace(struct linenoiseState *l) {
+    if (search_qlen == 0) {
+        linenoiseBeep();
+        return;
+    }
+    search_query[--search_qlen] = '\0';
+    linenoiseSearchRun(l, 1);
+}
+
 /* This function is part of the multiplexed API of linenoise, see the top
  * comment on linenoiseEditStart() for more information. Call this function
  * each time there is some data to read from the standard input file
@@ -1891,16 +2025,21 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
 
     /* Only autocomplete when the callback is set. completeLine()
      * returns the character to be handled next, or zero when the
-     * key was consumed to navigate completions. */
-    if ((l->in_completion || c == 9 /* TAB */) && completionCallback != NULL) {
+     * key was consumed to navigate completions.
+     * petrush UX-20: skip completion while reverse-i-search is active. */
+    if (!l->in_search && (l->in_completion || c == 9 /* TAB */) && completionCallback != NULL) {
         int retval = completeLine(l,c);
         /* Read next character when 0 */
         if (retval == 0) return linenoiseEditMore;
         c = retval;
+    } else if (l->in_search && c == 9 /* TAB */) {
+        linenoiseBeep();
+        return linenoiseEditMore;
     }
 
     switch(c) {
     case ENTER:    /* enter */
+        if (l->in_search) linenoiseSearchAccept(l);
         history_len--;
         free(history[history_len]);
         if (mlmode) linenoiseEditMoveEnd(l);
@@ -1914,14 +2053,23 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         }
         return strdup(l->buf);
     case CTRL_C:     /* ctrl-c */
+        if (l->in_search) linenoiseSearchAbort(l);
         errno = EAGAIN;
         return NULL;
     case BACKSPACE:   /* backspace */
     case 8:     /* ctrl-h */
+        if (l->in_search) {
+            linenoiseSearchQueryBackspace(l);
+            break;
+        }
         linenoiseEditBackspace(l);
+        break;
+    case CTRL_R:     /* ctrl-r — petrush UX-20 reverse-i-search */
+        linenoiseSearchEnter(l);
         break;
     case CTRL_D:     /* ctrl-d, remove char at right of cursor, or if the
                         line is empty, act as end-of-file. */
+        if (l->in_search) { linenoiseBeep(); break; }
         if (l->len > 0) {
             linenoiseEditDelete(l);
         } else {
@@ -1932,6 +2080,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         }
         break;
     case CTRL_T:    /* ctrl-t, swaps current character with previous. */
+        if (l->in_search) { linenoiseBeep(); break; }
         /* Handle UTF-8: swap the two UTF-8 characters around cursor. */
         if (l->pos > 0 && l->pos < l->len) {
             char tmp[32];
@@ -1952,18 +2101,25 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         }
         break;
     case CTRL_B:     /* ctrl-b */
+        if (l->in_search) { linenoiseBeep(); break; }
         linenoiseEditMoveLeft(l);
         break;
     case CTRL_F:     /* ctrl-f */
+        if (l->in_search) { linenoiseBeep(); break; }
         linenoiseEditMoveRight(l);
         break;
     case CTRL_P:    /* ctrl-p */
+        if (l->in_search) { linenoiseBeep(); break; }
         linenoiseEditHistoryNext(l, LINENOISE_HISTORY_PREV);
         break;
     case CTRL_N:    /* ctrl-n */
+        if (l->in_search) { linenoiseBeep(); break; }
         linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
         break;
     case ESC:    /* escape sequence */
+        /* petrush UX-20: ESC aborts reverse-i-search, then falls through
+         * to the normal CSI handling (arrows act on the restored line). */
+        if (l->in_search) linenoiseSearchAbort(l);
         /* Read the next two bytes representing the escape sequence.
          * Use two calls to handle slow terminals returning the two
          * chars at different times. */
@@ -2032,6 +2188,16 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         }
         break;
     default:
+        /* petrush UX-20: printable ASCII refines the search query.
+         * Multi-byte UTF-8 is ignored in mini-mode (beep) to keep the
+         * patch small; no regex / Ctrl-S / vi bindings. */
+        if (l->in_search) {
+            if ((unsigned char)c >= 32 && (unsigned char)c < 127)
+                linenoiseSearchQueryAdd(l, c);
+            else
+                linenoiseBeep();
+            break;
+        }
         /* Handle UTF-8 multi-byte sequences. When we receive the first byte
          * of a multi-byte UTF-8 character, read the remaining bytes to
          * complete the sequence before inserting. */
@@ -2050,28 +2216,34 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         }
         break;
     case CTRL_U: /* Ctrl+u, delete the whole line. */
+        if (l->in_search) { linenoiseBeep(); break; }
         l->buf[0] = '\0';
         l->pos = l->len = 0;
         linenoiseFoldClear(l);
         refreshLine(l);
         break;
     case CTRL_K: /* Ctrl+k, delete from current to end of line. */
+        if (l->in_search) { linenoiseBeep(); break; }
         linenoiseAdjustFoldsAfterDelete(l,l->pos,l->len-l->pos);
         l->buf[l->pos] = '\0';
         l->len = l->pos;
         refreshLine(l);
         break;
     case CTRL_A: /* Ctrl+a, go to the start of the line */
+        if (l->in_search) { linenoiseBeep(); break; }
         linenoiseEditMoveHome(l);
         break;
     case CTRL_E: /* ctrl+e, go to the end of the line */
+        if (l->in_search) { linenoiseBeep(); break; }
         linenoiseEditMoveEnd(l);
         break;
     case CTRL_L: /* ctrl+l, clear screen */
+        if (l->in_search) { linenoiseBeep(); break; }
         linenoiseClearScreen();
         refreshLine(l);
         break;
     case CTRL_W: /* ctrl+w, delete previous word */
+        if (l->in_search) { linenoiseBeep(); break; }
         linenoiseEditDeletePrevWord(l);
         break;
     }
@@ -2304,6 +2476,22 @@ int linenoiseHistoryLen(void) {
 const char *linenoiseHistoryGet(int index) {
     if (index < 0 || index >= history_len || !history) return NULL;
     return history[index];
+}
+
+/* petrush UX-20: substring match, newest-first, exclusive upper bound. */
+int linenoiseHistorySearch(const char *query, int start_exclusive) {
+    int i;
+
+    if (!history || history_len == 0) return -1;
+    if (query == NULL) query = "";
+    if (start_exclusive > history_len) start_exclusive = history_len;
+    if (start_exclusive <= 0) return -1;
+
+    for (i = start_exclusive - 1; i >= 0; i--) {
+        if (history[i] && strstr(history[i], query) != NULL)
+            return i;
+    }
+    return -1;
 }
 
 int linenoiseHistorySetMaxLen(int len) {

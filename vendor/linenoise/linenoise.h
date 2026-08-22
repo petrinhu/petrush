@@ -56,6 +56,12 @@ struct linenoiseState {
     int in_completion;  /* The user pressed TAB and we are now in completion
                          * mode, so input is handled by completeLine(). */
     size_t completion_idx; /* Index of next completion to propose. */
+    int in_search;      /* petrush UX-20: Ctrl-R reverse-i-search mode. */
+    int search_match;   /* Current match index, or -1 if none. */
+    char *search_saved_buf; /* Original line restored on ESC abort. */
+    size_t search_saved_pos;
+    const char *search_orig_prompt;
+    size_t search_orig_plen;
     int ifd;            /* Terminal stdin file descriptor. */
     int ofd;            /* Terminal stdout file descriptor. */
     char *buf;          /* Edited line buffer. */
@@ -109,6 +115,10 @@ int linenoiseHistoryLoad(const char *filename);
 int linenoiseHistoryLen(void);
 /* index 0 = oldest; returns NULL if out of range */
 const char *linenoiseHistoryGet(int index);
+/* petrush UX-20: substring search, newest-first.
+ * Scans indices strictly below start_exclusive (pass HistoryLen() to
+ * start at newest). Returns matching index or -1. NULL query = "". */
+int linenoiseHistorySearch(const char *query, int start_exclusive);
 
 /* Other utilities. */
 void linenoiseClearScreen(void);
