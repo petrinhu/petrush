@@ -17,3 +17,5 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - Caetano: cap FEAT = BANG TRUE UMASK NOCLOBBER READ PARAM TEST (rejeitou CMDSUB/FUNCS/FLOW e printf/glob[]).
 - Cosmo: TODO reordenado W1..W17; TST após FEAT-TEST; primeira ⏳ = W2 SEC-02/05/04/03 + DOC-01.
 - Próximo: commit+push da pesquisa; depois onda W2 uma fatia por vez (teto 2 workers).
+- Commit `3269896` push origin/main (`1fdbfbf..3269896`). Pesquisa + WSJF no remoto.
+- Onda W2 ⏳: despacho 2 workers (teto) SEC-02 (`pudo.c` find_pudod) + SEC-05 (`pudod.c` realpath fail-closed). NEW-22 não puxar (líder AFK).
