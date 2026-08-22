@@ -27,3 +27,4 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - Próxima ⏳: UX-20 Ctrl-R. NEW-22 segue bloqueado no líder.
 - UX-20 Opção A (`75fa64e`): Ctrl-R reverse-i-search no linenoise; check 15/15. TODO 🔍.
 - Próxima ⏳: UX-21 highlight mínimo. Log segue neste arquivo.
+- UX-21 Opção A: highlight mínimo (aspas/CMD/OP); `test_highlight` + check 16/16; TODO 🔍. Sem push.

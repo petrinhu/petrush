@@ -129,6 +129,7 @@ static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
+static linenoiseHighlightCallback *highlightCallback = NULL;
 static char *linenoiseReadLine(FILE *fp, int *err);
 static char *linenoiseNoTTY(void);
 static void refreshLineWithCompletion(struct linenoiseState *ls, linenoiseCompletions *lc, int flags);
@@ -837,6 +838,11 @@ void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *fn) {
     freeHintsCallback = fn;
 }
 
+/* petrush UX-21: register buffer colorizer (CSI). NULL disables. */
+void linenoiseSetHighlightCallback(linenoiseHighlightCallback *fn) {
+    highlightCallback = fn;
+}
+
 /* This function is used by the callback function registered by the user
  * in order to add completion options given the input string when the
  * user typed <tab>. See the example.c source code for a very easy to
@@ -884,6 +890,22 @@ static void abAppend(struct abuf *ab, const char *s, int len) {
 
 static void abFree(struct abuf *ab) {
     free(ab->b);
+}
+
+/* Append buf[len] possibly colorized. Width/cursor already used raw buf. */
+static void abAppendHighlighted(struct abuf *ab, struct linenoiseState *l,
+                                const char *buf, size_t len)
+{
+    if (highlightCallback && !maskmode && !l->in_search && l->fold_count == 0) {
+        char *colored = highlightCallback(buf, len);
+        if (colored) {
+            abAppend(ab, colored, (int)strlen(colored));
+            abAppend(ab, "\033[0m", 4);
+            free(colored);
+            return;
+        }
+    }
+    abAppend(ab, buf, (int)len);
 }
 
 /* A fold is a display-only replacement for a range in l->buf. The edited
@@ -1289,7 +1311,7 @@ static void refreshSingleLine(struct linenoiseState *l, int flags) {
                 i += utf8NextCharLen(buf, i, len);
             }
         } else {
-            abAppend(&ab,buf,len);
+            abAppendHighlighted(&ab,l,buf,len);
         }
         /* Show hints if any. */
         refreshShowHints(&ab,l,pwidth,fullwidth);
@@ -1377,7 +1399,7 @@ static void refreshMultiLine(struct linenoiseState *l, int flags) {
                 i += utf8NextCharLen(render, i, render_len);
             }
         } else {
-            abAppend(&ab,render,render_len);
+            abAppendHighlighted(&ab,l,render,render_len);
         }
 
         /* Show hints if any. */
@@ -1523,7 +1545,8 @@ int linenoiseEditInsert(struct linenoiseState *l, const char *c, size_t clen) {
                              memchr(c, '\r', clen) != NULL;
 
         if (linenoiseEditInsertNoRefresh(l,c,clen) == -1) return 0;
-        if (!needs_refresh && !mlmode && !hintsCallback &&
+        /* petrush UX-21: highlightCallback forces full refresh (cor a cada tecla). */
+        if (!needs_refresh && !mlmode && !hintsCallback && !highlightCallback &&
             (maskmode || l->fold_count == 0))
         {
             size_t bufwidth = utf8StrWidth(l->buf,l->len);

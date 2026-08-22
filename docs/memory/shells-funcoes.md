@@ -61,7 +61,7 @@ Fontes: `src/mid/dispatcher.c` (tabela `builtins[]`), `include/petrush/parser.h`
 |----|---------|---------------|
 | UX-19 | Builtins no pipe (subshell-like) | ⏳ |
 | UX-20 | Ctrl-R history search | ⏳ |
-| UX-21 | Syntax highlight mínimo | ⏳ |
+| UX-21 | Syntax highlight mínimo | 🔍 |
 | UX-22 | `source` / `.` | ⏳ |
 | UX-23 | Background `&` + jobs mínimos | ⏳ |
 
@@ -91,7 +91,7 @@ Abreviações de coluna: **bb-ash** = busybox ash; **osh** = Oils OSH (compat pa
 | 4 | Autosuggest / ghost text | P | P | Y | N | N | N | N | N | N | N | **Y** | hints linenoise (Fish-like leve) |
 | 5 | Tab completion (PATH/files) | Y | Y | Y | N | Y | Y | Y | P | Y | Y | **Y** | builtins+PATH+files |
 | 6 | Completion programável rica | Y | Y | Y | N | Y | P | Y | N | P | P | **N** | só complete estático |
-| 7 | Syntax highlighting na linha | P | P | Y | N | N | N | N | N | N | N | **N** | UX-21; bash/zsh via plugin típico |
+| 7 | Syntax highlighting na linha | P | P | Y | N | N | N | N | N | N | N | **P** | UX-21 mínimo (aspas/CMD/OP); bash/zsh via plugin típico |
 | 8 | Prompt customizável | Y | Y | Y | P | Y | Y | Y | P | Y | Y | **Y** | `PETRUSH_PS1` + escapes subset |
 | 9 | Prompt com cmdsubst / subst avançada | Y | Y | Y | N | P | P | P | N | P | P | **N** | só `\w\u\h\n\$\\` |
 | 10 | Aliases | Y | Y | Y | P | Y | Y | Y | P | Y | Y | **Y** | `alias`/`unalias` 1ª palavra |

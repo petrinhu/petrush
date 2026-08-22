@@ -14,18 +14,18 @@ Razão: porte **early** (variante Pipeline-Sprint; marcador `.bigtech-porte`) + 
 
 | Camada     | Local físico atual                  | Responsabilidade |
 |------------|-------------------------------------|------------------|
-| Front      | `src/main.c` + `src/front/complete.c` (linenoise completion/hints) + loop REPL | Apresentação, prompt, I/O, sinais de UI, rc load, history display, tab-complete |
+| Front      | `src/main.c` + `src/front/complete.c` (linenoise completion/hints) + `src/front/highlight.c` (UX-21 highlight mínimo) + loop REPL | Apresentação, prompt, I/O, sinais de UI, rc load, history display, tab-complete, highlight |
 | Mid        | `src/mid/` (parser, dispatcher, pudo, expand, prompt, alias, …) | Lógica de aplicação: parsing, despacho de comandos/builtins, orquestração |
 | Back       | (ainda thin) — ver `src/back/README.md` | Persistência/config futura (history file, pudo config) |
 | Foundation | `src/foundation/` (env.c, process.c) | Primitivas do SO: getenv/setenv wrappers, fork/exec/wait, termios, job signals |
 
 ## Build
 
-Todo listado explicitamente em `CMakeLists.txt` (inclui `src/front/complete.c`).
+Todo listado explicitamente em `CMakeLists.txt` (inclui `src/front/complete.c` e `src/front/highlight.c`).
 
 ## Estado físico das pastas
 
-- `src/front/` : código real — `complete.c` (completion + history autosuggest via linenoise). `main.c` permanece na raiz de `src/` por simplicidade (mapeamento lógico = Front).
+- `src/front/` : código real — `complete.c` (completion + history autosuggest via linenoise) e `highlight.c` (scanner/colorize mínimo UX-21). `main.c` permanece na raiz de `src/` por simplicidade (mapeamento lógico = Front).
 - `src/back/` : placeholder (README explica intenção).
 - `src/mid/` e `src/foundation/` : código pragmático ativo.
 
@@ -43,4 +43,4 @@ Ver também:
 
 - 0 deps runtime além de libc + linenoise (embutido)
 - Hardening + ASan/UBSan + cppcheck + clang-tidy tuned
-- TDD com acutest nas camadas mid/foundation (e `tests/test_complete.c` para Front)
+- TDD com acutest nas camadas mid/foundation (e `tests/test_complete.c` / `tests/test_highlight.c` para Front)

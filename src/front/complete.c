@@ -5,6 +5,7 @@
 #include "petrush/complete.h"
 #include "petrush/dispatcher.h"
 #include "petrush/env.h"
+#include "petrush/highlight.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,12 @@
 #include <unistd.h>
 #include <limits.h>
 #include <ctype.h>
+
+/* linenoise highlight hook → Front colorize (UX-21). */
+static char *highlight_cb(const char *buf, size_t len)
+{
+    return petrush_hl_colorize(buf, len);
+}
 
 static void completion_cb(const char *buf, linenoiseCompletions *lc)
 {
@@ -156,4 +163,7 @@ void petrush_setup_linenoise_ux(void)
     linenoiseSetCompletionCallback(completion_cb);
     linenoiseSetHintsCallback(hints_cb);
     linenoiseSetFreeHintsCallback(free_hints_cb);
+    /* NO_COLOR (qualquer valor) desliga highlight; sem flag nova. */
+    if (!getenv("NO_COLOR"))
+        linenoiseSetHighlightCallback(highlight_cb);
 }

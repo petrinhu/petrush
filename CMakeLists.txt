@@ -41,6 +41,7 @@ add_executable(petrush
     src/mid/expand.c
     src/mid/prompt.c
     src/front/complete.c
+    src/front/highlight.c
     src/front/rc_trust.c
     src/foundation/process.c
     src/foundation/env.c
@@ -270,6 +271,7 @@ add_test(NAME test_alias COMMAND test_alias)
 add_executable(test_complete
     tests/test_complete.c
     src/front/complete.c
+    src/front/highlight.c
     src/mid/dispatcher.c
     src/mid/parser.c
     src/mid/pudo.c
@@ -403,9 +405,23 @@ target_compile_options(test_rc_trust PRIVATE
 )
 add_test(NAME test_rc_trust COMMAND test_rc_trust)
 
+# Syntax highlight mínimo (UX-21) — só highlight.c, sem parser
+add_executable(test_highlight
+    tests/test_highlight.c
+    src/front/highlight.c
+)
+target_include_directories(test_highlight PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_options(test_highlight PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_highlight COMMAND test_highlight)
+
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust
+    DEPENDS test_parser test_process test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust test_highlight
     COMMENT "Executando todos os testes unitários"
 )
 

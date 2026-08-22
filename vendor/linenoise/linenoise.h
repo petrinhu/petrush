@@ -101,9 +101,13 @@ void linenoiseFree(void *ptr);
 typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
 typedef char*(linenoiseHintsCallback)(const char *, int *color, int *bold);
 typedef void(linenoiseFreeHintsCallback)(void *);
+/* petrush UX-21: colorize visible buffer slice; NULL = paint raw.
+ * Returned string is malloc'd; linenoise frees it. Width/cursor use raw buf. */
+typedef char *(linenoiseHighlightCallback)(const char *buf, size_t len);
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
 void linenoiseSetHintsCallback(linenoiseHintsCallback *);
 void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *);
+void linenoiseSetHighlightCallback(linenoiseHighlightCallback *);
 void linenoiseAddCompletion(linenoiseCompletions *, const char *);
 
 /* History API. */
