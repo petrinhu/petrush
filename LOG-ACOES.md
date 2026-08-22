@@ -33,5 +33,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - Próxima ⏳: UX-23 background `&` + job control mínimo. NEW-22 segue AFK.
 - UX-23 `053e3b5` no main: `&` + jobs + reaper; check 18/18. TODO 🔍. Sem fg/bg.
 - Onda W10: despacho FEAT-BANG + FEAT-TRUE (teto 2, paralelos, pré-req UX-23).
+- W10/W11/W12/W13 FEAT fechadas em 🔍: BANG TRUE UMASK NOCLOBBER READ PARAM TEST. HEAD inclui `dd93dda` FEAT-TEST.
+- Próxima onda W14 TST-* (T2 estática, T8 secrets, T15 pré-CI…). NEW-22 segue ⏳ (líder AFK). Log canônico: este arquivo.
 - UX-21 Opção A: highlight mínimo (aspas/CMD/OP); `test_highlight` + check 16/16; TODO 🔍. Sem push.
 - UX-22 impl: Mid source.h/c + test_source; load_rc_file=missing_ok; check 17/17 smoke 50; TODO 🔍. Sem push.
