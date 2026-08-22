@@ -100,7 +100,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | TST-T14 | W14 | Testes | Integração fim-a-fim (smoke). Ver `TESTES.md`. Relatório: [`docs/memory/tst-t14-smoke.md`](docs/memory/tst-t14-smoke.md). | Alta | FEAT-TEST | Média | 🔍 Pendente verificação | smoke 53/0 + check 18/18 PASS 2026-08-22 |
 | TST-T7 | W14 | Testes | Scanning de binário (checksec / hardening-check). Ver `TESTES.md`. | Média | FEAT-TEST | Baixa | ⏳ Pendente | — |
 | TST-T5 | W14 | Testes | Scanning de dependências (trivy/grype/OSV). Ver `TESTES.md`. Relatório: [`docs/memory/tst-t5-deps.md`](docs/memory/tst-t5-deps.md). | Média | FEAT-TEST | Baixa | 🔍 Pendente verificação | grype+trivy+osv EXIT 0; linenoise CVE-2025-9810 MEDIUM mitigado; 0 CRITICAL vendor |
-| TST-T12 | W14 | Testes | Busca de CVEs nas deps/toolchain. Ver `TESTES.md`. | Média | FEAT-TEST | Baixa | ⏳ Pendente | — |
+| TST-T12 | W14 | Testes | Busca de CVEs nas deps/toolchain. Ver `TESTES.md`. Relatório: [`docs/memory/tst-t12-cves.md`](docs/memory/tst-t12-cves.md). | Média | FEAT-TEST | Baixa | 🔍 Pendente verificação | grype+trivy+osv EXIT 0; CVE-2025-9810 MEDIUM mitigado SEC-08; 0 CRITICAL vendor; fedora:44 grype 0 |
 | TST-T3 | W14 | Testes | Fuzzing de inputs (parser / expand / prompt). Ver `TESTES.md`. | Média | FEAT-TEST | Alta | ⏳ Pendente | — |
 | AUD-SEC | W15 | Auditoria | Segurança (memory safety, secrets, `pudod`, binário). Ver `AUDITORIAS.md`. | Alta | TST-T2, TST-T4, TST-T7, TST-T8, TST-T12 | Alta | ⏳ Pendente | — |
 | AUD-DISC | W15 | Auditoria | Descoberta e modelagem de ameaça. Ver `AUDITORIAS.md`. | Alta | TST-T2, TST-T4, TST-T8, TST-T14, TST-T15 | Média | ⏳ Pendente | — |
