@@ -1,5 +1,6 @@
 /*
- * expand.h — ~ e $VAR (UX-12/13) + glob * ? (UX-18)
+ * expand.h — ~ / $VAR / ${VAR:-} / ${VAR:+} / ${#VAR} (UX-12/13, FEAT-PARAM)
+ * + glob * ? (UX-18)
  */
 
 #ifndef PETRUSH_EXPAND_H

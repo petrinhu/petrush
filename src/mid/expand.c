@@ -17,6 +17,153 @@ static int is_name_char(char c)
     return isalnum((unsigned char)c) || c == '_';
 }
 
+/* expand_brace chama expand_word no word de :- / :+ */
+char *expand_word(const char *word);
+
+static int ensure_cap(char **out, size_t *cap, size_t need)
+{
+    while (need >= *cap) {
+        size_t nc = *cap * 2;
+        char *n = realloc(*out, nc);
+        if (!n) return -1;
+        *out = n;
+        *cap = nc;
+    }
+    return 0;
+}
+
+static int append_bytes(char **out, size_t *o, size_t *cap,
+                        const char *src, size_t len)
+{
+    if (ensure_cap(out, cap, *o + len + 1) != 0) return -1;
+    memcpy(*out + *o, src, len);
+    *o += len;
+    return 0;
+}
+
+static int append_char(char **out, size_t *o, size_t *cap, char c)
+{
+    if (ensure_cap(out, cap, *o + 2) != 0) return -1;
+    (*out)[(*o)++] = c;
+    return 0;
+}
+
+/*
+ * FEAT-PARAM: ${VAR}, ${VAR:-word}, ${VAR:+word}, ${#VAR}.
+ * Sem nameref/${!}/replace/# % strip. Forma nao suportada = literal.
+ * Retorna 0 e avanca *pp apos '}'. -1 = OOM. 1 = tratar '$' como literal.
+ */
+static int expand_brace(const char **pp, char **out, size_t *o, size_t *cap)
+{
+    const char *p = *pp; /* aponta para '{' */
+    const char *body = p + 1;
+    const char *end = body;
+    while (*end && *end != '}') end++;
+    if (*end != '}') return 1; /* unclosed: literal $ */
+
+    const char *after = end + 1;
+    const char *cur = body;
+
+    /* ${#VAR} */
+    if (*cur == '#') {
+        cur++;
+        if (!is_name_char(*cur)) return 1;
+        const char *name = cur;
+        while (is_name_char(*cur)) cur++;
+        if (cur != end) return 1; /* ${#VAR...extra} fora de escopo */
+
+        char nbuf[256];
+        size_t nlen = (size_t)(cur - name);
+        if (nlen >= sizeof(nbuf)) nlen = sizeof(nbuf) - 1;
+        memcpy(nbuf, name, nlen);
+        nbuf[nlen] = '\0';
+
+        const char *val = petrush_getenv(nbuf);
+        size_t vlen = val ? strlen(val) : 0;
+        char lenbuf[32];
+        int nw = snprintf(lenbuf, sizeof(lenbuf), "%zu", vlen);
+        if (nw < 0) return -1;
+        if (append_bytes(out, o, cap, lenbuf, (size_t)nw) != 0) return -1;
+        *pp = after;
+        return 0;
+    }
+
+    if (!is_name_char(*cur)) return 1;
+    const char *name = cur;
+    while (is_name_char(*cur)) cur++;
+    size_t nlen = (size_t)(cur - name);
+    if (nlen == 0) return 1;
+
+    char nbuf[256];
+    if (nlen >= sizeof(nbuf)) nlen = sizeof(nbuf) - 1;
+    memcpy(nbuf, name, nlen);
+    nbuf[nlen] = '\0';
+
+    const char *val = petrush_getenv(nbuf);
+    int null_or_unset = (val == NULL || val[0] == '\0');
+
+    if (cur == end) {
+        /* ${VAR} */
+        if (!val) val = "";
+        if (append_bytes(out, o, cap, val, strlen(val)) != 0) return -1;
+        *pp = after;
+        return 0;
+    }
+
+    /* ${VAR:-word} / ${VAR:+word} */
+    if (cur[0] == ':' && (cur[1] == '-' || cur[1] == '+') &&
+        cur + 2 <= end) {
+        char op = cur[1];
+        const char *word = cur + 2;
+        size_t wlen = (size_t)(end - word);
+        char *wbuf = NULL;
+        char *wexp = NULL;
+        const char *use = NULL;
+        size_t ulen = 0;
+
+        if (op == '-') {
+            if (null_or_unset) {
+                wbuf = malloc(wlen + 1);
+                if (!wbuf) return -1;
+                memcpy(wbuf, word, wlen);
+                wbuf[wlen] = '\0';
+                wexp = expand_word(wbuf);
+                free(wbuf);
+                if (!wexp) return -1;
+                use = wexp;
+                ulen = strlen(wexp);
+            } else {
+                use = val;
+                ulen = strlen(val);
+            }
+        } else { /* '+' */
+            if (!null_or_unset) {
+                wbuf = malloc(wlen + 1);
+                if (!wbuf) return -1;
+                memcpy(wbuf, word, wlen);
+                wbuf[wlen] = '\0';
+                wexp = expand_word(wbuf);
+                free(wbuf);
+                if (!wexp) return -1;
+                use = wexp;
+                ulen = strlen(wexp);
+            } else {
+                use = "";
+                ulen = 0;
+            }
+        }
+
+        int rc = append_bytes(out, o, cap, use, ulen);
+        free(wexp);
+        if (rc != 0) return -1;
+        *pp = after;
+        return 0;
+    }
+
+    /* operador nao suportado (${!}, ${VAR#}, ${VAR%}, ${VAR/}...) */
+    return 1;
+}
+
 char *expand_word(const char *word)
 {
     if (!word) return NULL;
@@ -36,7 +183,7 @@ char *expand_word(const char *word)
         return out;
     }
 
-    /* UX-13: $VAR and ${VAR} anywhere in word */
+    /* UX-13 + FEAT-PARAM: $VAR / ${VAR} / ${VAR:-} / ${VAR:+} / ${#VAR} */
     size_t cap = strlen(word) * 4 + 64;
     if (cap < 256) cap = 256;
     char *out = malloc(cap);
@@ -46,68 +193,53 @@ char *expand_word(const char *word)
 
     while (*p) {
         if (*p == '$' && p[1]) {
-            const char *name = NULL;
-            size_t nlen = 0;
             if (p[1] == '{') {
-                const char *q = p + 2;
-                while (*q && *q != '}') q++;
-                if (*q == '}') {
-                    name = p + 2;
-                    nlen = (size_t)(q - name);
-                    p = q + 1;
-                } else {
-                    /* literal $ */
-                    if (o + 1 >= cap) {
-                        cap *= 2;
-                        char *n = realloc(out, cap);
-                        if (!n) { free(out); return NULL; }
-                        out = n;
-                    }
-                    out[o++] = *p++;
+                const char *brace = p + 1;
+                int br = expand_brace(&brace, &out, &o, &cap);
+                if (br == -1) { free(out); return NULL; }
+                if (br == 0) {
+                    p = brace;
                     continue;
                 }
-            } else if (is_name_char(p[1])) {
-                name = p + 1;
-                const char *q = name;
-                while (is_name_char(*q)) q++;
-                nlen = (size_t)(q - name);
-                p = q;
-            } else {
-                if (o + 1 >= cap) {
-                    cap *= 2;
-                    char *n = realloc(out, cap);
-                    if (!n) { free(out); return NULL; }
-                    out = n;
+                /* unsupported / unclosed: emit literal '$' */
+                if (append_char(&out, &o, &cap, *p) != 0) {
+                    free(out);
+                    return NULL;
                 }
-                out[o++] = *p++;
+                p++;
                 continue;
             }
-
-            char nbuf[256];
-            if (nlen >= sizeof(nbuf)) nlen = sizeof(nbuf) - 1;
-            memcpy(nbuf, name, nlen);
-            nbuf[nlen] = '\0';
-            const char *val = petrush_getenv(nbuf);
-            if (!val) val = "";
-            size_t vlen = strlen(val);
-            while (o + vlen + 1 >= cap) {
-                cap *= 2;
-                char *n = realloc(out, cap);
-                if (!n) { free(out); return NULL; }
-                out = n;
+            if (is_name_char(p[1])) {
+                const char *name = p + 1;
+                const char *q = name;
+                while (is_name_char(*q)) q++;
+                size_t nlen = (size_t)(q - name);
+                char nbuf[256];
+                if (nlen >= sizeof(nbuf)) nlen = sizeof(nbuf) - 1;
+                memcpy(nbuf, name, nlen);
+                nbuf[nlen] = '\0';
+                const char *val = petrush_getenv(nbuf);
+                if (!val) val = "";
+                if (append_bytes(&out, &o, &cap, val, strlen(val)) != 0) {
+                    free(out);
+                    return NULL;
+                }
+                p = q;
+                continue;
             }
-            memcpy(out + o, val, vlen);
-            o += vlen;
+            if (append_char(&out, &o, &cap, *p) != 0) {
+                free(out);
+                return NULL;
+            }
+            p++;
             continue;
         }
 
-        if (o + 1 >= cap) {
-            cap *= 2;
-            char *n = realloc(out, cap);
-            if (!n) { free(out); return NULL; }
-            out = n;
+        if (append_char(&out, &o, &cap, *p) != 0) {
+            free(out);
+            return NULL;
         }
-        out[o++] = *p++;
+        p++;
     }
     out[o] = '\0';
     return out;
