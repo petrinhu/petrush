@@ -9,6 +9,7 @@
 #include "petrush/pudo.h"
 #include "petrush/env.h"
 #include "allow_resolve.h"
+#include "child_argv.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -188,6 +189,73 @@ void test_sec02_debug_allows_relative_and_build_absolute(void)
     TEST_CHECK(pudo_allow_pudod_candidate("", 0) == 0);
 }
 
+/* ===================== SEC-04: fail closed se argc > MAX_ARGS ===================== */
+
+void test_sec04_pudod_build_rejects_overflow(void)
+{
+    /* pudod_argc = 2 + (PUDOD_MAX_ARGS + 1) user args => deve recusar. */
+    enum { N = PUDOD_MAX_ARGS + 3 }; /* argv[0], argv[1], + MAX+1 user */
+    char *argv_buf[N + 1];
+    char label_storage[N][16];
+    char *out[PUDOD_MAX_ARGS + 2];
+
+    argv_buf[0] = "pudod";
+    argv_buf[1] = "/bin/true";
+    for (int i = 2; i < N; i++) {
+        snprintf(label_storage[i], sizeof(label_storage[i]), "a%d", i);
+        argv_buf[i] = label_storage[i];
+    }
+    argv_buf[N] = NULL;
+
+    int rc = pudod_build_child_argv(argv_buf, N, "/bin/true", out,
+                                    PUDOD_MAX_ARGS + 2);
+    TEST_CHECK(rc == -1);
+}
+
+void test_sec04_pudod_build_accepts_at_limit(void)
+{
+    /* Exatamente PUDOD_MAX_ARGS user args: cabe. */
+    enum { N = PUDOD_MAX_ARGS + 2 }; /* argv[0], argv[1], + MAX user */
+    char *argv_buf[N + 1];
+    char label_storage[N][16];
+    char *out[PUDOD_MAX_ARGS + 2];
+
+    argv_buf[0] = "pudod";
+    argv_buf[1] = "/bin/true";
+    for (int i = 2; i < N; i++) {
+        snprintf(label_storage[i], sizeof(label_storage[i]), "b%d", i);
+        argv_buf[i] = label_storage[i];
+    }
+    argv_buf[N] = NULL;
+
+    int rc = pudod_build_child_argv(argv_buf, N, "/usr/bin/true", out,
+                                    PUDOD_MAX_ARGS + 2);
+    TEST_CHECK(rc == 0);
+    TEST_CHECK(out[0] != NULL && strcmp(out[0], "/usr/bin/true") == 0);
+    TEST_CHECK(out[PUDOD_MAX_ARGS] != NULL);     /* ultimo user arg */
+    TEST_CHECK(out[PUDOD_MAX_ARGS + 1] == NULL); /* terminador */
+}
+
+void test_sec04_pudo_helper_rejects_overflow(void)
+{
+    /* pudod path: fixed 2 + (argc-2) user + NULL > 128 */
+    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX, 0) == 0);
+    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX + 10, 0) == 0);
+    /* sudo path: fixed 2 + (argc-1) payload + NULL */
+    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX, 1) == 0);
+    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX - 1, 1) == 0);
+}
+
+void test_sec04_pudo_helper_accepts_small(void)
+{
+    TEST_CHECK(pudo_helper_argv_fits(2, 0) == 1);  /* pudo cmd */
+    TEST_CHECK(pudo_helper_argv_fits(3, 0) == 1);  /* pudo cmd arg */
+    TEST_CHECK(pudo_helper_argv_fits(2, 1) == 1);
+    TEST_CHECK(pudo_helper_argv_fits(10, 1) == 1);
+    TEST_CHECK(pudo_helper_argv_fits(1, 0) == 0);  /* argc invalido */
+    TEST_CHECK(pudo_helper_argv_fits(0, 1) == 0);
+}
+
 /* SEC-05: realpath falhou => recusar entrada (nunca aceitar o literal). */
 void test_pudod_allow_entry_rejects_unresolvable(void)
 {
@@ -303,6 +371,10 @@ TEST_LIST = {
     { "sec02_release_rejects_evil_abs",    test_sec02_release_rejects_untrusted_absolute_sibling },
     { "sec02_release_accepts_install",     test_sec02_release_accepts_install_absolutes },
     { "sec02_debug_allows_fallbacks",      test_sec02_debug_allows_relative_and_build_absolute },
+    { "sec04_pudod_build_rejects_overflow", test_sec04_pudod_build_rejects_overflow },
+    { "sec04_pudod_build_accepts_at_limit", test_sec04_pudod_build_accepts_at_limit },
+    { "sec04_pudo_helper_rejects_overflow", test_sec04_pudo_helper_rejects_overflow },
+    { "sec04_pudo_helper_accepts_small",    test_sec04_pudo_helper_accepts_small },
     { "pudod_allow_rejects_unresolvable",  test_pudod_allow_entry_rejects_unresolvable },
     { "pudod_allow_accepts_existing",      test_pudod_allow_entry_accepts_existing },
     { "pudod_refuses_without_privs",       test_pudod_binary_refuses_without_privileges },

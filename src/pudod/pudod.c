@@ -42,6 +42,7 @@
 #include <stdarg.h>
 
 #include "allow_resolve.h"
+#include "child_argv.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -59,8 +60,7 @@
 static char allowed_paths[MAX_ALLOWED][PATH_MAX];
 static int allowed_count = 0;
 
-/* Limites rígidos para evitar DoS / overflow */
-#define MAX_ARGS 128
+/* Limites rígidos para evitar DoS / overflow (MAX_ARGS = PUDOD_MAX_ARGS) */
 #define LOG_BUF_SIZE 512
 
 /* ========================== FUNÇÕES AUXILIARES ========================== */
@@ -187,27 +187,6 @@ static char **build_clean_envp(void)
     return envp;
 }
 
-/* Monta argv para o comando filho a partir de argv do pudod.
- * pudod_argv[1] = comando (já resolvido)
- * pudod_argv[2..] = argumentos do usuário
- */
-static char **build_child_argv(char * const pudod_argv[], const char *resolved)
-{
-    /* +1 para resolved, +1 para NULL */
-    static char *child_argv[MAX_ARGS + 2];
-    int out_idx = 0;
-
-    child_argv[out_idx++] = (char *)resolved;  /* argv[0] do filho */
-
-    /* Copia a partir de pudod_argv[2] */
-    for (int i = 2; pudod_argv[i] != NULL && out_idx < MAX_ARGS + 1; i++) {
-        child_argv[out_idx++] = pudod_argv[i];
-    }
-    child_argv[out_idx] = NULL;
-
-    return child_argv;
-}
-
 /* ========================== MAIN — LÓGICA PRIVILEGIADA ========================== */
 
 int main(int argc, char *argv[])
@@ -299,8 +278,15 @@ int main(int argc, char *argv[])
     pudod_log(LOG_INFO, "executando uid=%d cmd=%s (resolved=%s) argc=%d",
               (int)getuid(), user_cmd, resolved, argc - 1);
 
-    /* 10. Preparar argv e envp para o filho */
-    char **child_argv = build_child_argv(argv, resolved);
+    /* 10. Preparar argv e envp para o filho (SEC-04: fail closed se overflow) */
+    static char *child_argv_buf[PUDOD_MAX_ARGS + 2];
+    if (pudod_build_child_argv(argv, argc, resolved, child_argv_buf,
+                               PUDOD_MAX_ARGS + 2) != 0) {
+        pudod_log(LOG_ERR, "argc exceeds MAX_ARGS (%d), refusing truncated exec",
+                  PUDOD_MAX_ARGS);
+        goto cleanup;
+    }
+    char **child_argv = child_argv_buf;
     char **child_envp = build_clean_envp();
 
     /* 11. Executar o comando com privilégios (fexecve reduz TOCTOU) */

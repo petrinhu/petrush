@@ -70,7 +70,7 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | RES-SH-01 | W2 | Pesquisa | Inventário Feature × 10 shells × petrush. Artefato: [`docs/memory/shells-funcoes.md`](docs/memory/shells-funcoes.md). Cap FEAT = julgamento Caetano. | Alta | — | Baixa | 🔍 Pendente verificação | — |
 | SEC-02 | W2 | Segurança | Em Release/install, path do `pudod` só absoluto (`PUDOD_INSTALL_PATH` / `/usr/local/libexec/petrush-pudod`). Fallbacks `build/pudod`, `./pudod` e `access("pudod")` só em debug. | Alta | — | Média | 🔍 Pendente verificação | — |
 | SEC-05 | W2 | Segurança | Load da allow-list: se `realpath` falhar, não aceitar o literal (`pudod.c` ~L142–148). | Média | — | Baixa | 🔍 Pendente verificação | — |
-| SEC-04 | W2 | Segurança | Fail closed se `argc` exceder `MAX_ARGS` / `pudod_argv[128]` (hoje trunca em silêncio). | Média | — | Baixa | ⏳ Pendente | — |
+| SEC-04 | W2 | Segurança | Fail closed se `argc` exceder `MAX_ARGS` / `pudod_argv[128]` (hoje trunca em silêncio). | Média | — | Baixa | 🔍 Pendente verificação | — |
 | SEC-03 | W2 | Segurança | Encolher `src/pudod/pudo.allow.example` a 2–3 comandos inocentes (`id`, `whoami`, `true`). Tirar apt/dnf/systemctl/passwd/cat do exemplo ativo. | Média | — | Baixa | 🔍 Pendente verificação | — |
 | DOC-01 | W2 | Docs | Atualizar `docs/architecture.md`: Front já tem `complete.c`; prosa “porte Solo” é informal (piso early). | Baixa | — | Baixa | ⏳ Pendente | — |
 | NEW-22 | W2 | Processo | Confirmar retroativamente o escopo da Onda 3 (NEW-20 mínimo) com o líder. | Baixa | NEW-20 | Baixa | ⏳ Pendente | — |

@@ -369,6 +369,29 @@ static int pudod_basename_ok(const char *base)
 }
 
 /*
+ * SEC-04: cabe o argv do helper em PUDO_HELPER_ARGV_MAX (com NULL)?
+ * via_sudo: sudo + "--" + cmd->argv[1..]
+ * !via_sudo: pudod + target + cmd->argv[2..]
+ */
+int pudo_helper_argv_fits(int cmd_argc, int via_sudo)
+{
+    if (cmd_argc < 2) {
+        return 0;
+    }
+
+    int fixed = 2;
+    int payload = via_sudo ? (cmd_argc - 1) : (cmd_argc - 2);
+    if (payload < 0) {
+        return 0;
+    }
+    /* fixed + payload + NULL <= MAX */
+    if (fixed + payload + 1 > PUDO_HELPER_ARGV_MAX) {
+        return 0;
+    }
+    return 1;
+}
+
+/*
  * SEC-02: política pura de aceitação do path do helper.
  * release_mode: 1 = só absolutos em dirs de install; 0 = debug (relativos + qualquer abs).
  * Fail closed.
@@ -616,12 +639,19 @@ static int run_via_pudod(petrush_cmd_t *cmd)
          */
         fprintf(stderr, "pudo: aviso: pudod não encontrado, usando sudo como fallback\n");
 
-        /* Execução simples via sudo (compatibilidade) */
-        char *sudo_argv[128];
+        /* SEC-04: fail closed se argc nao cabe em sudo_argv[128] */
+        if (!pudo_helper_argv_fits(cmd->argc, 1)) {
+            fprintf(stderr,
+                    "pudo: too many arguments (limit %d), refusing truncated exec\n",
+                    PUDO_HELPER_ARGV_MAX - 3);
+            return 1;
+        }
+
+        char *sudo_argv[PUDO_HELPER_ARGV_MAX];
         int sidx = 0;
         sudo_argv[sidx++] = "/usr/bin/sudo";
         sudo_argv[sidx++] = "--";
-        for (int i = 1; i < cmd->argc && sidx < 126; i++) {
+        for (int i = 1; i < cmd->argc; i++) {
             sudo_argv[sidx++] = cmd->argv[i];
         }
         sudo_argv[sidx] = NULL;
@@ -636,18 +666,26 @@ static int run_via_pudod(petrush_cmd_t *cmd)
 
     if (cmd->argc < 2) return 127;
 
+    /* SEC-04: fail closed se argc nao cabe em pudod_argv[128] */
+    if (!pudo_helper_argv_fits(cmd->argc, 0)) {
+        fprintf(stderr,
+                "pudo: too many arguments (limit %d), refusing truncated exec\n",
+                PUDO_HELPER_ARGV_MAX - 3);
+        return 1;
+    }
+
     /* Resolve o comando alvo para absoluto quando possível */
     char *abs_target = resolve_target_absolute(cmd->argv[1]);
     const char *target_to_pass = abs_target ? abs_target : cmd->argv[1];
 
     /* Monta argv para pudod: pudod <target-abs> [resto dos args do usuário] */
-    char *pudod_argv[128];
+    char *pudod_argv[PUDO_HELPER_ARGV_MAX];
     int idx = 0;
 
     pudod_argv[idx++] = (char *)pudod;
     pudod_argv[idx++] = (char *)target_to_pass;
 
-    for (int i = 2; i < cmd->argc && idx < 126; i++) {
+    for (int i = 2; i < cmd->argc; i++) {
         pudod_argv[idx++] = cmd->argv[i];
     }
     pudod_argv[idx] = NULL;

@@ -31,4 +31,13 @@ int pudo_sanitize_environment(void);
  */
 int pudo_allow_pudod_candidate(const char *path, int release_mode);
 
+/*
+ * SEC-04: o argv montado para o helper cabe em buffer[PUDO_HELPER_ARGV_MAX]?
+ * via_sudo != 0: layout sudo + "--" + cmd->argv[1..]
+ * via_sudo == 0: layout pudod + target + cmd->argv[2..]
+ * Retorna 1 se cabe (com room para NULL), 0 se excederia (fail closed).
+ */
+#define PUDO_HELPER_ARGV_MAX 128
+int pudo_helper_argv_fits(int cmd_argc, int via_sudo);
+
 #endif /* PETRUSH_PUDO_H */
