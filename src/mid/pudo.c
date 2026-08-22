@@ -471,15 +471,26 @@ int pudo_allow_pudod_candidate(const char *path, int release_mode)
     return 0;
 }
 
+/* Struct evita bugprone-easily-swappable-parameters (size_t out_sz vs int release_mode). */
+typedef struct {
+    const char *path;
+    char *out;
+    size_t out_sz;
+    int release_mode;
+} try_abs_candidate_args;
+
 /*
  * Candidato absoluto: access + realpath + allow. Copia o path aceito em out.
  * Fail closed se não houver absoluto utilizável. Nao muda pudo_allow_*.
  */
-static const char *try_abs_candidate(const char *path, char *out, size_t out_sz,
-                                     int release_mode)
+static const char *try_abs_candidate(try_abs_candidate_args a)
 {
     char resolved[PATH_MAX];
     const char *cand;
+    const char *path = a.path;
+    char *out = a.out;
+    size_t out_sz = a.out_sz;
+    int release_mode = a.release_mode;
 
     if (!path || path[0] == '\0' || !out || out_sz == 0) {
         return NULL;
@@ -536,7 +547,12 @@ static const char *find_pudod_binary(void)
                     (int)sizeof(cand)) {
                     continue;
                 }
-                if (try_abs_candidate(cand, found, sizeof(found), release_mode)) {
+                if (try_abs_candidate((try_abs_candidate_args){
+                        .path = cand,
+                        .out = found,
+                        .out_sz = sizeof(found),
+                        .release_mode = release_mode,
+                    })) {
                     return found;
                 }
             }
@@ -578,8 +594,12 @@ static const char *find_pudod_binary(void)
             NULL
         };
         for (int i = 0; install_paths[i]; i++) {
-            if (try_abs_candidate(install_paths[i], found, sizeof(found),
-                                  release_mode)) {
+            if (try_abs_candidate((try_abs_candidate_args){
+                    .path = install_paths[i],
+                    .out = found,
+                    .out_sz = sizeof(found),
+                    .release_mode = release_mode,
+                })) {
                 return found;
             }
         }
