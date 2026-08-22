@@ -1,139 +1,232 @@
-# Guia para Iniciantes em Computação — petrush
+# Guia para iniciantes em computação - petrush
 
-**Bem-vindo!** Este guia explica **tudo do zero**, sem assumir conhecimento prévio. petrush é um "shell" (interpretador de comandos) escrito em C23, como um "bash" ou "zsh" mínimo e seguro feito do zero para uso pessoal.
+> **Tipo Diátaxis:** explanation + quick-start (um documento, audiência única).  
+> **Audiência:** iniciante em terminal / C (sem jargão sem definição).  
+> **Versão do produto:** pós UX-16..23 (caminho para `v0.5`; tag ainda não publicada nesta fatia).  
+> **Owner:** technical-writer · **Last-reviewed:** 2026-08-22 · **Item:** NEW-23 (parcial: só este `.md`; wiki GitHub depois da tag)
 
-## O que é um Shell / REPL?
+**Bem-vindo.** Este guia explica o petrush **do zero**. petrush é um *shell* (interpretador de comandos) escrito em C23: você digita uma linha, ele executa e mostra o resultado. Parece um bash ou zsh **mínimo**, feito para uso pessoal e estudo, **não** um clone POSIX completo.
 
-- **Shell**: Programa que lê comandos que você digita, executa programas externos (como `ls`, `cat`) ou comandos internos ("builtins" como `cd`, `echo`), e mostra o resultado.
-- **REPL**: Read-Eval-Print Loop — loop infinito: lê linha → avalia/executa → imprime resultado → repete.
-- Exemplo: você digita `ls`, o shell acha o programa `/bin/ls` no PATH, executa via fork+exec, espera, mostra output.
+## O que é um shell / REPL?
 
-petrush é um REPL em C23 (linguagem de baixo nível, compilada, sem "garbage collector").
+- **Shell:** programa que lê o que você digita, executa programas externos (`ls`, `cat`) ou comandos internos (*builtins*: `cd`, `echo`, `jobs`…) e mostra a saída.
+- **REPL:** *Read-Eval-Print Loop* - lê uma linha → avalia/executa → imprime → repete.
+- Exemplo: você digita `ls`; o shell procura `/bin/ls` (ou outro caminho no `PATH`), cria um processo filho (`fork` + `exec`), espera e mostra o texto.
 
-## Conceitos Básicos (explicados)
+petrush é um REPL em **C23** (linguagem compilada, sem *garbage collector*).
 
-- **Compilar**: Transformar código fonte (.c) em binário executável usando `cmake` + `make` (ou `cmake --build`).
-- **CMake**: Ferramenta que gera arquivos de build (Makefile) a partir de `CMakeLists.txt`. Configura compilador, flags, testes.
-- **Hardening**: Flags de segurança no compilador ( -fstack-protector, -pie, FORTIFY_SOURCE ) para dificultar exploits.
-- **Sanitize (ASan/UBSan)**: Build especial que detecta erros de memória (use-after-free, buffer overflow) em tempo de execução.
-- **Lint**: Análise estática (clang-tidy, cppcheck) que aponta bugs/estilo sem rodar o programa.
-- **Valgrind**: Ferramenta que detecta vazamentos de memória e uso inválido.
-- **TDD**: Test-Driven Development — escrever teste primeiro, depois código que faz passar.
-- **Fork/Exec**: Como shell executa comandos: fork() clona processo, exec() substitui imagem por novo programa, wait() espera terminar.
-- **Sinais (signals)**: Notificações do SO (SIGINT = Ctrl-C). petrush trata para não quebrar o prompt.
-- **PATH**: Variável de ambiente com diretórios onde o shell procura comandos ( /usr/bin:/bin:... ).
-- **rc file**: Arquivo de configuração (~/.petrushrc) executado no início (como .bashrc).
-- **History**: Lembrete de comandos digitados (usando linenoise library embutida).
-- **`pudo`**: Nosso "sudo" seguro. petrush (sem privilégios) chama `pudod` (helper mínimo setuid) que re-valida tudo e executa só comandos permitidos em /etc/petrush/pudo.allow.
+## Conceitos básicos
 
-## Como o petrush funciona (passo a passo)
+- **Compilar:** transformar código `.c` em binário com `cmake` + `cmake --build`.
+- **CMake:** lê `CMakeLists.txt` e gera o build (compilador, flags, testes).
+- **Hardening:** flags de segurança no compilador (`-fstack-protector`, PIE, `FORTIFY_SOURCE`…) para dificultar exploits.
+- **Sanitize (ASan/UBSan):** build que detecta erros de memória em tempo de execução.
+- **Lint:** análise estática (`clang-tidy`, `cppcheck`) sem rodar o programa.
+- **Valgrind:** ferramenta que procura vazamentos e uso inválido de memória.
+- **TDD:** escrever o teste primeiro, depois o mínimo de código que o faz passar.
+- **Fork/exec:** como o shell roda externos: `fork()` clona o processo; `exec` troca a imagem pelo programa; `wait` espera terminar.
+- **Sinais:** avisos do sistema (ex.: `SIGINT` = Ctrl-C). petrush trata para o prompt não morrer.
+- **PATH:** lista de pastas onde o shell procura comandos (`/usr/bin:/bin:…`).
+- **rc file:** `~/.petrushrc` - script opcional lido no início (estilo `.bashrc`, com as regras do `source` abaixo).
+- **History:** comandos digitados (biblioteca *linenoise* embutida).
+- **`pudo`:** nosso “sudo” do projeto. O shell (sem root) chama o helper `pudod`, que só roda o que a allow-list permitir.
 
-1. `main()` : imprime banner, salva termios (estado do terminal), configura sinais, carrega history e rc.
-2. Loop REPL: `linenoise("petrush> ")` lê linha (com edição).
-3. Parse: `petrush_parse()` quebra em argv (lida com aspas simples/duplas).
-4. Dispatch: `dispatch_command()` vê se builtin (cd, echo...) ou externo.
-   - Builtins: executam dentro do processo (cd usa chdir).
-   - Externo: `execute_external()` faz fork, dá terminal para filho, execv, espera, restaura terminal.
-5. `pudo`: builtin especial que sanitiza env perigoso (LD_PRELOAD etc), checa allow-list client, chama pudod com argv limpo.
-6. pudod (helper): roda como root (setuid), re-checa tudo (realpath, fstat, allow-list root), constrói env mínimo, fexecve o comando alvo.
+## Como o petrush funciona (visão simples)
 
-## Build e Testes (do zero)
+1. `main()`: banner, estado do terminal, sinais, history e `~/.petrushrc`.
+2. Loop REPL: `linenoise` lê a linha (edição, setas, Tab, Ctrl-R, highlight).
+3. Antes do próximo prompt: reap de jobs em background e aviso `Done` (UX-23).
+4. Parse: quebra a linha em palavras, pipes, redirs, listas (`&&` `||` `;`) e `&`.
+5. Expansões: `~`, `$VAR`, glob `*`/`?` em tokens **sem aspas**.
+6. Dispatch: builtin no processo atual, ou externo / pipeline / job em background.
+7. `pudo`: limpa o ambiente perigoso no filho e chama `pudod` com argv sanitizado.
+
+## Build e testes (do zero)
 
 ```bash
 # 1. Clone e entre
-git clone ... petrush
+git clone git@github.com:petrinhu/petrush.git
 cd petrush
 
-# 2. Configure + build (usa Release por padrão)
+# 2. Configure + build (Release)
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
 # 3. Rode
 ./build/petrush
 
-# 4. Gate completo (lint + smoke + valgrind) — TUDO automatizado
+# 4. Gate completo (lint + testes + smoke + valgrind quando aplicável)
 cmake --build build --target verify
 ```
 
-- `clean-build`: `cmake --build build --target clean-build` (depois re-configure).
-- Testes unitários: parte do verify ou `cmake --build build --target check`.
+- Só unitários: `cmake --build build --target check`
+- Só smoke (binário real via pipe): `cmake --build build --target smoke`
+- Limpar e reconfigurar: `cmake --build build --target clean-build` e depois configure de novo
 
-## Comandos comuns no petrush
+CI no GitHub Actions (Fedora e outras distros). Não precisa de setuid para desenvolver nem para a maior parte dos testes.
 
-- `cd /caminho` — muda diretório (builtin)
-- `pwd` — mostra diretório atual
-- `echo texto` — imprime
-- `export VAR=valor` — define variável de ambiente
-- `env` — lista variáveis
-- `history` — mostra histórico
-- `pudo comando` — executa com privilégios (via pudod)
-- Qualquer outro: executa binário do PATH (ex: `ls`, `cat`, `gcc`)
-- **Pipe** `|` — liga a saída de um comando externo à entrada do próximo (`printf 'a\n' | cat`)
-- **Redirecionamento** — `>` grava stdout em arquivo (cria/trunca), `>>` anexa, `<` lê stdin de arquivo
+## Comandos e recursos que existem hoje
 
-Ainda **não** há: background (`&`), `2>` (stderr), globbing (`*.c`), scripts em arquivo.
+### Builtins úteis
 
-## Segurança e `pudo` (explicado simples)
+| Comando | O que faz (resumo) |
+|---|---|
+| `cd` / `pwd` | muda / mostra diretório (`cd -` volta ao anterior) |
+| `echo` / `export` / `env` | imprime; define variável; lista ambiente |
+| `history` / `help` / `exit` | histórico; ajuda; sai |
+| `alias` / `unalias` / `which` | atalhos; desfaz; “onde está este comando?” |
+| `pushd` / `popd` / `dirs` | pilha de diretórios |
+| `source` / `.` | roda um arquivo **neste** processo (ver limites) |
+| `jobs` | lista jobs em background |
+| `true` / `false` / `:` | status 0 / 1 / 0 (silenciosos) |
+| `umask` / `read` / `test` / `[` | máscara octal; lê 1 linha → 1 var; testes curtos de arquivo/string |
+| `pudo` | elevação via `pudod` + allow-list |
+| `info` | diagnóstico leve do shell |
 
-`pudo` é como sudo, mas mais seguro para este projeto:
-- petrush nunca roda como root.
-- Chama `pudod` (programa pequeno separado).
-- `pudod` só permite comandos listados em `/etc/petrush/pudo.allow` (arquivo root-only).
-- Sanitiza variáveis perigosas (LD_PRELOAD etc) que podem ser usadas para hacks.
+Externos do `PATH` (`ls`, `cat`, `gcc`…) funcionam como em qualquer shell.
 
-**Nunca** dê chmod 4755 no pudod sem ler os docs de segurança primeiro!
+### Listas, pipes e redirecionamento
 
-## Dicas de troubleshooting
+- **Pipe** `|` - liga stdout de um estágio à stdin do próximo.  
+  Em pipe com **2+** estágios, builtins também rodam em processo filho: `cd`/`export`/`exit` **no pipe não mudam** o shell pai (UX-19).
+- **Listas**  
+  - `&&` / `||` - curto-circuito (só roda o próximo se o anterior passou / falhou).  
+  - `;` - sempre roda o próximo (UX-17).
+- **Stdout / stdin** - `>` cria/trunca (com noclobber: falha se o arquivo já existe), `>>` anexa, `<` lê de arquivo.
+- **Stderr (UX-16)** - `2>` e `2>>` para arquivo; `2>&1` junta stderr no stdout; `&>` manda os dois para o mesmo arquivo.  
+  **Atenção:** `&>` é **redirecionamento**, não background.
 
-- Build falha? Rode com Debug: `-DCMAKE_BUILD_TYPE=Debug`
-- Erros de memória? Use build Sanitize + valgrind.
-- `pudo` nega comando? Adicione o caminho absoluto no allow-list (como root).
-- Terminal bugado após editor? petrush restaura termios automaticamente.
+### Glob simples (UX-18)
 
-## Por que C23 + CMake + hardening?
+- Em tokens **sem aspas**, `*` e `?` expandem para nomes de arquivo (depois de `~` e `$VAR`).
+- Entre aspas (`"*.c"`) o padrão fica **literal**.
+- Zero matches: o padrão permanece (não some).
+- **Não há** classes `[…]`, nem `**` recursivo, nem glob no caminho de redirecionamento.
+- Teto de matches: se passar do limite interno, falha de forma fechada (não explode a linha).
 
-- C23: moderno, seguro.
-- CMake: fácil build, testes, multi-plataforma.
-- Hardening + Sanitize + Valgrind + Lint: código de alta qualidade, menos bugs de segurança.
+### `source` / `.` (UX-22)
 
-Se você é iniciante total:
-- Aprenda primeiro: o que é terminal, PATH, fork/exec (procure "unix fork exec tutorial" em pt).
-- Depois leia o código: comece por `src/main.c`.
+```bash
+source ./meus-aliases.sh
+. ./meus-aliases.sh
+```
 
-Boa sorte! Este projeto foi feito para ser simples e educativo.
+- Roda o arquivo **linha a linha no processo atual** (variáveis e `cd` ficam).
+- Caminho **explícito** (relativo ou absoluto). **Não** procura no `PATH`.
+- Exige exatamente um argumento (o arquivo). Sem `$1`…`$n`, sem `return` de função.
+- Teto de profundidade aninhada: **8**. Arquivo ausente → erro.
+- `~/.petrushrc` usa o mesmo motor (arquivo opcional: sumir não é erro).
 
-(Conteúdo para wiki + docs iniciante — NEW-13. Publique na wiki do GitHub copiando este guia + links para código.)
-- Smoke: `cmake --build build --target smoke` (roda comandos reais via pipe, checa output).
+### Background e `jobs` (UX-23)
+
+```bash
+/bin/sleep 30 &
+jobs
+```
+
+- Sufixo `&` manda o item para background; o prompt volta na hora.
+- Builtin `jobs` lista o que ainda está na tabela (`Running` / `Done`).
+- Ao voltar ao prompt, jobs terminados podem mostrar algo como `[N]+ Done  …`.
+- Teto: **16** jobs. Stdin de job em TTY sem `<` vai para `/dev/null`.
+- **Ainda não há:** `fg`, `bg`, Ctrl-Z, `%n`, builtin `wait`. Job control é **mínimo** de propósito.
+
+### Edição no prompt (UX-20 / UX-21 e onda UX anterior)
+
+- **Setas** e edição de linha (linenoise).
+- **Tab** - completa builtins, PATH e arquivos.
+- **History hints** - “fantasma” do comando antigo enquanto você digita um prefixo.
+- **Ctrl-R** - busca reversa no histórico (substring, do mais novo ao mais velho). Enter aceita; ESC cancela. Sem Ctrl-S, sem regex, sem modo vi.
+- **Highlight mínimo** - cores CSI para aspas (fechadas / abertas) e tokens grossos (comando vs operador). `NO_COLOR` desliga. Não é highlighter completo (sem keywords, sem `$VAR` colorido, sem `#` comentário).
+
+### Prompt customizável
+
+```bash
+export PETRUSH_PS1='\u@\h:\w\$ '
+```
+
+Escapes: `\w` (cwd), `\u`, `\h`, `\n`, `\$`, `\\`. Default continua `petrush> `.
+
+### History bangs
+
+- `!!` e `!n` - repetem evento.
+- `!$` / `!^` - último / primeiro argumento do último evento.
+- Sem `!str`, sem modifiers (`:h`, `:t`).
+
+## O que **não** é (honestidade POSIX)
+
+petrush **não** promete “POSIX 100%”. Em especial, **ainda não** (ou de propósito nunca neste recorte):
+
+| Tema | Situação no petrush |
+|---|---|
+| `fg` / `bg` / Ctrl-Z / `%n` / `wait` | fora do escopo UX-23 |
+| Glob `[a-z]` / `**` / glob em redir | fora (só `*` `?` unquoted) |
+| `source` via PATH, `$1`, `return` | fora |
+| `[[ … ]]`, `-a`/`-o`/`!` no `test` | fora (só primaries curtos) |
+| `set -C` / `set -o noclobber` | noclobber de `>`/`2>` já está sempre ligado |
+| `printf` builtin, command substitution, funções, `if`/`for` | fora deste produto mínimo |
+| lastpipe / `pipefail` / `PIPESTATUS` | fora ou só no backlog |
+
+Use bash/zsh quando precisar do dialeto completo. petrush é shell **educativo e pessoal**, com superfície pequena e auditável.
 
 ## Segurança e `pudo`
 
-Nunca rode `sudo chown root:root build/pudod; sudo chmod 4755 ...` sem ler:
+`pudo` é como um sudo **do projeto**, mais estreito:
 
-- `docs/security/pudod-install.md`
-- `docs/security/pudo-audit.md`
+1. petrush **nunca** precisa rodar como root.
+2. Chama o helper `pudod` (binário pequeno e separado).
+3. `pudod` só executa caminhos listados na allow-list root-only (ex.: `/etc/petrush/pudo.allow`).
+4. Ambiente perigoso (`LD_PRELOAD` etc.) é limpo no caminho privilegiado, não “desligado” no seu shell pai.
 
-O pudod é **mínimo** (<300 LOC efetivo) para ser auditável. Allow-list é em arquivo root-only.
+**Nunca** faça `chown root` + `chmod 4755` no `pudod` sem ler antes:
 
-## Jargão comum (glossário rápido)
+- [`docs/security/pudod-install.md`](security/pudod-install.md)
+- [`docs/security/pudo-audit.md`](security/pudo-audit.md)
 
-- **argv/argc**: array de strings + contador de argumentos (padrão C para main e exec).
-- **fork/exec/wait**: trio clássico Unix para rodar programas filhos.
-- **termios**: estrutura que controla modo do terminal (raw vs cooked, echo on/off).
-- **setpgid / tcsetpgrp**: controle de jobs (quem tem o terminal).
-- **ASan/UBSan**: AddressSanitizer / UndefinedBehaviorSanitizer (detectam bugs de memória).
-- **FORTIFY_SOURCE / stack-protector / PIE / relro**: mitigações contra exploits.
-- **acutest.h**: framework mínimo de testes em C (header-only).
-- **linenoise**: biblioteca pequena para leitura de linha com history/edição (embutida).
+E sem seguir o `DEPLOY_CHECKLIST` do vault + aprovação do líder. Setuid em sistema é operação irreversível de segurança.
 
-## Próximos passos (se quiser contribuir ou entender mais)
+## Dicas de troubleshooting
 
-- Leia código em ordem: main.c → mid/dispatcher.c → foundation/process.c
-- Rode com sanitize: `cmake -B build-sanitize -S . -DCMAKE_BUILD_TYPE=Sanitize ; cmake --build build-sanitize --target verify`
-- Veja smoke script: `tests/smoke/pudo-smoke.sh`
-- Para CI: `.github/workflows/ci.yml`
+- Build falha? Tente Debug: `-DCMAKE_BUILD_TYPE=Debug`.
+- Suspeita de memória? Build Sanitize + target `verify` / valgrind.
+- `pudo` nega? Só entra caminho absoluto na allow-list (como root), e o binário precisa existir e ser executável.
+- Cores estranhas no prompt? Exporte `NO_COLOR=1`.
+- Terminal “quebrado” depois de um editor? petrush restaura *termios* ao voltar.
+- `>` falhou em arquivo que já existe? É o noclobber sempre ligado; use `>>` ou outro nome.
 
-Se algo não fizer sentido, pergunte! O projeto é feito para ser simples e educativo.
+## Por que C23 + CMake + hardening?
 
-Boa sorte explorando o seu primeiro shell "do zero"!
+- **C23:** C moderno, previsível, próximo do sistema.
+- **CMake:** um jeito só de buildar e testar.
+- **Hardening + Sanitize + Valgrind + Lint:** menos bugs de memória e superfície menor para auditoria (incluindo o caminho `pudo`/`pudod`).
 
-(Conteúdo gerado como parte da documentação obrigatória para iniciantes — NEW-13)
+Se você é iniciante total:
+
+1. Aprenda terminal, `PATH` e a ideia fork/exec (procure “unix fork exec” em pt).
+2. Depois leia o código nesta ordem: `src/main.c` → dispatcher → `process` / `job` → `pudo`/`pudod`.
+
+## Glossário rápido
+
+- **argv / argc:** lista de argumentos + quantos são (padrão C).
+- **fork / exec / wait:** trio clássico Unix para filhos.
+- **termios:** modo do terminal (eco, raw vs cooked).
+- **job:** processo (ou grupo) que o shell acompanha; aqui, só background mínimo.
+- **ASan / UBSan:** sanitizers de endereço / comportamento indefinido.
+- **FORTIFY_SOURCE / stack-protector / PIE / relro:** mitigações de binário.
+- **acutest:** framework mínimo de testes em C (header-only).
+- **linenoise:** leitura de linha com history/edição (embutida; patch Ctrl-R / highlight).
+
+## Próximos passos
+
+- Código: comece por `src/main.c`.
+- Sanitize local:  
+  `cmake -B build-sanitize -S . -DCMAKE_BUILD_TYPE=Sanitize && cmake --build build-sanitize --target verify`
+- Smoke: `tests/smoke/pudo-smoke.sh` (também via target `smoke`).
+- CI: `.github/workflows/ci.yml`
+- Padrões da casa: [`docs/standards.md`](standards.md) (aponta CONTRACT / TESTES / AUDITORIAS…).
+- Wiki GitHub: atualização **depois** da tag `v0.5` (mesma fatia NEW-23; este arquivo é a fonte).
+
+Se algo não fizer sentido, pergunte. O projeto foi feito para ser simples e educativo.
+
+---
+
+*NEW-23 parcial - só `docs/beginner-guide.md`. Wiki nativa do GitHub fica para o orquestrador após a tag. Sem em-dash. Sem inventar POSIX completo.*
