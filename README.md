@@ -67,6 +67,20 @@ Uso comercial é permitido, desde que o código-fonte de versões modificadas se
 
 → [Leia o texto completo da licença](LICENSE.md)
 
+`LICENSE.md` cobre só o código petrush. Componentes de terceiros embutidos
+ficam em [`NOTICE`](NOTICE) (não substituem a AGPL).
+
+## Third-party
+
+| Componente | Path | Licença | Autores |
+|---|---|---|---|
+| linenoise 1.0 | `vendor/linenoise/` | BSD 2-Clause | Salvatore Sanfilippo, Pieter Noordhuis |
+
+O binário `petrush` compila o linenoise embutido (line editing + history).
+O helper `pudod` **não** liga linenoise. Texto BSD-2 completo e nota de
+compatibilidade com AGPL-3.0: [`NOTICE`](NOTICE). Changelog de patches
+locais: `vendor/linenoise/README.md`.
+
 ## Contribuição
 
 Projeto pessoal. Issues e PRs só após conversa.
