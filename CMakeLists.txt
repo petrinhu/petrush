@@ -39,6 +39,7 @@ add_executable(petrush
     src/mid/dirstack.c
     src/mid/source.c
     src/mid/hist_expand.c
+    src/mid/ui_port.c
     src/mid/expand.c
     src/mid/prompt.c
     src/front/complete.c
@@ -194,10 +195,11 @@ target_compile_options(test_env PRIVATE
 add_test(NAME test_env COMMAND test_env)
 
 # Testes info / diagnóstico (Onda 3 placeholder, NEW-04)
-# dispatcher puxa linenoise (clear) + pudo + process/env
+# ARCH-03: clear via ui_port (sem linenoise.c neste alvo)
 add_executable(test_info
     tests/test_info.c
     src/mid/dispatcher.c
+    src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
     src/mid/alias.c
@@ -208,15 +210,10 @@ add_executable(test_info
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
-    vendor/linenoise/linenoise.c
 )
 target_include_directories(test_info PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/vendor/linenoise
-)
-set_source_files_properties(vendor/linenoise/linenoise.c PROPERTIES
-    COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-unused-function"
 )
 target_compile_options(test_info PRIVATE
     -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
@@ -224,9 +221,11 @@ target_compile_options(test_info PRIVATE
 add_test(NAME test_info COMMAND test_info)
 
 # UX-19: builtins no pipeline (fork por estágio + hook)
+# ARCH-03: sem linenoise.c (dispatcher usa ui_port)
 add_executable(test_pipeline_builtin
     tests/test_pipeline_builtin.c
     src/mid/dispatcher.c
+    src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
     src/mid/alias.c
@@ -237,15 +236,10 @@ add_executable(test_pipeline_builtin
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
-    vendor/linenoise/linenoise.c
 )
 target_include_directories(test_pipeline_builtin PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/vendor/linenoise
-)
-set_source_files_properties(vendor/linenoise/linenoise.c PROPERTIES
-    COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-unused-function"
 )
 target_compile_options(test_pipeline_builtin PRIVATE
     -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
@@ -290,11 +284,13 @@ target_compile_options(test_alias PRIVATE
 add_test(NAME test_alias COMMAND test_alias)
 
 # Completion + history hints (NEW-23)
+# Mantém linenoise (Front); ui_port para dispatcher/clear
 add_executable(test_complete
     tests/test_complete.c
     src/front/complete.c
     src/front/highlight.c
     src/mid/dispatcher.c
+    src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
     src/mid/alias.c
@@ -335,18 +331,15 @@ target_compile_options(test_dirstack PRIVATE
 add_test(NAME test_dirstack COMMAND test_dirstack)
 
 # History expansion !! !n (NEW-26)
+# ARCH-03: fixture ui_port; sem linenoise.c
 add_executable(test_hist_expand
     tests/test_hist_expand.c
     src/mid/hist_expand.c
-    vendor/linenoise/linenoise.c
+    src/mid/ui_port.c
 )
 target_include_directories(test_hist_expand PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/vendor/linenoise
-)
-set_source_files_properties(vendor/linenoise/linenoise.c PROPERTIES
-    COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-unused-function"
 )
 target_compile_options(test_hist_expand PRIVATE
     -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
@@ -445,10 +438,12 @@ target_compile_options(test_highlight PRIVATE
 add_test(NAME test_highlight COMMAND test_highlight)
 
 # UX-22: source / . (arquivo no processo atual)
+# ARCH-03: sem linenoise.c (dispatcher usa ui_port)
 add_executable(test_source
     tests/test_source.c
     src/mid/source.c
     src/mid/dispatcher.c
+    src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
     src/mid/alias.c
@@ -458,15 +453,10 @@ add_executable(test_source
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
-    vendor/linenoise/linenoise.c
 )
 target_include_directories(test_source PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/vendor/linenoise
-)
-set_source_files_properties(vendor/linenoise/linenoise.c PROPERTIES
-    COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-unused-function"
 )
 target_compile_options(test_source PRIVATE
     -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
@@ -514,6 +504,7 @@ if(CLANG_TIDY_EXE)
             ${CMAKE_SOURCE_DIR}/src/main.c
             ${CMAKE_SOURCE_DIR}/src/mid/parser.c
             ${CMAKE_SOURCE_DIR}/src/mid/dispatcher.c
+            ${CMAKE_SOURCE_DIR}/src/mid/ui_port.c
             ${CMAKE_SOURCE_DIR}/src/mid/pudo.c
             ${CMAKE_SOURCE_DIR}/src/foundation/process.c
             ${CMAKE_SOURCE_DIR}/src/foundation/job.c

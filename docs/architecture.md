@@ -32,7 +32,8 @@ Fecha drift AUD-ARCH F5 / R-I12 e documenta exceções F3/F4 (R-I10 / R-I11).
 | `alias.c` | Aliases de shell |
 | `dirstack.c` | Stack de diretórios (`pushd`/`popd`/…) |
 | `source.c` | `source` / `.` de scripts e rc |
-| `hist_expand.c` | Expansão de history (`!!`, …) |
+| `hist_expand.c` | Expansão de history (`!!`, …) via `ui_port` |
+| `ui_port.c` | Porta DIP clear + history get/len (ARCH-03) |
 | `prompt.c` | Montagem da string de prompt (`PETRUSH_PS1`) |
 | `pudo.c` | Cliente unpriv do helper `pudod` |
 
@@ -86,7 +87,7 @@ Mitigação futura opcional: `petrush_spawn_background()` em Foundation. Não bl
 
 | ID | Tema | Estado |
 |----|------|--------|
-| F1 / R-I8 | Mid importa linenoise (`dispatcher` clear; `hist_expand`) | Dívida de produto (porta Front); ver AUD-DEPS D1 |
+| F1 / R-I8 | Mid importa linenoise (`dispatcher` clear; `hist_expand`) | **Fechado** por ARCH-03 (`ui_port` DIP; adapter em `complete.c`) |
 | F2 / R-I9 | `rc_trust` físico Front, usado pelo Mid | **Fechado** por ARCH-02 (`src/foundation/rc_trust.c`) |
 
 ## Direção de includes (alvo early)
@@ -98,7 +99,7 @@ Back: thin / placeholder
 pudod: headers locais apenas (0 petrush/*, 0 linenoise)
 ```
 
-Vendor linenoise: path canônico de UI = Front. Residual Mid+linenoise = F1 (acima).
+Vendor linenoise: path canônico de UI = Front. Mid acessa clear/history só via `petrush/ui_port.h` (ARCH-03 / F1 fechado).
 
 ## Futuro
 

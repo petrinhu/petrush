@@ -7,12 +7,51 @@
 #include "petrush/dispatcher.h"
 #include "petrush/env.h"
 #include "petrush/parser.h"
+#include "petrush/ui_port.h"
 
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+/* ARCH-03: spy prove que builtin_clear usa a porta, não linenoise direto. */
+static int g_clear_spy_calls;
+
+static void spy_clear_screen(void)
+{
+    g_clear_spy_calls++;
+}
+
+static int spy_history_len(void)
+{
+    return 0;
+}
+
+static const char *spy_history_get(int index)
+{
+    (void)index;
+    return NULL;
+}
+
+void test_builtin_clear_uses_ui_port(void)
+{
+    g_clear_spy_calls = 0;
+    petrush_ui_port_t port = {
+        .clear_screen = spy_clear_screen,
+        .history_len = spy_history_len,
+        .history_get = spy_history_get,
+    };
+    petrush_ui_port_bind(&port);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("clear", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    TEST_CHECK(g_clear_spy_calls == 1);
+    petrush_cmd_free(&cmd);
+
+    petrush_ui_port_bind(NULL);
+}
 
 void test_info_builtin_basic(void)
 {
@@ -712,6 +751,7 @@ void test_help_mentions_test(void)
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
+    { "builtin_clear_uses_ui_port", test_builtin_clear_uses_ui_port },
     { "builtin_redir_out_noclobber", test_builtin_redir_out_noclobber_existing },
     { "builtin_redir_append_ok",     test_builtin_redir_append_allows_existing },
     { "builtin_true_false_colon_in_table", test_builtin_true_false_colon_in_table },

@@ -6,6 +6,7 @@
 #include "petrush/dispatcher.h"
 #include "petrush/env.h"
 #include "petrush/highlight.h"
+#include "petrush/ui_port.h"
 #include "linenoise.h"
 
 #include <stdio.h>
@@ -161,10 +162,19 @@ static void free_hints_cb(void *ptr)
 
 void petrush_setup_linenoise_ux(void)
 {
+    static const petrush_ui_port_t linenoise_port = {
+        .clear_screen = linenoiseClearScreen,
+        .history_len = linenoiseHistoryLen,
+        .history_get = linenoiseHistoryGet,
+    };
+
     linenoiseSetCompletionCallback(completion_cb);
     linenoiseSetHintsCallback(hints_cb);
     linenoiseSetFreeHintsCallback(free_hints_cb);
     /* NO_COLOR (qualquer valor) desliga highlight; sem flag nova. */
     if (!getenv("NO_COLOR"))
         linenoiseSetHighlightCallback(highlight_cb);
+
+    /* ARCH-03: Mid usa a porta; adapter linenoise só aqui. */
+    petrush_ui_port_bind(&linenoise_port);
 }

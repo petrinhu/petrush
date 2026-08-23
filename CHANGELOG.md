@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **ARCH-03 / P2.1:** porta DIP `petrush/ui_port.h` (`clear` + history get/len); Mid (`dispatcher`, `hist_expand`) sem `linenoise.h`; adapter no Front (`petrush_setup_linenoise_ux`). Sem lib STATIC (P2.4 fora).
+
 ### Added
 - **CI:** matrix multi-distro no GHA (`fedora:44` Debug+Release gcc/clang; `ubuntu:rolling` / `archlinux` / `cachyos/cachyos` Release gcc+clang); job ASan+UBSan (`Sanitize`, `halt_on_error`); lint duro so em Fedora 44 clang Debug; `check`+smoke obrigatorios; Release via `/usr/local` (SEC-02, sem setuid); lista de `test_*` alinhada ao CMake.
 - **FEAT-TEST:** builtins `test` / `[` com primaries curtos (`-f -d -e -z -n = != -eq -ne -lt -gt`); `[` exige `]` final; status 0/1/2; sem `[[`, sem `-a`/`-o`/`!`; help + testes em `test_info`.

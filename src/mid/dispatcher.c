@@ -12,8 +12,7 @@
 #include "petrush/dirstack.h"
 #include "petrush/expand.h"
 #include "petrush/source.h"
-
-#include "linenoise.h"
+#include "petrush/ui_port.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -683,7 +682,7 @@ int builtin_test(petrush_cmd_t *cmd)
 int builtin_clear(petrush_cmd_t *cmd)
 {
     (void)cmd;
-    linenoiseClearScreen();
+    petrush_ui_clear_screen();
     return 0;
 }
 

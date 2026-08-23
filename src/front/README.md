@@ -10,7 +10,7 @@ Código de interface com o usuário nesta pasta (e o composition root em `src/ma
 | `complete.c` | Tab-complete + history autosuggest |
 | `highlight.c` | Colorize mínimo do slice visível (UX-21) |
 
-Integração linenoise (history, prompt, completion hooks) vive no Front; atribuição BSD-2 em `NOTICE`.
+Integração linenoise (history, prompt, completion hooks) vive no Front; atribuição BSD-2 em `NOTICE`. `petrush_setup_linenoise_ux()` também faz `petrush_ui_port_bind` (ARCH-03: Mid sem `linenoise.h`).
 
 **Não confundir com Mid/Foundation:** parse/builtins/`pudo` cliente ficam em `src/mid/`. Jobs `&` e checagem uid/mode do rc (`rc_trust.c`, `petrush_rc_stat_ok`) ficam em Foundation (`src/foundation/`; ARCH-02 fechou F2 / R-I9). Exceção de `fork` no Mid documentada em `docs/architecture.md`. Helper privilegiado: `src/pudod/` (binário separado).
 

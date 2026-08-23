@@ -4,7 +4,7 @@
  */
 
 #include "petrush/hist_expand.h"
-#include "linenoise.h"
+#include "petrush/ui_port.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -13,10 +13,10 @@
 /* Último evento real do history (pula vazio e "!!"). */
 static const char *hist_last_event(void)
 {
-    int n = linenoiseHistoryLen();
+    int n = petrush_history_len();
     if (n <= 0) return NULL;
     for (int i = n - 1; i >= 0; i--) {
-        const char *h = linenoiseHistoryGet(i);
+        const char *h = petrush_history_get(i);
         if (h && h[0] && strcmp(h, "!!") != 0) {
             return h;
         }
@@ -89,7 +89,7 @@ char *hist_expand_line(const char *line)
         long num = strtol(line + 1, &end, 10);
         if (end && *end == '\0' && num >= 1) {
             int idx = (int)num - 1; /* 1-based oldest */
-            const char *h = linenoiseHistoryGet(idx);
+            const char *h = petrush_history_get(idx);
             if (h) return strdup(h);
         }
     }
