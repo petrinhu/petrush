@@ -1,32 +1,60 @@
-# Auditoria de Segurança: `pudo` (NEW-05)
+# Auditoria de Segurança: `pudo` / `pudod`
 
-**Data**: 2026-07-01 (continuação da sessão)
-**Escopo**: Código atual (`src/mid/pudo.c`, `tests/test_pudo.c`, `include/petrush/pudo.h`), integração via `dispatcher.c`, design em `docs/design/pudo.md`.
-**Classificação**: Crítico (código que pode levar a execução com privilégios elevados).
-**Responsável pela auditoria inicial**: Engineer (com princípios de Narciso/CISO).
-**Status**: Auditoria inicial + revisão aprofundada (NEW-05-01). Gate obrigatório antes de helper setuid.
+| Campo | Valor |
+|-------|-------|
+| **Tipo Diátaxis** | Explanation (threat model + estado) + Reference de controles |
+| **Audience** | intermediário/expert interno (CISO, security-engineer, operador setuid) |
+| **Last-reviewed** | 2026-08-22 |
+| **Owner** | technical-writer (DOC-02; fecha R-I4) |
+| **Versão produto** | tree atual (pós SEC-01..12; setuid 4755 **não** endossado) |
+| **SHA baseline** | sincronizado com `pudo.c`, `pudod.c`, `allow_resolve.c`, `child_argv.c`, `pudo.allow.example`, `process.c`, `dispatcher.c` |
+| **Classificação** | Crítico (caminho privilegiado / helper setuid) |
+| **Auditoria inicial** | 2026-07-01 (NEW-05 / NEW-05-01) |
+| **Sincronização DOC-02** | 2026-08-22 (código vs prosa; R-I4) |
 
-## Resumo Executivo
+**Escopo:** `src/mid/pudo.c`, `src/pudod/*`, `tests/test_pudo.c`, `include/petrush/pudo.h`, design em `docs/design/pudo.md`, install em `docs/security/pudod-install.md`.  
+**Gate:** setuid/`setcap` no `pudod` continua **humano** (`DEPLOY_CHECKLIST` + revisão linha a linha). Esta doc **não** endossa `chmod 4755`.
 
-A arquitetura de alto nível (Fase 0: delegar para `/usr/bin/sudo` real) **está alinhada** com os princípios do design doc e é a abordagem mais segura para uma ferramenta pessoal no momento.
+---
 
-A implementação evoluiu desde a auditoria inicial:
-- Separator `--` agora está presente (boa).
-- Logging básico via syslog + stderr implementado.
-- `load_pudo_config` funcional (carrega linhas, ignora comentários).
-- Busca de sudo em múltiplos paths + fallback.
+## Estado do código (DOC-02 / 2026-08-22) - fonte de verdade
 
-**Ainda assim, NÃO está pronto para Fase 1 (helper setuid próprio)**. Restam problemas críticos de TOCTOU, mutação de ambiente do processo, validações fracas de allow-list, e ausência de re-validação no lado privilegiado.
+> As seções históricas abaixo (resumo 2026-07-01, achados NEW-05, design do helper) permanecem como **trilha de auditoria**. Onde divergirem desta tabela, **prevalece o código atual**.
 
-Risco atual com sudo real: limitado ao que o `sudo` do sistema permite ao usuário atual (boa defesa em profundidade, desde que o sudoers do usuário seja restrito).
+| ID | Controle | Estado no código | Evidência |
+|----|----------|------------------|-----------|
+| **SEC-03** | Allow example mínimo | **Fechado** | `src/pudod/pudo.allow.example` só `/usr/bin/id`, `/usr/bin/whoami`, `/usr/bin/true`. Sem apt/dnf/systemctl/passwd/cat. Operador que alargar `/etc/petrush/pudo.allow` assume o risco. |
+| **SEC-04** | Fail closed se argc > MAX | **Fechado** | Frontend: `pudo_helper_argv_fits` em `pudo.c` recusa trunc. Helper: `pudod_build_child_argv` (`child_argv.c`) retorna `-1` se `(argc-2) > PUDOD_MAX_ARGS`. **Não** trunca em silêncio. |
+| **SEC-05** | `realpath` fail-closed na allow-list | **Fechado** | `pudod_resolve_allow_entry` / `load_allow_list`: se `realpath` falhar, a linha é **skip** (nunca aceita o literal). Entrada inexistente some da lista. |
+| **SEC-09** | `>` / `2>` com `O_EXCL` (noclobber) | **Fechado** | `process.c` + `dispatcher.c`: trunc usa `O_EXCL`; `>>` / `2>>` continuam `O_APPEND` (esperado). FEAT-NOCLOBBER = política UX always-on (sem `set -C`). |
+| **SEC-11** | Sem fallback sudo (Boundary B) | **Fechado** | `pudo_allow_sudo_fallback()` retorna **0** (Debug = Release). Sem `pudod` → erro e exit 127. **Não** há `execve("/usr/bin/sudo")` nem `execvp("sudo")` no caminho vivo. |
+| **SEC-12** | Deny shells genéricos na allow-list | **Fechado** | Após `realpath`, `pudod_path_is_generic_shell` ignora basename `sh`/`bash`/`dash`/`ash`/`busybox` (WARNING no log). Lista só com shells → deny-all. |
 
-Risco ao introduzir helper setuid: **alto** se o helper não for mínimo, validado rigorosamente, com allow-list **enforçada no lado root** e sem confiar no petrush.
+### Boundary B (sudo host)
 
-**Não está pronto para Fase 1 (helper setuid próprio)** sem correções prévias e auditoria adicional.
+**Fechada.** Elevação é só via helper `pudod`. Se o binário do helper não estiver instalado/encontrável, `pudo` falha fechado. A superfície privilegiada auditável é o helper mínimo + `/etc/petrush/pudo.allow`, não o sudoers/PAM/tickets do host.
 
-Risco atual com sudo real: limitado ao que o `sudo` do sistema permite ao usuário atual (boa defesa em profundidade).
+### Postura residual (não é drift de doc)
 
-Risco ao introduzir helper setuid: **alto** se o helper não for mínimo, validado rigorosamente e com allow-list enforçada no lado privilegiado.
+- **Setuid 4755 / setcap:** ainda **não endossado** (gate humano). Binário Release típico fica `755`.
+- **Allow-list do operador:** example mínimo ≠ `/etc` do host; alargar a lista (apt, shell, etc.) é risco de política, não de parser.
+- Controles SEC-01/02/06/07/08/10 permanecem no tree; detalhe em [`docs/auditoria/aud-sec.md`](../auditoria/aud-sec.md).
+
+---
+
+## Resumo Executivo (histórico 2026-07-01)
+
+> Snapshot da auditoria NEW-05. **Não** descreve o tree de 2026-08-22 (ver tabela DOC-02 acima).
+
+A arquitetura de alto nível na época (Fase 0: delegar para `/usr/bin/sudo` real) estava alinhada com o design doc como passo intermediário.
+
+A implementação naquela data já tinha:
+- Separator `--`.
+- Logging básico via syslog + stderr.
+- `load_pudo_config` (linhas, ignora comentários).
+- Busca de sudo em múltiplos paths + fallback (Boundary B; **abolida depois por SEC-11**).
+
+Na época: **não** pronto para helper setuid sem correções de TOCTOU, mutação de env, allow-list fraca e re-validação no lado privilegiado. O helper `pudod` e os controles SEC-01..12 fecharam a maior parte desses débitos; o gate 4755 continua humano.
 
 ## Princípios de Design (reafirmados)
 
@@ -49,32 +77,30 @@ Risco ao introduzir helper setuid: **alto** se o helper não for mínimo, valida
 
 Principais vetores clássicos de sudo-like bugs ainda presentes em grau variável.
 
-## Achados Detalhados (Código Atual - Fase 0)
+## Achados Detalhados (histórico Fase 0 / 2026-07-01)
+
+> Snapshot da auditoria NEW-05. Controles posteriores: ver tabela DOC-02 no topo (SEC-03/04/05/09/11/12).
 
 ### 1. Críticos / Altos
 
-- **[PARCIALMENTE RESOLVIDO]** `run_via_real_sudo` agora usa `--` separator explicitamente:
+- **[HISTÓRICO / Boundary B abolida]** `run_via_real_sudo` usava `--` separator:
   ```c
   sudo_argv[idx++] = "--";   /* CRÍTICO: separa opções do comando do usuário */
   ```
-  Isso previne injeção de flags para o sudo. No entanto, o design atual trata *todo* argumento após "pudo" como parte do comando alvo (não há suporte a opções do sudo como `-u`, `-E`). Isso é mais seguro, mas UX diferente do sudo clássico — documentar.
+  Isso prevenia injeção de flags para o sudo. **SEC-11 (2026-08):** o caminho vivo não faz mais fallback para sudo; elevação é só via `pudod`.
 
-- **[PARCIALMENTE RESOLVIDO]** Config / allow-list:
-  - `load_pudo_config` agora implementa leitura de arquivo por usuário (`~/.config/petrush/pudo.conf`).
-  - `is_command_allowed` faz strcmp exato.
-  - **Problemas remanescentes (críticos para Fase 1)**:
-    - Load acontece **antes** da sanitização de ambiente (usa HOME via petrush_getenv sem canonicalizar).
-    - Matching é *exato* e sem normalização (realpath, basename, absolutos). `pudo id` vs `/bin/id` vs `./id` diferem.
-    - Quando não há config, permite tudo (comportamento Fase 0 permissivo, ok porque sudo real ainda filtra).
-    - Nenhum arquivo de exemplo versionado no repositório (design menciona `pudo.conf.example` mas não está no tree).
-    - Dois-pass (count + rewind) cria TOCTOU na leitura da config (baixo impacto em Fase 0).
+- **[PARCIAL no client; autoridade = pudod]** Config / allow-list:
+  - `load_pudo_config` lê `~/.config/petrush/pudo.conf` (UX client-side).
+  - `is_command_allowed` faz strcmp exato no frontend.
+  - **Lado privilegiado (atual):** `/etc/petrush/pudo.allow` com `realpath` fail-closed (**SEC-05**), deny de shells genéricos (**SEC-12**), example mínimo (**SEC-03**).
+  - Client sem conf continua permissivo (autoridade = pudod). Sem Boundary B, não há “só sudoers” no meio.
+  - Example versionado: `src/pudod/pudo.allow.example` (id/whoami/true).
 
-- **[RESOLVIDO]** Logging / auditoria básico implementado via `pudo_log` (stderr + syslog(LOG_AUTH|LOG_INFO)). Ainda rudimentar: não loga argv completo, não inclui tty/pid/session de forma estruturada.
+- **[RESOLVIDO]** Logging / auditoria básico via `pudo_log` (stderr + syslog(LOG_AUTH|LOG_INFO)). Ainda rudimentar: não loga argv completo, não inclui tty/pid/session de forma estruturada.
 
-- **Hardcoded paths + buffers fixos (ainda válidos)**:
-  - Paths de sudo agora buscados em candidatos (bom).
-  - Buffer `char *sudo_argv[128]` (reduzido de 256) — ainda truncamento silencioso se >~125 args.
-  - `line[512]` no parser de config, `buf[256]` no log — truncam.
+- **Buffers fixos (atualizado DOC-02)**:
+  - **SEC-04:** overflow de argc no helper/frontend é **fail closed** (não trunca em silêncio).
+  - `line[512]` no parser de config client e `buf[256]` no log ainda truncam mensagens (auditoria incompleta, não bypass de policy).
 
 - **execv/execvp sem env explícito + mutação global (NOVO - Crítico)**:
   - `sanitize_environment()` usa `unsetenv` diretamente → **altera o ambiente do processo petrush permanentemente**.
@@ -112,7 +138,7 @@ Principais vetores clássicos de sudo-like bugs ainda presentes em grau variáve
 
 - Parsing no builtin ainda "muito básico" (conforme comentário). Depende inteiramente do parser do mid (que agora tem o fix de NEW-01).
 - Não há suporte a opções do próprio `pudo` (ex: `-n`, `--`, `-E`).
-- `pudo_sanitize_environment` é pública para testes — documentado como "não use em produção", mas exposto. Idealmente, mover a versão "real" (que não muta) para interna e expor só wrapper de teste que restaura estado.
+- `pudo_sanitize_environment` é pública para testes - documentado como "não use em produção", mas exposto. Idealmente, mover a versão "real" (que não muta) para interna e expor só wrapper de teste que restaura estado.
 
 ## Revisão Adicional de Código + Novas Ameaças (NEW-05-01)
 
@@ -132,16 +158,16 @@ Além dos achados da auditoria inicial, esta revisão aprofundada identificou:
    Em Fase 0 ainda "seguro" porque sudo real decide, mas quando mover decisão para dentro ou para helper, vira IDOR/path traversal lógico.
 
 3. **Config carregada de diretório controlado pelo usuário sem verificação de ownership**  
-   `~/.config/petrush/pudo.conf` — em Fase 0 ok (usuário é o dono).  
+   `~/.config/petrush/pudo.conf` - em Fase 0 ok (usuário é o dono).  
    **Nunca** usar path baseado em HOME do caller no lado do pudod setuid. O helper deve usar path fixo root-owned (ex: `/etc/petrush/pudo.allow`).
 
-4. **Buffers fixos + truncamento silencioso**  
-   - sudo_argv[128]: se o usuário passa 200 args, alguns são dropados sem erro.  
-   - Log buf[256]: mensagens longas truncam (pode esconder parte do comando em auditoria).  
-   - Config line[512]: linha muito longa é truncada, pode criar entrada "parcial" que permite algo inesperado.
+4. **Buffers fixos + truncamento**  
+   - **SEC-04 fechou** o trunc silencioso de argv do helper (recusa se não cabe).  
+   - Log buf[256]: mensagens longas ainda truncam (pode esconder parte do comando em auditoria).  
+   - Config line[512] (client): linha muito longa truncada; autoridade de policy continua no pudod + allow root.
 
 5. **Uso de access(2) seguido de exec → TOCTOU clássico**  
-   No loop de candidatos sudo: access então exec. Janela para substituir o binário (especialmente fallback "sudo" no PATH).
+   Histórico do loop de candidatos sudo. **SEC-11:** sem fallback sudo no caminho vivo; path do `pudod` segue política SEC-02 (Release: só dirs de install absolutos).
 
 6. **Ausência de verificação de tipo do alvo**  
    Nada impede `pudo /dev/zero` ou `pudo /proc/self/exe` ou fifo. Sudo pode falhar de forma feia ou (em casos raros) se comportar diferente.
@@ -175,7 +201,7 @@ Quando o pudod existir:
 
 **Alinhamento com princípios**: ainda viola "menor privilégio no tempo" por causa da mutação global e da ausência de re-validação no lado root (para quando Fase 1 vier).
 
-## Design Concreto do Helper `pudod` (Fase 1) — Proposta para NEW-05-03
+## Design Concreto do Helper `pudod` (Fase 1) - Proposta para NEW-05-03
 
 **Tamanho alvo**: < 400 linhas totais de C (incluindo headers, comentários, whitespace). Meta realista: 250-320 LOC para ser auditável em <1h por humano experiente.
 
@@ -201,7 +227,7 @@ Formato da invocação (feito pelo petrush não-privilegiado):
 
 **Alternativa rejeitada aqui**: Unix socket + SCM_CREDENTIALS. Mais poderoso (permite askpass interativo, cache de cred, sessões), mas >>400 LOC + mais superfície no helper. Adiar para Fase 2 se necessário.
 
-### Validações OBRIGATÓRIAS no pudod (root side — nunca confiar no petrush)
+### Validações OBRIGATÓRIAS no pudod (root side - nunca confiar no petrush)
 
 O pudod deve executar **todas** estas checagens, nesta ordem aproximada, e falhar fechado (fail secure) em qualquer violação:
 
@@ -217,7 +243,7 @@ O pudod deve executar **todas** estas checagens, nesta ordem aproximada, e falha
    - Se nenhuma match exata, deny + log.
 7. **Verificar o alvo no filesystem (após realpath)**:
    - stat(resolved, &st) ou melhor: int fd = open(resolved, O_RDONLY | O_CLOEXEC | O_NOFOLLOW?); fstat(fd, &st).
-   - S_ISREG(st.st_mode) — deve ser arquivo regular.
+   - S_ISREG(st.st_mode) - deve ser arquivo regular.
    - st.st_uid == 0 ou pelo menos não writable por outros (depende de política).
    - Permissões de execução: pelo menos um bit X para root.
 8. **Mitigar TOCTOU**:
@@ -256,14 +282,14 @@ Adicionalmente:
 
 ### setuid root vs Linux Capabilities
 
-**Opção A — setuid root (recomendada para Fase 1 inicial)**:
+**Opção A - setuid root (recomendada para Fase 1 inicial)**:
 - `chown root:root pudod && chmod 4755 pudod`
 - Simples, funciona em qualquer Linux.
 - Risco: se bug no pudod, atacante com execução via petrush ganha root full.
 - Mitigado por: tamanho mínimo + allow-list rígida + revalidação + logging.
 - sudo clássico usa exatamente isso.
 
-**Opção B — file capabilities (mais moderna, preferível se possível)**:
+**Opção B - file capabilities (mais moderna, preferível se possível)**:
 - `setcap cap_dac_override,cap_setuid,cap_setgid+ep pudod` ou caps mais finos.
 - O binário não precisa de setuid bit; ganha apenas as caps necessárias no momento de execução.
 - Problemas para caso de uso "executar comando arbitrário como root":
@@ -290,7 +316,7 @@ Este esqueleto é intencionalmente mínimo, sem features avançadas, pronto para
 - Após chown/chmod 4755, o binário deve ser listado em qualquer SBOM / inventário.
 - Considerar remoção de setuid bit em upgrades (require re-instalação manual).
 
-## Recomendações (priorizadas) — atualizado NEW-05
+## Recomendações (priorizadas) - atualizado NEW-05
 
 1. **Antes de qualquer helper setuid (NEW-05-02)**:
    - Corrigir mutação de ambiente: construir envp limpo + execve explícito. Parar de unsetenv global.
@@ -301,7 +327,7 @@ Este esqueleto é intencionalmente mínimo, sem features avançadas, pronto para
    - Expandir sanitização (mais vars).
    - Melhorar testes: restaurar env após sanitize em testes, testar load com arquivos temporários, testar paths variantes.
 
-2. **Para Fase 1 (helper) — NEW-05-03**:
+2. **Para Fase 1 (helper) - NEW-05-03**:
    - Seguir estritamente o design acima.
    - Helper <400 LOC, sem parsing complexo.
    - Protocolo argv.
@@ -320,7 +346,7 @@ Este esqueleto é intencionalmente mínimo, sem features avançadas, pronto para
 Sub-itens sugeridos para TODO.md (NEW-05-0x):
 
 - NEW-05-01: Auditoria aprofundada + atualização deste documento (concluída nesta iteração).
-- NEW-05-02: Hardening Fase 0 — env não-mutante, allow-list + canonicalização, buffers, testes, verificações de tipo. Gate antes de pudod.
+- NEW-05-02: Hardening Fase 0 - env não-mutante, allow-list + canonicalização, buffers, testes, verificações de tipo. Gate antes de pudod.
 - NEW-05-03: Implementar pudod mínimo (a partir do esqueleto) + target build separado.
 - NEW-05-04: Testes de segurança específicos para pudod (incl. matriz de falhas, simulação de uid real, checagem de logs).
 - NEW-05-05: Documentação de instalação, riscos, política de allow-list + instruções para o usuário (petrus) revisar e aprovar antes de qualquer setuid.
@@ -330,60 +356,60 @@ Sub-itens sugeridos para TODO.md (NEW-05-0x):
 
 ---
 
-## Status Final da Implementação (após iterações NEW-05)
+## Status Final da Implementação
 
-**Data da revisão**: 2026-07-01 (incluindo subagente security-engineer + ações recomendadas).
+**Revisão NEW-05:** 2026-07-01 (helper + hardening inicial).  
+**Sincronização DOC-02 / R-I4:** 2026-08-22 (prosa alinhada a SEC-03/04/05/09/11/12).
 
-**Implementação atual**:
-- pudod implementado em `src/pudod/pudod.c` (< 300 LOC efetivos).
-- Allow-list carregada de `/etc/petrush/pudo.allow` com verificação de dono (root) e permissões (sem write para outros).
-- Caminhos da allow-list canonicalizados com realpath no load (melhor comparação após resolve do alvo).
-- petrush (unpriv) usa `build_clean_envp()` + resolve para passar argv limpo + abs para pudod.
-- Fallback para sudo real se pudod não disponível (com warning).
-- Sanitização agressiva de env no pudod + no frontend (sem mutação persistente do shell via clean envp).
-- Build separado no CMake com hardening (sem ASan/UBSan).
-- Target `pudod-valgrind` para verificação de memória.
-- Teste `pudod_refuses_without_privs` em `test_pudo` (roda sem root, valida recusa + allow-list fail).
-- Documentação: `docs/security/pudod-install.md`, `src/pudod/README.md`, atualizações em design e audit.
+**Implementação atual (código):**
+- `pudod` em `src/pudod/` (núcleo + helpers: `allow_resolve`, `child_argv`, `target_open`, `target_check`).
+- Allow-list de `/etc/petrush/pudo.allow` com dono root e sem write para group/other.
+- **SEC-05:** entradas da lista passam por `realpath`; falha → skip (nunca literal).
+- **SEC-12:** basename canônico `sh`/`bash`/`dash`/`ash`/`busybox` → skip + WARNING; lista vazia = deny-all.
+- **SEC-03:** `pudo.allow.example` mínimo (`id` / `whoami` / `true`).
+- **SEC-04:** overflow de argc fail-closed no frontend e no helper (sem trunc silencioso).
+- petrush (unpriv): `build_clean_envp()` + path absoluto para o alvo quando possível; **SEC-11** sem Boundary B (sem fallback sudo).
+- **SEC-09** (REPL): `>` / `2>` com `O_EXCL` em `process.c` e `dispatcher.c`.
+- Sanitização de env no pudod + envp limpo no frontend (sem mutação persistente do shell).
+- Build CMake separado com hardening (sem ASan/UBSan no binário setuid).
+- Testes em `test_pudo` / `test_process` / `test_info` cobrem fail-closed argc, realpath, shells genéricos, noclobber e ausência de fallback sudo.
+- Docs de install: `docs/security/pudod-install.md`, `src/pudod/README.md`.
 
-**Achados da auditoria inicial mitigados**:
-- Mutação de env: mitigado com envp explícito.
-- Não-canonicalizado: pudod usa realpath + canonical na lista.
-- TOCTOU: realpath + (fexecve quando possível), checks em fd.
-- Falta de verificação de tipo: fstat + S_ISREG.
-- Buffers: limites rígidos (MAX_ARGS, PATH_MAX).
+**Achados da auditoria inicial mitigados (confirmados DOC-02):**
+- Mutação de env no pai: envp explícito (SEC-01).
+- Não-canonicalizado / literal na allow: realpath fail-closed (SEC-05).
+- Trunc argv silencioso: fail closed (SEC-04).
+- Example amplo / shell na lista: example mínimo + deny de shells (SEC-03, SEC-12).
+- Fallback sudo (Boundary B): abolido (SEC-11).
+- Overwrite via `>`: `O_EXCL` (SEC-09).
+- TOCTOU alvo: `O_NOFOLLOW` + `fexecve` quando disponível (SEC-07).
+- Tipo do alvo: `fstat` + regular + root + exec (SEC-06).
 - Logging: syslog + uid real + recusa clara.
 
-**Riscos residuais aceitos (documentados)**:
-- Janela TOCTOU pequena se não usar fexecve (fallback execve após close).
-- Dependência de /etc ser seguro (root controlado).
-- Usuário deve revisar e aprovar manualmente o setuid/chmod/setcap.
-- Allow-list é exata por path canonical (não glob, não sudoers complexo).
+**Riscos residuais aceitos (documentados):**
+- Janela TOCTOU residual em fallback não-Linux (`execve(path)` após close do fd).
+- Dependência de `/etc` root-controlado.
+- Operador pode alargar `/etc/petrush/pudo.allow` além do example (política humana).
+- Allow-list é match exato por path canonical (sem glob, sem sudoers complexo).
+- **Setuid/`setcap` não aplicados automaticamente** e **não endossados** nesta doc.
 
-**Gate para setuid**:
+**Gate para setuid (inalterado):**
 - Valgrind limpo nos paths de negação.
 - Lint (clang-tidy + cppcheck) limpo.
 - Testes unitários passando.
-- **Recomendação**: Antes de aplicar 4755 ou setcap, petrus deve:
-  1. Ler esta audit completa.
-  2. Revisar manualmente o pudod.c linha a linha.
+- **Antes de 4755 ou setcap, o líder deve:**
+  1. Ler esta audit (tabela DOC-02 + trilha histórica).
+  2. Revisar o `pudod` linha a linha.
   3. Testar em ambiente isolado.
-  4. Confirmar allow-list mínima.
+  4. Confirmar allow-list mínima (sem shells genéricos).
   5. Manter backup do binário anterior.
 
-Este documento atualizado serve como base para a revisão final por Narciso/CISO ou equivalente.
-
-**Próximo recomendado (se aprovado)**: Adicionar smoke tests integrados que exercitem `pudo <comando-da-allow-list>` (NEW-14), e possivelmente target de install que apenas imprime os comandos de setuid (nunca executa).
-- Modelo de allow-list para pudod: lista estática de paths absolutos hardcoded, ou arquivo /etc root-only editável por admin?
-- setuid root (4755) ou tentar capabilities primeiro?
-- Local de instalação do pudod e do arquivo de allow-list.
-- Se manter dependência de sudo real mesmo com pudod (recomendado para askpass).
-
-**Regra conservadora**: NENHUM código com set*uid, cap ou exec de binário root será adicionado ao petrush ou ao pudod sem:
+**Regra conservadora:** nenhum `set*uid`, `setcap` ou exec de binário root sem:
 1. Esta auditoria atualizada.
-2. Esqueleto revisado.
-3. Aprovação explícita via AskUserQuestion ou decisão registrada.
+2. Esqueleto / código revisado.
+3. Aprovação explícita do líder.
 4. Testes que cubram os vetores principais.
 
 ---
-*Este documento deve ser atualizado a cada iteração de NEW-05. Última atualização: 2026-07-01 (revisão aprofundada + proposta pudod).*
+
+*Última sincronização prosa↔código: 2026-08-22 (DOC-02, fecha R-I4). Trilha NEW-05 preservada acima como histórico.*

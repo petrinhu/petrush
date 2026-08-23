@@ -1,12 +1,20 @@
 # Segurança de shells vs petrush (REPL unpriv)
 
-**Data:** 2026-08-22  
-**SHA HEAD:** `1fdbfbfe8e9000ef490bf531f898340704fa4210`  
-**Premissa:** petrush = **REPL unpriv** (C23, parser próprio). O binário interativo **não** é setuid. Mapping = “o petrush corre o mesmo risco de shell?”  
-**Features:** UX-22 `source`/`.` = **PARCIAL** (path explícito + rc_stat_ok + depth 8; sem PATH/`$1`). UX-23 background `&` ainda ausente → **NÃO**.  
-**Escopo:** defensivo. Sem PoC. Sem clone de git alheio.
+| Campo | Valor |
+|-------|-------|
+| **Tipo Diátaxis** | Reference (lookup factual de classes) + Explanation curta de composição |
+| **Audience** | intermediário interno (CISO / CTO / implementers) |
+| **Last-reviewed** | 2026-08-22 |
+| **Owner** | technical-writer (DOC-02; fecha R-I4) |
+| **Versão produto** | tree atual (pós SEC-01..12, UX-22/23 🔍) |
+| **SHA baseline** | `8321b09` (cruzar com `process.c`, `dispatcher.c`, `pudod.c`, `allow_resolve.c`, `pudo.allow.example`) |
 
-Legenda petrush: **SIM** = superfície presente e análoga; **PARCIAL** = superfície menor/mitigada; **NÃO** = classe inexistente hoje.
+**Premissa:** petrush = **REPL unpriv** (C23, parser próprio). O binário interativo **não** é setuid. Mapping = “o petrush corre o mesmo risco de shell?”  
+**Features:** UX-22 `source`/`.` = **PARCIAL** (path explícito + `rc_stat_ok` + depth 8; sem PATH/`$1`). UX-23 background `&` = **PARCIAL** (tabela de jobs mínima; sem `fg`/`bg` ricos).  
+**Escopo:** defensivo. Sem PoC. Sem clone de git alheio.  
+**DOC-02:** noclobber **não** está aberto (SEC-09 `O_EXCL`); Boundary B sudo **fechada** (SEC-11); shells genéricos negados no load (SEC-12).
+
+Legenda petrush: **SIM** = superfície presente e análoga; **PARCIAL** = superfície menor/mitigada; **NÃO** = classe inexistente hoje ou mitigada no tree.
 
 ---
 
@@ -19,7 +27,7 @@ Legenda petrush: **SIM** = superfície presente e análoga; **PARCIAL** = superf
 | History expansion `!!` / `!n` | abuso de bang em input compartilhado | SIM | SIM | NÃO (sem bang) | NÃO | SIM (ksh) | SIM | SIM | NÃO típico | SIM | SIM (OSH) | **SIM** | `hist_expand.c:19-42` (`!!`, `!n`) |
 | IFS word-split | clássico unquoted `$var`; dash/POSIX | SIM | SIM | NÃO (sem IFS split implícito) | SIM (POSIX) | SIM | SIM | NÃO (csh) | SIM | SIM | PARCIAL (OSH legado; YSH `simple_word_eval` remove) | **NÃO** | `expand_word` substitui valor inteiro; sem split pós-expansão |
 | Glob / globstar | path injection, DoS de matches | SIM (`**` c/ globstar) | SIM | SIM (globs próprios) | SIM (`* ? []`) | SIM | SIM | SIM | SIM | SIM | SIM (estático; YSH sem glob dinâmico implícito) | **PARCIAL** | `expand.c` `*`/`?` unquoted; sem `[]`/`**`; teto `PETRUSH_GLOB_MAX` 256 fail-closed (`expand.h:10`) |
-| noclobber / overwrite em `>` | overwrite acidental / race em `>` (mitigação noclobber ausente) | SIM (`set -C`) | SIM | SIM (`noclobber`) | SIM | SIM | SIM | SIM | SIM | SIM | SIM | **SIM** | Sem noclobber: `process.c:161` e `dispatcher.c:108` usam `O_CREAT\|O_TRUNC` sem `O_EXCL` |
+| noclobber / overwrite em `>` | overwrite acidental / race em `>` | SIM (`set -C`) | SIM | SIM (`noclobber`) | SIM | SIM | SIM | SIM | SIM | SIM | SIM | **NÃO** (mitigado) | SEC-09: `>`/`2>` usam `O_CREAT\|O_EXCL` em `process.c` e `dispatcher.c`; `>>`/`2>>` = `O_APPEND` (esperado). FEAT-NOCLOBBER = política always-on (sem `set -C`) |
 | Privileged mode / drop priv | CVE-2019-18276 (bash `-p`); CVE-2019-20044 (zsh) | SIM | SIM | NÃO (sem setuid shell) | NÃO típico | PARCIAL | PARCIAL | PARCIAL | NÃO típico | NÃO típico | NÃO típico | **NÃO** | Shell unpriv; `geteuid` só no prompt `\$` (`prompt.c:59`); privilégio só em `pudod` separado |
 | RCE via prompt | CVE-2021-45444 (zsh PROMPT_SUBST); `PROMPT_COMMAND`/PS1 | SIM (`PROMPT_COMMAND`, cmdsubst em PS1) | SIM | PARCIAL (prompt fish + git auto) | NÃO | PARCIAL | PARCIAL | PARCIAL | NÃO | PARCIAL | PARCIAL | **NÃO** | `prompt_render` só `\w\u\h\n\$\\` (`prompt.c:32-67`); sem cmdsubst |
 | ENV / BASH_ENV / rc path | RCE em boundary via `ENV`/`BASH_ENV`/rc | SIM | SIM (ZDOTDIR etc.) | SIM (config + universal) | SIM (`ENV` POSIX) | SIM | SIM | SIM | SIM (`ENV`) | SIM | SIM | **PARCIAL** | Só `~/.petrushrc` no boot interativo (`main.c:59-106`); sem `BASH_ENV`/`ENV` non-interactive |
@@ -31,9 +39,9 @@ Legenda petrush: **SIM** = superfície presente e análoga; **PARCIAL** = superf
 | Parser OOB / realloc argv | Shellshock irmãos; NEW-01 | hist. SIM | hist. | hist. | hist. | hist. | hist. | hist. | CVE-2021-42375 / 2022-48174 | hist. | foco em parse seguro | **NÃO** (mitigado) | NEW-01 ✅ `finalize_argv` garante `argv[argc]=NULL` (`parser.c:227-237`) |
 | linenoise history TOCTOU | CVE-2025-9810 | N/A (readline) | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | **NÃO** (mitigado) | Vendor: `O_NOFOLLOW` + `fchmod` no fd (SEC-08) |
 | `source` / `.` | execução de arquivo no shell | SIM | SIM | SIM (`.`/`source`) | SIM | SIM | SIM | SIM (`source`) | SIM | SIM | SIM | **PARCIAL** | UX-22 🔍: path explícito, `rc_stat_ok`, depth 8, sem PATH/`$1` |
-| Background `&` / jobs | race TTY, orphan, signal | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | **NÃO** | UX-23 ⏳; `SIGTSTP` ignorado (`main.c:174-176`); vira **PARCIAL** se UX-23 ligar |
+| Background `&` / jobs | race TTY, orphan, signal | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | SIM | **PARCIAL** | UX-23 🔍: tabela de jobs + `&`; sem `fg`/`bg` ricos; monitorar orphan/TTY |
 
-**Resposta curta ao mapping:** petrush **não** corre o mesmo risco de Shellshock, privileged-mode, prompt-RCE, IFS-split nem arith/nameref. Corre riscos **análogos menores** em history bang, alias/rc, redir/pipe, glob limitado e history-file TOCTOU. Features pendentes `source`/`&` reabririam superfície.
+**Resposta curta ao mapping:** petrush **não** corre o mesmo risco de Shellshock, privileged-mode, prompt-RCE, IFS-split, overwrite via `>` (SEC-09) nem arith/nameref. Corre riscos **análogos menores** em history bang, alias/rc, redir/pipe (append), glob limitado e `source`/jobs parciais.
 
 ---
 
@@ -68,7 +76,7 @@ Shell Bourne-compatible dominante. Expansões em cascata (brace → tilde → pa
 | BASH_ENV | **NÃO**; rc só `~/.petrushrc` interativo |
 | IFS split | **NÃO** |
 | `!!` | **SIM** (`hist_expand.c`) |
-| redir overwrite | **SIM** sem noclobber |
+| redir overwrite | **NÃO** em `>`/`2>` (SEC-09 `O_EXCL`); `>>` append permanece |
 
 ---
 
@@ -140,7 +148,7 @@ Poucos CVEs “de marca” recentes no NVD sob keyword dash-shell (superfície m
 ### petrush mapeia?
 - IFS split: **NÃO** (vantagem estrutural vs dash-as-sh).
 - `ENV`: **NÃO** como variável mágica; rc fixo `~/.petrushrc`.
-- Como `/bin/sh` do sistema: se a allow-list do `pudod` incluir `/bin/sh` ou `/usr/bin/dash`, **reabre toda a superfície POSIX** no lado privilegiado (ver §12).
+- Como `/bin/sh` do sistema: **SEC-12** recusa basename `sh`/`dash` (e bash/ash/busybox) no load da allow-list após `realpath` (ver §12).
 
 ---
 
@@ -179,8 +187,8 @@ ksh-compat usado em Android e alguns *BSD. Mais enxuto que ksh93; ainda POSIX+ks
 Poucos CVEs modernos de alto perfil no NVD; risco operacional = mesmas classes POSIX (IFS, ENV, glob, history).
 
 ### petrush mapeia?
-- TTY flush/job control avançado: petrush tem job control **mínimo** e **sem** `&` (UX-23 ausente) → **NÃO** hoje; **PARCIAL** se UX-23 ligar.
-- Demais: igual tabela-mãe (IFS **NÃO**, bang **SIM**, redir **SIM**).
+- TTY flush/job control avançado: petrush tem job control **mínimo** com `&` (UX-23 🔍) → **PARCIAL** (sem `fg`/`bg` ricos).
+- Demais: igual tabela-mãe (IFS **NÃO**, bang **SIM**, overwrite `>` **NÃO**/mitigado SEC-09).
 
 ---
 
@@ -268,46 +276,53 @@ Referência: https://oils.pub/release/0.37.0/doc/simple-word-eval.html
 | Complete | `src/front/complete.c` | Varre PATH/fs (DoS local / info leak menor) |
 | rc | `main.c:load_rc_file` | Executa linhas do `~/.petrushrc` (confiança no dono do home) |
 | History file | `vendor/linenoise/linenoise.c:linenoiseHistorySave` | `umask` + `open(O_NOFOLLOW\|…)` + `fchmod(0600)` no fd (SEC-08) |
-| Redir write (noclobber ausente) | `process.c:161` + `dispatcher.c:108` | **SIM** superfície overwrite; `O_CREAT\|O_TRUNC` sem `O_EXCL` nos dois sítios |
+| Redir write (noclobber) | `process.c` + `dispatcher.c` | **NÃO** overwrite em `>`/`2>`: SEC-09 `O_CREAT\|O_EXCL`; `>>`/`2>>` = append |
 | Env | `src/foundation/env.c` | Pass-through libc; sem interpretador de `ENV` |
+| Jobs `&` | `job.h` + `dispatcher.c` | **PARCIAL** (UX-23): spawn background + `jobs`; sem job control POSIX completo |
 
 ### Ausente (NÃO) com nota de futuro
 | Peça | Status TODO | Se ligar |
 |------|-------------|----------|
-| `source` / `.` | UX-22 🔍 | **PARCIAL**: on demand + `rc_stat_ok`; path controlado sem PATH search |
-| `&` / jobs | UX-23 ⏳ | **PARCIAL**: TTY/SIGTSTP/orphan |
 | Funções / export -f | fora | manter **NÃO** |
 | `$(( ))` / nameref | fora | manter **NÃO** |
 | `PROMPT_COMMAND` | fora | manter **NÃO** |
 | setuid no shell | explicitamente fora | manter **NÃO** |
+| `set -C` / `set -o noclobber` | fora (FEAT-NOCLOBBER) | noclobber já always-on via SEC-09; sem toggle POSIX |
 
 ### Mitigações já creditadas
 - **NEW-01** ✅: terminator NULL em argv após realloc.
 - **CVE-2025-9810** / **SEC-08**: `open(O_NOFOLLOW|O_CREAT|O_TRUNC|O_CLOEXEC)` + `fchmod` no fd do history (não segue symlink; melhor que `chmod(path)`).
+- **SEC-09**: `>` / `2>` com `O_EXCL` (noclobber always-on).
+- **SEC-10**: `petrush_rc_stat_ok` em rc/`source` (uid/mode).
 - Glob fail-closed no overflow.
 - Prompt sem substituição de comando.
 
 ### Riscos residuais do REPL (prioridade)
-1. **Sem noclobber** (baixo-médio, SEC-09 sugerido): `>` destrói arquivo existente em `process.c:161` e `dispatcher.c:108`.
-2. **`~/.petrushrc` confiado** (médio se home compartilhado/NFS; SEC-10 sugerido): qualquer linha vira comando; sem checar uid/mode do arquivo.
+1. ~~Sem noclobber~~ (**SEC-09 fechado**: `O_EXCL` em `>`/`2>`; `>>` append esperado).
+2. **`~/.petrushrc` / `source`** (médio se home compartilhado/NFS): linhas viram comando; **SEC-10** checa uid/mode, ainda é confiança no dono do home.
 3. **`!!` em contexto de input colado** (baixo): ecoa e executa última linha do histórico.
 4. **Complete PATH walk** (baixo): custo/DoS local.
-5. ~~History symlink TOCTOU~~ (SEC-08 fechado em impl: `O_NOFOLLOW` + teste `test_linenoise_history`).
+5. ~~History symlink TOCTOU~~ (SEC-08 fechado: `O_NOFOLLOW` + `test_linenoise_history`).
+6. **Jobs `&`** (baixo-médio, UX-23 🔍): orphan/TTY residual sem `fg`/`bg` ricos.
 
 ---
 
 ## 12. Interação com pudo (curta)
 
-O shell petrush permanece unpriv. Elevação é **só** via builtin `pudo` → helper `pudod` (setuid/capabilities), com allow-list em `/etc/petrush/pudo.allow`, `realpath`, path absoluto e sanitize de `IFS`/`ENV`/`BASH_ENV`/`LD_*` no lado root (`pudod.c:238-249`).
+O shell petrush permanece unpriv. Elevação é **só** via builtin `pudo` → helper `pudod` (setuid/capabilities, se o operador aplicar), com allow-list em `/etc/petrush/pudo.allow`, `realpath` fail-closed (**SEC-05**), path absoluto e sanitize de `IFS`/`ENV`/`BASH_ENV`/`LD_*` no lado root.
 
-**Ponto crítico de composição:** se a allow-list incluir `/bin/sh`, `/usr/bin/bash`, `dash`, `busybox`, etc., o atacante que passa no `pudo` **reabre o modelo POSIX completo** (IFS, scripts, redirecionamentos, eventualmente `ENV`) **já como root no filho**. Isso não é bug do parser do petrush; é política da allow-list.
+**Boundary B (fallback sudo): fechada (SEC-11).** Se `pudod` não for encontrado, `pudo` falha fechado (Debug = Release). Não há `execve("/usr/bin/sudo")` nem `execvp("sudo")` no caminho vivo. A superfície privilegiada auditável é o helper, não o sudoers/PAM/tickets do host.
+
+**Shells genéricos na allow-list: negados no load (SEC-12 / R-C3).** Após `realpath`, basename canônico `sh` / `bash` / `dash` / `ash` / `busybox` é skip com WARNING. Lista só com shells → deny-all. Isso **não** substitui disciplina do operador: outros binários “inocentes” (editores, package managers) ainda podem ampliar blast radius se forem listados à mão em `/etc`.
+
+**SEC-03:** `pudo.allow.example` é mínimo (`/usr/bin/id`, `/usr/bin/whoami`, `/usr/bin/true`). Não é template com apt/dnf/systemctl/passwd.
 
 Recomendação defensiva (sem reescrever `sudo-pudo-riscos.md`):
-- Nunca allow-listar um shell interativo genérico.
-- Preferir applets/binários de propósito único (`/usr/bin/id`, etc.).
-- Tratar `pudo.allow.example` amplo (apt/dnf/systemctl/passwd) como risco de documentação (SEC-03 na TODO).
+- Manter o example mínimo; nunca listar shell interativo genérico (o código já recusa os basenames acima).
+- Preferir applets/binários de propósito único.
+- Não reabrir Boundary B.
 
-Detalhe fino de pudo/sudo fica no artefato irmão de pesquisa; aqui só o acoplamento shell↔helper.
+Detalhe fino de pudo fica em [`docs/security/pudo-audit.md`](../security/pudo-audit.md) e no artefato irmão de pesquisa; aqui só o acoplamento shell↔helper.
 
 ---
 
@@ -351,4 +366,4 @@ Detalhe fino de pudo/sudo fica no artefato irmão de pesquisa; aqui só o acopla
 
 ---
 
-**Conclusão operacional:** para o mapping “REPL unpriv vs shells maduros”, petrush está **estruturalmente fora** das classes que historicamente geraram RCE em boundary (Shellshock, privileged-mode, prompt-subst, ENV/BASH_ENV, arith/nameref, IFS). Permanece **dentro** das classes de shell interativo cotidiano (rc, alias, bang, redir, glob limitado, history file). O maior erro de política possível não é no parser: é allow-listar `/bin/sh` no `pudod`.
+**Conclusão operacional:** para o mapping “REPL unpriv vs shells maduros”, petrush está **estruturalmente fora** das classes que historicamente geraram RCE em boundary (Shellshock, privileged-mode, prompt-subst, ENV/BASH_ENV, arith/nameref, IFS) e **fora** do overwrite clássico via `>` (SEC-09). Permanece **dentro** das classes de shell interativo cotidiano (rc, alias, bang, append, glob limitado, history file, jobs parciais). No acoplamento privilegiado: Boundary B sudo está **fechada** (SEC-11); shells genéricos são **recusados no load** (SEC-12); o residual de política é o operador alargar `/etc/petrush/pudo.allow` além do example mínimo (SEC-03).
