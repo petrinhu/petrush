@@ -2,6 +2,10 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+## 2026-08-23 - TST-ASM
+
+- TST-ASM: harness `tests/asm/` via `ctest -R asm_` Docker fedora:44 clang Sanitize 10/10 + Release 10/10; ASan/UBSan static OK; mode 755 sem 4755; seccomp=unconfined (unshare sem CAP_NET_ADMIN); relatorio `docs/memory/tst-asm.md`; TODO 🔍. Sem push.
+
 ## 2026-08-23 - TST-CXX
 
 - TST-CXX: `add_test(NAME configsh)` → `tests/smoke/cxx-tui.sh`; `ctest -R configsh` host PASS + Docker fedora:44 `-t` PASS (PTY python; sem `script`); mode 755 sem ncurses; sem display `:0`; relatório `docs/memory/tst-cxx.md`; TODO 🔍. Sem push. Sem 4755.
