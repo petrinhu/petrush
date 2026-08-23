@@ -206,10 +206,14 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # ============================================================
-# CXX-00: configsh (C++23 separado; petrush NAO liga libstdc++)
-# Stub help+exit0 nesta fatia; TUI raw = CXX-TUI.
+# CXX-00/CXX-TUI: configsh (C++23 separado; petrush NAO liga libstdc++)
+# TUI raw ANSI (sem ncurses): --section --dump --check + XDG.
 # ============================================================
-set(CONFIGSH_SOURCES src/cxx/main.cpp)
+set(CONFIGSH_SOURCES
+    src/cxx/main.cpp
+    src/cxx/config.cpp
+    src/cxx/tui.cpp
+)
 set(CONFIGSH_ASM_SOURCES)
 if(PETRUSH_ASM)
     list(APPEND CONFIGSH_ASM_SOURCES
@@ -840,6 +844,13 @@ add_custom_target(asm00
 add_custom_target(cxx00
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/cxx00-ldd.sh
     COMMENT "CXX-00 ldd gate (configsh C++23; petrush sem libstdc++)"
+    VERBATIM
+)
+
+# CXX-TUI: --dump/--check/XDG + TUI raw (sem ncurses). Isolado do smoke ALL.
+add_custom_target(cxx_tui
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/cxx-tui.sh
+    COMMENT "CXX-TUI gate (configsh --dump/--check + XDG; TUI raw)"
     VERBATIM
 )
 

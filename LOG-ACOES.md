@@ -2,6 +2,10 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+## 2026-08-23 - CXX-TUI
+
+- CXX-TUI: configsh TUI raw ANSI (sem ncurses); --section/--dump/--check; XDG `$XDG_CONFIG_HOME/petrush/config.ini`; src/cxx/{main,config,tui}.cpp; smoke cxx-tui.sh + target cxx_tui; PTY fedora:44 PASS (python pty + docker -t); TODO 🔍. Sem push. Sem 4755.
+
 ## 2026-08-21 — início AFK
 
 - Início modo autônomo (líder AFK). Escopo: (1) sudo CVEs vs pudo (2) falhas de segurança de 10 shells (3) inventário de funções dos mesmos shells (4) commit+push pesquisa (5) WSJF na tabela (6) depois, ondas uma a uma.

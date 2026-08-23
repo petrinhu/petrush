@@ -45,7 +45,7 @@ Fecha drift AUD-ARCH F5 / R-I12 e documenta exceções F3/F4 (R-I10 / R-I11). A 
 | `src/main.c` | Loop REPL / composition root (mapeamento lógico = Front). Sem `dlopen`. Sem `libstdc++`. |
 | `src/front/complete.c` | Completion + history autosuggest (linenoise) |
 | `src/front/highlight.c` | Colorize mínimo (UX-21) |
-| `src/cxx/main.cpp` | Binário `configsh` (C++23; CXX-00 stub; TUI = CXX-TUI) |
+| `src/cxx/` (`main.cpp`, `config.cpp`, `tui.cpp`) | Binário `configsh` (C++23; CXX-TUI raw ANSI + XDG) |
 
 ### Foundation detalhado
 
@@ -95,10 +95,13 @@ Prova atual (CXX-00): `tests/smoke/cxx00-ldd.sh` exige `libstdc++` **ausente** e
 | Pasta | `src/cxx/` |
 | Entrada | `src/cxx/main.cpp` |
 | Flags | C++23, `-fno-exceptions`, `-fno-rtti` |
-| Toolkit UI | nenhuma nesta fatia; TUI raw (sem ncurses, sem Qt) = CXX-TUI |
-| Flags CLI planejadas | `--section`, `--dump`, `--check`, `--help` (help no stub CXX-00) |
+| Toolkit UI | TUI raw ANSI (sem ncurses, sem Qt) = CXX-TUI |
+| Flags CLI | `--section`, `--dump`, `--check`, `--help` |
+| Config XDG | `$PETRUSH_CONFIG` ou `$XDG_CONFIG_HOME/petrush/config.ini` ou `~/.config/petrush/config.ini` |
+| Secoes INI | `prompt`, `aliases`, `env`, `history`, `general` |
 | ASM permitido | `petrush_tty_mode`, `petrush_utf8_width` via `petrush/asm.h` (`extern "C"`) |
 | Relação com plugins | **não** partilha a ABI de `plugins/abi.h`; binário distinto do REPL |
+| Smoke | `tests/smoke/cxx-tui.sh` / target `cxx_tui` |
 
 ### Dez ilhas ASM (conjunto fechado)
 
@@ -163,7 +166,7 @@ Tudo listado explicitamente em `CMakeLists.txt`:
 
 - `project(petrush LANGUAGES C CXX ASM)` (ASM-00 + CXX-00).
 - Alvo `petrush`: Mid/Front/Foundation em C + `${PETRUSH_ASM_SOURCES}` quando `PETRUSH_ASM=ON`.
-- Alvo `configsh`: `src/cxx/main.cpp` (+ ilhas tty/utf8 se ASM ligado).
+- Alvo `configsh`: `src/cxx/{main,config,tui}.cpp` (+ ilhas tty/utf8 se ASM ligado).
 - Alvo `pudod`: separado, sem sanitize (incompatível com setuid futuro).
 - ASan/UBSan só em TUs C/C++; nunca em `.S`.
 - Gates isolados: `tests/smoke/asm00-toolchain.sh`, `asm-abi-header.sh`, `cxx00-ldd.sh`, `plg-abi-header.sh`.
@@ -171,7 +174,7 @@ Tudo listado explicitamente em `CMakeLists.txt`:
 ## Estado físico das pastas
 
 - `src/front/`: código real (`complete.c`, `highlight.c`). `main.c` permanece na raiz de `src/` por simplicidade (porte early).
-- `src/cxx/`: `configsh` C++23 (CXX-00 stub; TUI em CXX-TUI).
+- `src/cxx/`: `configsh` C++23 (CXX-TUI: `--dump`/`--check`/`--section`, XDG, TUI raw).
 - `src/mid/`: núcleo ativo do shell (tabela acima). **Só `.c`.**
 - `src/foundation/`: `env.c`, `process.c`, `job.c`, `rc_trust.c`.
 - `src/asm/`: ilhas System V AMD64 + `abi.inc` + `empty.S`.
@@ -220,7 +223,7 @@ Vendor linenoise: path canônico de UI = Front. Mid acessa clear/history só via
 
 Quando o projeto crescer ou após revisão de porte (Cosimo), podemos materializar as camadas físicas movendo arquivos (ex.: `main.c` → `src/front/`) e atualizando includes/CMake. `rc_trust.c` já está em Foundation (ARCH-02). Até lá, o mapeamento lógico acima é a fonte de verdade.
 
-Próximas fatias da stack tripla (não reabrem ADR-001): CXX-TUI, PLG-LOAD, ASM-WAI, ASM-NET, I18N-GETTEXT, DOC-DIA-*, GATE-CXXASM.
+Próximas fatias da stack tripla (não reabrem ADR-001): PLG-LOAD, ASM-WAI, ASM-NET, DOC-DIA-*, TST-CXX, TST-ASM, TST-PLG, GATE-CXXASM.
 
 Ver também:
 
@@ -237,7 +240,7 @@ Ver também:
 ## Notas de qualidade
 
 - `petrush`: 0 deps runtime além de libc + linenoise (embutido; atribuição em `NOTICE`) + ASM opcional. Sem `libstdc++` (ADR-CXXASM / CXX-00; prova `tests/smoke/cxx00-ldd.sh`).
-- `configsh` (CXX-00): C++23 (`-fno-exceptions -fno-rtti`), binário separado; stub help nesta fatia; TUI = CXX-TUI.
+- `configsh` (CXX-00/CXX-TUI): C++23 (`-fno-exceptions -fno-rtti`), binário separado; TUI raw ANSI; `--dump`/`--check`/`--section`; XDG.
 - Hardening + ASan/UBSan (só C/C++) + cppcheck + clang-tidy tuned.
 - TDD com acutest nas camadas mid/foundation (inclui `tests/test_rc_trust.c`; Front: `tests/test_complete.c` / `tests/test_highlight.c`; ASM: `tests/asm/test_*.c` sob `ctest -R asm_`).
 - Produção / `4755` nesta máquina: fora de escopo desta stack.
