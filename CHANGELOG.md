@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **exit N:** `builtin_exit` honra argumento numérico (0..255); inválido → stderr + exit 2.
 
 ### Added
+- **I18N-GETTEXT:** `po/` catalogs `en` / `pt_BR` / `es_419` (msgid=English); `include/petrush/i18n.h` + `src/foundation/i18n.c` (`bindtextdomain`/`textdomain`, `PETRUSH_LOCALEDIR` env/compile); CMake `FindGettext` + `msgfmt` → `build/locale/<lang>/LC_MESSAGES/petrush.mo` (`petrush_mo`); probe + smoke `tests/smoke/i18n-gettext.sh` + target `i18n_gettext`; ASM does not call gettext; Docker fedora:44 clang PASS. Sem 4755.
 - **CXX-00:** alvo `configsh` C++23 (`src/cxx/main.cpp` stub help+exit 0; `-fno-exceptions -fno-rtti`); liga `tty_mode.S` + `utf8_width.S` quando `PETRUSH_ASM`; `petrush` sem `libstdc++` (prova `ldd`); smoke `tests/smoke/cxx00-ldd.sh` + target `cxx00`; Docker fedora:44 clang PASS. TUI raw = CXX-TUI.
 - **ASM-TTY:** `src/asm/tty_mode.S` (`petrush_tty_mode`: RAW/COOKED via ioctl TCGETS/TCSETSF; 0 sucesso / `-errno`; nao-TTY → `-ENOTTY`; modo invalido → `-EINVAL`; sem tocar errno TLS); harness `tests/asm/test_tty_mode.c` (PTY via openpty) + ctest `asm_tty` 5/5; Docker fedora:44 clang PASS.
 - **ASM-UTF8:** `src/asm/utf8_width.S` (`petrush_utf8_width`: UAX#11 subset; ASCII=1, combining Mn=0, CJK/wide=2, UTF-8 invalido=-1; decode estrito sem overlong/surrogate); harness `tests/asm/test_utf8.c` + ctest `asm_utf8` 17/17; Docker fedora:44 clang PASS.

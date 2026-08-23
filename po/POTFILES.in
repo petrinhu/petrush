@@ -1,0 +1,3 @@
+# Files with gettext markers (_ / N_). msgid language: English.
+tests/smoke/i18n_probe.c
+src/foundation/i18n.c

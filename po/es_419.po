@@ -1,0 +1,21 @@
+# Spanish (Latin America) catalog. I18N-GETTEXT
+# Copyright (C) 2026 petrush contributors
+# This file is distributed under the same license as the petrush package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: petrush 0.3.2.1\n"
+"Report-Msgid-Bugs-To: https://github.com/petrinhu/petrush/issues\n"
+"POT-Creation-Date: 2026-08-23 03:40+0000\n"
+"PO-Revision-Date: 2026-08-23 03:40+0000\n"
+"Last-Translator: petrush\n"
+"Language-Team: Spanish (Latin America)\n"
+"Language: es_419\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: tests/smoke/i18n_probe.c
+msgid "I18N-GETTEXT probe"
+msgstr "I18N-GETTEXT prueba"

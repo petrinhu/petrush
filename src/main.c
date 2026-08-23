@@ -24,6 +24,7 @@
 #include "petrush/prompt.h"
 #include "petrush/rc_trust.h"
 #include "petrush/source.h"
+#include "petrush/i18n.h"
 #include "linenoise.h"
 
 /* Caminho padrão para histórico persistente */
@@ -104,6 +105,10 @@ int main(int argc, char *argv[])
     /* line-buffered mesmo em pipe (smoke/CI): evita vazar banner em redirs */
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IOLBF, 0);
+
+    /* I18N-GETTEXT: bindtextdomain before any user-visible string path.
+     * Catalogs msgid=en; ASM never calls gettext. */
+    (void)petrush_i18n_init(NULL);
 
     /* OSH-0: petrush arquivo → script mode (shebang). Sem banner/linenoise/rc.
      * Posicionais $1..$n fora desta fatia (argv[2+] ignorados). */

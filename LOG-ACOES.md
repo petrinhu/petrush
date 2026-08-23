@@ -97,3 +97,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - CXX-00
 
 - CXX-00: alvo configsh C++23 (src/cxx/main.cpp stub help+exit 0; -fno-exceptions -fno-rtti); liga tty_mode.S + utf8_width.S se PETRUSH_ASM; ldd: libstdc++ so em configsh (petrush limpo); smoke cxx00-ldd.sh + target cxx00 (RED sem alvo → GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
+
+## 2026-08-23 - I18N-GETTEXT
+
+- I18N-GETTEXT: po/ en+pt_BR+es_419 (msgid=en); i18n.h/i18n.c bindtextdomain; msgfmt no CMake (petrush_mo); smoke i18n-gettext.sh + target i18n_gettext (RED missing po → GREEN); Docker fedora:44 clang+gettext PASS; ASM sem gettext; TODO 🔍. Sem push. Sem 4755.

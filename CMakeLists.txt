@@ -75,6 +75,44 @@ if(PETRUSH_ASM)
     add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
 
+# ============================================================
+# I18N-GETTEXT: gettext catalogs (msgid=en) + msgfmt -> .mo
+# Runtime in glibc (libintl.h); ASM never calls gettext.
+# ============================================================
+include(CheckIncludeFile)
+include(CheckSymbolExists)
+find_package(Gettext)
+check_include_file("libintl.h" PETRUSH_HAVE_LIBINTL_H)
+set(CMAKE_REQUIRED_INCLUDES "")
+check_symbol_exists(gettext "libintl.h" PETRUSH_HAVE_GETTEXT_IN_LIBC)
+if(NOT PETRUSH_HAVE_LIBINTL_H OR NOT PETRUSH_HAVE_GETTEXT_IN_LIBC)
+    message(FATAL_ERROR
+        "I18N-GETTEXT requires libintl.h + gettext() (glibc or libintl)")
+endif()
+if(NOT GETTEXT_MSGFMT_EXECUTABLE)
+    message(FATAL_ERROR
+        "I18N-GETTEXT requires msgfmt (install gettext package)")
+endif()
+
+set(PETRUSH_BUILD_LOCALEDIR "${CMAKE_BINARY_DIR}/locale")
+set(PETRUSH_I18N_LANGS en pt_BR es_419)
+set(PETRUSH_MO_FILES)
+foreach(_lang IN LISTS PETRUSH_I18N_LANGS)
+    set(_po "${CMAKE_SOURCE_DIR}/po/${_lang}.po")
+    set(_mo_dir "${PETRUSH_BUILD_LOCALEDIR}/${_lang}/LC_MESSAGES")
+    set(_mo "${_mo_dir}/petrush.mo")
+    add_custom_command(
+        OUTPUT "${_mo}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_mo_dir}"
+        COMMAND ${GETTEXT_MSGFMT_EXECUTABLE} -o "${_mo}" "${_po}"
+        DEPENDS "${_po}"
+        COMMENT "msgfmt ${_lang} -> petrush.mo (I18N-GETTEXT)"
+        VERBATIM
+    )
+    list(APPEND PETRUSH_MO_FILES "${_mo}")
+endforeach()
+add_custom_target(petrush_mo ALL DEPENDS ${PETRUSH_MO_FILES})
+
 # Executável principal
 add_executable(petrush
     src/main.c
@@ -94,8 +132,13 @@ add_executable(petrush
     src/foundation/process.c
     src/foundation/job.c
     src/foundation/env.c
+    src/foundation/i18n.c
     vendor/linenoise/linenoise.c
     ${PETRUSH_ASM_SOURCES}
+)
+add_dependencies(petrush petrush_mo)
+target_compile_definitions(petrush PRIVATE
+    "PETRUSH_LOCALEDIR=\"${PETRUSH_BUILD_LOCALEDIR}\""
 )
 
 # pudod — helper setuid mínimo (NEW-05, Fase 1)
@@ -811,6 +854,29 @@ add_custom_target(asm_abi
 add_custom_target(plugin_abi
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/plg-abi-header.sh
     COMMENT "PLG-ABI header gate (plugins/abi.h C11 major=1)"
+    VERBATIM
+)
+
+# I18N-GETTEXT: probe + msgfmt + bindtextdomain smoke (isolado do smoke ALL)
+add_executable(i18n_probe
+    tests/smoke/i18n_probe.c
+    src/foundation/i18n.c
+)
+target_include_directories(i18n_probe PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+target_compile_definitions(i18n_probe PRIVATE
+    "PETRUSH_LOCALEDIR=\"${PETRUSH_BUILD_LOCALEDIR}\""
+)
+target_compile_options(i18n_probe PRIVATE
+    -Wall -Wextra -Wpedantic -Werror
+)
+add_dependencies(i18n_probe petrush_mo)
+add_custom_target(i18n_gettext
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/i18n-gettext.sh
+    DEPENDS i18n_probe petrush_mo
+    COMMENT "I18N-GETTEXT gate (po/ msgfmt bindtextdomain; ASM sem gettext)"
     VERBATIM
 )
 
