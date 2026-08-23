@@ -9,6 +9,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - PLG-LOAD
 
 - PLG-LOAD: `plugin_load.c` XDG + `PETRUSH_PLUGIN_PATH`, allow-list SHA-256 (OpenSSL), recusa world-writable (ficheiro+dirs), dlopen so apos checks; pudod sem .so (`plugin_pudod_no_dl`); TDD red stub → green; ctest -R plugin_ PASS; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. Sem mexer netcom.
+- PLG-LOAD (QA fix): `dlsym` via `memcpy`/`union` (`petrush_dlsym_fn`); sem cast object→fn; `-Wpedantic -Werror` mantido; gcc host + Docker fedora:44 gcc 16 PASS; ctest plugin_load PASS; netcom intocado; sem 4755; sem push.
 
 ## 2026-08-23 - CXX-TUI
 

@@ -524,6 +524,16 @@ static void log_deny(const char *reason, const char *path)
     }
 }
 
+/*
+ * ISO C forbids converting object pointer (void* de dlsym) para function
+ * pointer (-Werror=pedantic). POSIX garante mesmo tamanho: copiar bits.
+ */
+static void petrush_dlsym_fn(void *handle, const char *symbol, void *fn_out)
+{
+    void *sym = dlsym(handle, symbol);
+    memcpy(fn_out, &sym, sizeof(sym));
+}
+
 int petrush_plugin_load(const char *name,
                         const char *allow_path,
                         petrush_plugin_t *out)
@@ -620,14 +630,28 @@ int petrush_plugin_load(const char *name,
     typedef int (*cmd_fn)(int, char **);
     typedef void (*fini_fn)(void);
 
-    query_fn query = (query_fn)dlsym(handle, "petrush_plugin_query");
-    init_fn init = (init_fn)dlsym(handle, "petrush_plugin_init");
-    cmd_fn cmd = (cmd_fn)dlsym(handle, "petrush_plugin_cmd");
-    fini_fn fini = (fini_fn)dlsym(handle, "petrush_plugin_fini");
+    _Static_assert(sizeof(void *) == sizeof(query_fn), "dlsym fn size");
+    _Static_assert(sizeof(void *) == sizeof(init_fn), "dlsym fn size");
+    _Static_assert(sizeof(void *) == sizeof(cmd_fn), "dlsym fn size");
+    _Static_assert(sizeof(void *) == sizeof(fini_fn), "dlsym fn size");
+
+    query_fn query = NULL;
+    init_fn init = NULL;
+    cmd_fn cmd = NULL;
+    fini_fn fini = NULL;
+    petrush_dlsym_fn(handle, "petrush_plugin_query", &query);
+    petrush_dlsym_fn(handle, "petrush_plugin_init", &init);
+    petrush_dlsym_fn(handle, "petrush_plugin_cmd", &cmd);
+    petrush_dlsym_fn(handle, "petrush_plugin_fini", &fini);
 
     if (!query || !init || !cmd || !fini) {
-        /* tenta vtable */
-        petrush_plugin_abi_t *vt = (petrush_plugin_abi_t *)dlsym(handle, "petrush_plugin_abi");
+        /* tenta vtable (object ptr -> object ptr: cast ISO C ok) */
+        union {
+            void *obj;
+            petrush_plugin_abi_t *vt;
+        } u_abi;
+        u_abi.obj = dlsym(handle, "petrush_plugin_abi");
+        petrush_plugin_abi_t *vt = u_abi.vt;
         if (!vt || !vt->query || !vt->init || !vt->cmd || !vt->fini) {
             dlclose(handle);
             log_deny("dlsym", canon);
