@@ -65,3 +65,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - ASM-GLOB
 
 - ASM-GLOB: glob_match.S (`*` `?` iterativo; `[` literal); expand.c match_pat → petrush_glob_match (PETRUSH_HAVE_ASM); ctest -R test_glob PASS (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
+
+## 2026-08-23 - ASM-CRC
+
+- ASM-CRC: crc32.S IEEE 0xEDB88320 (tabela .rodata PIC); incremental sem XOR final; vetor "123456789" → 0xCBF43926; tests/asm/test_crc32.c; ctest -R asm_crc32 8/8 (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. Sem tocar glob/memeq.

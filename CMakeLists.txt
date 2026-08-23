@@ -65,6 +65,7 @@ if(PETRUSH_ASM)
         src/asm/empty.S
         src/asm/memeq_ct.S
         src/asm/glob_match.S
+        src/asm/crc32.S
     )
     add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
@@ -525,6 +526,21 @@ if(PETRUSH_ASM)
         -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
     )
     add_test(NAME asm_memeq COMMAND asm_memeq)
+
+    # ASM-CRC: petrush_crc32 IEEE 0xEDB88320
+    add_executable(asm_crc32
+        tests/asm/test_crc32.c
+        src/asm/crc32.S
+    )
+    target_include_directories(asm_crc32 PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_options(asm_crc32 PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+    )
+    add_test(NAME asm_crc32 COMMAND asm_crc32)
 endif()
 
 add_custom_target(check
