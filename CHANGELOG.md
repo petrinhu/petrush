@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **exit N:** `builtin_exit` honra argumento numérico (0..255); inválido → stderr + exit 2.
 
 ### Added
+- **ASM-00:** CMake `LANGUAGES C CXX ASM`, `PETRUSH_ASM` (default ON em x86_64; FATAL noutro arch), stub `src/asm/empty.S` com `.note.GNU-stack`, ASan/UBSan so em C/C++, gate `tests/smoke/asm00-toolchain.sh` + target `asm00`; CI instala binutils+gettext.
 - **OSH-0:** `petrush arquivo` / shebang (`#!/usr/bin/env petrush`) em modo script (sem banner/linenoise/rc); runner de `source.c`; ausente → 127; recusa não-regular; sem SEC-10 `mode&0022` no argv; posicionais `$1` fora desta fatia. Smoke: `tests/smoke/osh0-script.sh`.
 
 - **CI:** matrix multi-distro no GHA (`fedora:44` Debug+Release gcc/clang; `ubuntu:rolling` / `archlinux` / `cachyos/cachyos` Release gcc+clang); job ASan+UBSan (`Sanitize`, `halt_on_error`); lint duro so em Fedora 44 clang Debug; `check`+smoke obrigatorios; Release via `/usr/local` (SEC-02, sem setuid); lista de `test_*` alinhada ao CMake.

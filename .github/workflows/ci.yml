@@ -109,10 +109,13 @@ jobs:
           dnf -y install \
             gcc gcc-c++ clang clang-tools-extra \
             cmake make \
+            binutils gettext \
             valgrind cppcheck \
             glibc-devel \
             diffutils findutils which
           command -v cmake
+          command -v as
+          command -v msgfmt
           gcc --version | head -1
           clang --version | head -1
 
@@ -123,8 +126,11 @@ jobs:
           apt-get update -qq
           apt-get install -y -qq \
             build-essential clang cmake make \
+            binutils gettext \
             diffutils findutils ca-certificates
           command -v cmake
+          command -v as
+          command -v msgfmt
           gcc --version | head -1
           clang --version | head -1
 
@@ -133,8 +139,10 @@ jobs:
         run: |
           pacman -Syu --noconfirm
           pacman -S --noconfirm --needed \
-            base-devel clang cmake make diffutils which
+            base-devel clang cmake make binutils gettext diffutils which
           command -v cmake
+          command -v as
+          command -v msgfmt
           gcc --version | head -1
           clang --version | head -1
 
@@ -145,10 +153,12 @@ jobs:
           # seccomp do Docker; o EXIT do pacman ainda e 0 e os pacotes entram.
           # Nao e Arch renomeado (repos cachyos + ID=cachyos).
           pacman -Sy --noconfirm --needed \
-            cmake clang gcc make diffutils which
+            cmake clang gcc make binutils gettext diffutils which
           command -v cmake
           command -v clang
           command -v gcc
+          command -v as
+          command -v msgfmt
           gcc --version | head -1
           clang --version | head -1
 
@@ -232,9 +242,12 @@ jobs:
           dnf -y install \
             gcc gcc-c++ clang \
             cmake make \
+            binutils gettext \
             libasan libubsan \
             glibc-devel \
             diffutils findutils which
+          command -v as
+          command -v msgfmt
           clang --version | head -1
 
       - name: Configure Sanitize
@@ -283,7 +296,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install deps
         run: |
-          dnf -y install gcc clang cmake make valgrind cppcheck clang-tools-extra \
+          dnf -y install gcc gcc-c++ clang cmake make binutils gettext \
+            valgrind cppcheck clang-tools-extra \
             glibc-devel diffutils findutils which
       - name: Build Release gcc + install + smoke
         run: |

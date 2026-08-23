@@ -128,7 +128,7 @@ Cabeçalho 10 colunas. Linhas W1–W19 não têm WSJF (histórico). Mesma Onda =
 | ID | Onda | Grupo | Descrição Técnica | Prioridade | Pré-requisito | Dificuldade | WSJF | Status | Estado Auditado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | ---: | :--- | :--- |
 | OSH-0 | W20 | Shell | `petrush arquivo` + shebang; sem banner/rc; exit = último comando; sem `$1`. EXECUTAR TESTE [smoke shebang Fedora 44 clang] [NA FATIA] | Alta | ARCH-03 | Média | 2.60 | 🔍 Pendente verificação | petrush_run_script; smoke osh0-script.sh; Docker fedora:44 clang OK; sem push |
-| ASM-00 | W21 | Build | CMake C CXX ASM, ASan só C/C++, `.note.GNU-stack`, clang+binutils+gettext no Docker. EXECUTAR TESTE [cmake + `clang -c` .S] [NA FATIA] | Alta | ARCH-03 | Média | 1.60 | ⏳ Pendente | — |
+| ASM-00 | W21 | Build | CMake C CXX ASM, ASan só C/C++, `.note.GNU-stack`, clang+binutils+gettext no Docker. EXECUTAR TESTE [cmake + `clang -c` .S] [NA FATIA] | Alta | ARCH-03 | Média | 1.60 | 🔍 Pendente verificação | empty.S+PETRUSH_ASM; Docker fedora:44 clang OK; sem push |
 | ASM-ABI | W22 | Arch | `include/petrush/asm.h` + `src/asm/abi.inc`. EXECUTAR TESTE [TU inclui asm.h] [NA FATIA] | Alta | ASM-00 | Baixa | 4.00 | ⏳ Pendente | — |
 | PLG-ABI | W23 | Plugins | `plugins/abi.h` C11. Sem dlopen no main. EXECUTAR TESTE [ABI major=1] [NA FATIA] | Alta | ASM-ABI | Baixa | 4.33 | ⏳ Pendente | — |
 | ASM-MEMEQ | W23 | ASM | `petrush_memeq_ct`. EXECUTAR TESTE [`ctest -R asm_memeq`] [NA FATIA] | Alta | ASM-ABI | Baixa | 4.00 | ⏳ Pendente | — |

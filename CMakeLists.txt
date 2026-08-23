@@ -1,19 +1,47 @@
 cmake_minimum_required(VERSION 3.16)
-project(petrush LANGUAGES C)
+# ASM-00: C23 + C++23 (declarado; alvo configsh so em CXX-00) + ASM (GAS/Clang, sem NASM)
+project(petrush LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# PETRUSH_ASM: default ON so em x86_64/amd64; ON noutro arch = FATAL no configure
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _PETRUSH_CPU)
+set(_PETRUSH_IS_X86_64 FALSE)
+if(_PETRUSH_CPU STREQUAL "x86_64" OR _PETRUSH_CPU STREQUAL "amd64")
+    set(_PETRUSH_IS_X86_64 TRUE)
+endif()
+if(_PETRUSH_IS_X86_64)
+    set(_PETRUSH_ASM_DEFAULT ON)
+else()
+    set(_PETRUSH_ASM_DEFAULT OFF)
+endif()
+option(PETRUSH_ASM
+    "Build System V AMD64 assembly units (GAS via Clang/GCC; no NASM)"
+    ${_PETRUSH_ASM_DEFAULT})
+if(PETRUSH_ASM AND NOT _PETRUSH_IS_X86_64)
+    message(FATAL_ERROR
+        "PETRUSH_ASM=ON requires x86_64/amd64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
+endif()
+if(PETRUSH_ASM)
+    message(STATUS "PETRUSH_ASM=ON (System V AMD64 GAS/Clang)")
+else()
+    message(STATUS "PETRUSH_ASM=OFF (assembly units skipped)")
+endif()
 
 # Avisos estritos (C)
 set(PETRUSH_C_FLAGS "-Wall -Wextra -Wpedantic -Werror -Wshadow -Wformat=2 -Wnull-dereference -Wunused-parameter -Wconversion")
 
-# Build type Sanitize (ASan + UBSan)
+# Build type Sanitize (ASan + UBSan) - so C/C++; NUNCA em CMAKE_ASM_FLAGS / .S
 if(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
     set(SANITIZE_FLAGS "-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZE_FLAGS} ${PETRUSH_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZE_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${SANITIZE_FLAGS}")
-    message(STATUS "Sanitize build: ASan + UBSan enabled")
+    message(STATUS "Sanitize build: ASan + UBSan on C/C++ only (not ASM)")
 else()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PETRUSH_C_FLAGS}")
 endif()
@@ -22,12 +50,19 @@ endif()
 option(ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
 if(ENABLE_COVERAGE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage -O0 -g")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage -O0 -g")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
     message(STATUS "Coverage instrumentation enabled (--coverage)")
 endif()
 
 # Includes
 include_directories(include src)
+
+# Fontes ASM (stub empty.S no ASM-00; atomos reais nas fatias ASM-*)
+set(PETRUSH_ASM_SOURCES)
+if(PETRUSH_ASM)
+    list(APPEND PETRUSH_ASM_SOURCES src/asm/empty.S)
+endif()
 
 # Executável principal
 add_executable(petrush
@@ -49,6 +84,7 @@ add_executable(petrush
     src/foundation/job.c
     src/foundation/env.c
     vendor/linenoise/linenoise.c
+    ${PETRUSH_ASM_SOURCES}
 )
 
 # pudod — helper setuid mínimo (NEW-05, Fase 1)
@@ -587,6 +623,14 @@ add_custom_target(smoke
     VERBATIM
 )
 
+# ASM-00: gate isolado (clang -c + cmake PETRUSH_ASM). Nao entra no smoke ALL
+# para nao rebuildar petrush a cada verify; rode: cmake --build build --target asm00
+add_custom_target(asm00
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/asm00-toolchain.sh
+    COMMENT "ASM-00 toolchain gate (GAS/Clang, .note.GNU-stack, arch check)"
+    VERBATIM
+)
+
 # Robust clean target using cmake -E to bypass shell rm hooks (e.g. trash-guard)
 add_custom_target(clean-build
     COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_BINARY_DIR}
@@ -606,9 +650,10 @@ add_custom_target(verify ALL
 )
 
 # Mensagem final
-message(STATUS "petrush configurado para C23 com hardening e análise estática")
+message(STATUS "petrush configurado para C23/C++23/ASM com hardening e análise estática")
 message(STATUS "AUTOMAÇÃO COMPLETA: após 'cmake -B build -S . -DCMAKE_BUILD_TYPE=Release', rode apenas 'cmake --build build'")
 message(STATUS "Isso faz: build + lint + smoke integrado (pudo + sanitização) + pudod-valgrind (gate final)")
 message(STATUS "Para só o binário: cmake --build build --target petrush")
 message(STATUS "Outros: --target clean-build (limpa bypassando hook), --target lint, --target smoke")
+message(STATUS "PETRUSH_ASM=${PETRUSH_ASM} (default ON em x86_64; FATAL se ON noutro arch)")
 message(WARNING "pudod é um binário privilegiado. NÃO aplique setuid automaticamente. Veja docs/security/")

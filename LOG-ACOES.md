@@ -50,3 +50,8 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - UX-22 impl: Mid source.h/c + test_source; load_rc_file=missing_ok; check 17/17 smoke 50; TODO 🔍. Sem push.
 - AUD-REPORT (W16): livro `docs/auditoria/aud-report.md` + índice `docs/auditoria/README.md`. Score 73/100, APROVADO COM RESSALVAS (unpriv early). Setuid 4755 NÃO endossado. 3 vermelhos P0 (gate 4755, fallback sudo, allow-list). `src/` intocado. TODO AUD-REPORT → 🔍. Sem push.
 - W18 docs P1: DOC-02/03/04 commits `7f50edc` `5b271b5` `1e773ae`. QA APROVAR PUSH. Push origin. CI via github-gossips (sem poll). Próximo após sinal verde: P2 fronteira (R-I8/I9/I13).
+- W19 ARCH-01/02 push `096a968` (QA APROVAR). ARCH-03 (porta ui_port DIP) planejado pelo CTO; implementação espera github-gossips verde. Sem poll GHA.
+
+## 2026-08-23 - ASM-00
+
+- ASM-00 toolchain: CMake C CXX ASM, PETRUSH_ASM, empty.S .note.GNU-stack, ASan so C/C++, Docker fedora:44 PASS, TODO 🔍. Sem push.
