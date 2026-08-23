@@ -10,7 +10,6 @@
 ## 1. Confirmar o binário
 
 ```bash
-petrush -h 2>/dev/null || true
 which petrush || ls -l ./build/petrush
 ```
 
