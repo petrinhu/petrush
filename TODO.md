@@ -131,7 +131,7 @@ Cabeçalho 10 colunas. Linhas W1–W19 não têm WSJF (histórico). Mesma Onda =
 | ASM-00 | W21 | Build | CMake C CXX ASM, ASan só C/C++, `.note.GNU-stack`, clang+binutils+gettext no Docker. EXECUTAR TESTE [cmake + `clang -c` .S] [NA FATIA] | Alta | ARCH-03 | Média | 1.60 | 🔍 Pendente verificação | empty.S+PETRUSH_ASM; Docker fedora:44 clang OK; sem push |
 | ASM-ABI | W22 | Arch | `include/petrush/asm.h` + `src/asm/abi.inc`. EXECUTAR TESTE [TU inclui asm.h] [NA FATIA] | Alta | ASM-00 | Baixa | 4.00 | 🔍 Pendente verificação | asm.h 10 decls + abi.inc PIC; smoke trava memeq_ct 0/1 (sem -1=diferente no preambulo); Docker fedora:44 clang OK; sem push |
 | PLG-ABI | W23 | Plugins | `plugins/abi.h` C11. Sem dlopen no main. EXECUTAR TESTE [ABI major=1] [NA FATIA] | Alta | ASM-ABI | Baixa | 4.33 | ⏳ Pendente | — |
-| ASM-MEMEQ | W23 | ASM | `petrush_memeq_ct`. EXECUTAR TESTE [`ctest -R asm_memeq`] [NA FATIA] | Alta | ASM-ABI | Baixa | 4.00 | ⏳ Pendente | — |
+| ASM-MEMEQ | W23 | ASM | `petrush_memeq_ct`. EXECUTAR TESTE [`ctest -R asm_memeq`] [NA FATIA] | Alta | ASM-ABI | Baixa | 4.00 | 🔍 Pendente verificação | memeq_ct.S XOR\|OR sem early-out; ctest asm_memeq 11/11; Docker fedora:44 clang OK; sem push; sem 4755 |
 | ASM-I64 | W23 | ASM | `petrush_parse_i64`. EXECUTAR TESTE [`ctest -R asm_parse_i64`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | ⏳ Pendente | — |
 | ASM-GLOB | W23 | ASM | `petrush_glob_match` no lugar de `match_pat`. EXECUTAR TESTE [`ctest -R test_glob`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | ⏳ Pendente | — |
 | ASM-PGID | W23 | ASM | `petrush_job_setpgid`. EXECUTAR TESTE [`ctest -R test_job`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | ⏳ Pendente | — |

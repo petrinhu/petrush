@@ -61,7 +61,10 @@ include_directories(include src)
 # Fontes ASM (stub empty.S no ASM-00; atomos reais nas fatias ASM-*)
 set(PETRUSH_ASM_SOURCES)
 if(PETRUSH_ASM)
-    list(APPEND PETRUSH_ASM_SOURCES src/asm/empty.S)
+    list(APPEND PETRUSH_ASM_SOURCES
+        src/asm/empty.S
+        src/asm/memeq_ct.S
+    )
 endif()
 
 # Executável principal
@@ -498,6 +501,23 @@ target_compile_options(test_source PRIVATE
     -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
 )
 add_test(NAME test_source COMMAND test_source)
+
+# ASM-MEMEQ: petrush_memeq_ct (System V AMD64; so se PETRUSH_ASM)
+if(PETRUSH_ASM)
+    add_executable(asm_memeq
+        tests/asm/test_memeq.c
+        src/asm/memeq_ct.S
+    )
+    target_include_directories(asm_memeq PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_options(asm_memeq PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+    )
+    add_test(NAME asm_memeq COMMAND asm_memeq)
+endif()
 
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure

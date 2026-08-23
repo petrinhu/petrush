@@ -60,3 +60,4 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 
 - ASM-ABI: asm.h (10 decls) + abi.inc (SysV AMD64 PIC); empty.S usa abi.inc; smoke asm-abi-header.sh + target asm_abi; Docker fedora:44 clang PASS; TODO 🔍. Sem corpos. Sem push. Sem 4755.
 - ASM-ABI: smoke passa a travar contrato memeq_ct (verbatim "Retorna 0 se iguais, 1 se diferem" + "1  = diferem (memeq_ct)"; preambulo sem -1 associado a diferente/memeq). HEAD verde; preambulo antigo vermelho; Docker fedora:44 PASS. Sem push.
+- ASM-MEMEQ: memeq_ct.S (XOR|OR, sem early-out; 0/1); tests/asm/test_memeq.c; ctest -R asm_memeq 11/11 (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
