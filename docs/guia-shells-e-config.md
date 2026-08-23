@@ -279,38 +279,40 @@ Isso seria feature nova (parser de path + migração + testes). **Não** instala
 
 ---
 
-## 4. Shebang / declarar petrush num arquivo `.sh`
+## 4. Shebang / script mode (OSH-0)
 
 ### Fato do código
 
-Em `src/main.c`:
+`argc >= 2` com `argv[1]` não vazio → **modo script** (`petrush_run_script`):
 
-```c
-int main(int argc, char *argv[])
-{
-    (void)argc;
-    (void)argv;
-    /* … entra direto no REPL interativo … */
-}
+- Sem banner, sem linenoise, sem `~/.petrushrc`.
+- Runner = o de `source.c` (linha a linha; `#` e vazio skip; `parse_list` + `dispatch_list`).
+- Exit status = último comando; arquivo ausente → **127**; `exit N` encerra com **N**.
+- Recusa não-regular / não-legível. **Não** aplica SEC-10 `mode&0022` ao script de `argv` (diferente do `source` / rc).
+- Interativo sem args = comportamento anterior (banner + rc + REPL).
+
+Shebang suportado quando o binário está no `PATH` do processo:
+
+```sh
+#!/usr/bin/env petrush
+echo hello
 ```
 
-Consequências:
+Ou caminho absoluto `#!/caminho/para/petrush`. **Não** instalamos em `/bin` nem `/usr/bin` neste guia (sem install / sem 4755).
 
-1. **`petrush script.sh` não funciona** como interpretador de arquivo: `argv[1]` é ignorado.
-2. **`#!/bin/petrush`**, **`#!/usr/bin/env petrush`**, e variantes com espaço (`#! /bin/petrush`) **não funcionam ainda**. O kernel passaria o path do script em `argv[1]` (e o resto da linha shebang conforme a regra do SO); o petrush descarta `argc`/`argv` e abre o REPL.
-3. Não afirmamos suporte a shebang. Não instalamos em `/bin` nem `/usr/bin` neste guia.
+### Fora de OSH-0 (documentado)
 
-### Caminho honesto hoje
+- **Posicionais `$1`…`$n`**: `argv[2+]` ainda são ignorados. Sem parâmetros de script nesta fatia.
+- `source` / `.` dentro do REPL continuam com SEC-10 e sem `$1`.
 
-| Objetivo | Como fazer agora |
-|----------|------------------|
-| Rodar um arquivo de comandos | Dentro do REPL: `source ./arquivo` ou `. ./arquivo` (**UX-22**) |
-| Config no boot | Linhas em `~/.petrushrc` |
-| Comentários | Linhas `# …` no arquivo sourcado / rc (ignoradas pelo runner) |
+### Caminhos
 
-Limites do `source` (honestidade): caminho **explícito** (relativo ou absoluto); **não** procura no `PATH`; um argumento só; sem `$1`…`$n`; nesting máximo **8**; arquivo precisa passar em **SEC-10**.
-
-Quando (e se) script mode / shebang existir, será item de produto próprio com testes. Até lá: **só** `source` / rc.
+| Objetivo | Como |
+|----------|------|
+| Rodar arquivo não-interativo | `petrush ./arquivo` ou shebang |
+| Rodar no shell atual (REPL) | `source ./arquivo` / `. ./arquivo` (**UX-22**, SEC-10) |
+| Config no boot interativo | `~/.petrushrc` (só no REPL) |
+| Comentários | Linhas `# …` (runner ignora) |
 
 ---
 

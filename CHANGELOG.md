@@ -9,8 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **ARCH-03 / P2.1:** porta DIP `petrush/ui_port.h` (`clear` + history get/len); Mid (`dispatcher`, `hist_expand`) sem `linenoise.h`; adapter no Front (`petrush_setup_linenoise_ux`). Sem lib STATIC (P2.4 fora).
+- **exit N:** `builtin_exit` honra argumento numérico (0..255); inválido → stderr + exit 2.
 
 ### Added
+- **OSH-0:** `petrush arquivo` / shebang (`#!/usr/bin/env petrush`) em modo script (sem banner/linenoise/rc); runner de `source.c`; ausente → 127; recusa não-regular; sem SEC-10 `mode&0022` no argv; posicionais `$1` fora desta fatia. Smoke: `tests/smoke/osh0-script.sh`.
+
 - **CI:** matrix multi-distro no GHA (`fedora:44` Debug+Release gcc/clang; `ubuntu:rolling` / `archlinux` / `cachyos/cachyos` Release gcc+clang); job ASan+UBSan (`Sanitize`, `halt_on_error`); lint duro so em Fedora 44 clang Debug; `check`+smoke obrigatorios; Release via `/usr/local` (SEC-02, sem setuid); lista de `test_*` alinhada ao CMake.
 - **FEAT-TEST:** builtins `test` / `[` com primaries curtos (`-f -d -e -z -n = != -eq -ne -lt -gt`); `[` exige `]` final; status 0/1/2; sem `[[`, sem `-a`/`-o`/`!`; help + testes em `test_info`.
 - **FEAT-NOCLOBBER:** política UX de noclobber sempre ligada (`>`/`2>` com `O_EXCL` já em SEC-09); `help`/`info` documentam; sem `set -C`/`set -o noclobber`.

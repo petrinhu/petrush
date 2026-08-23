@@ -250,6 +250,70 @@ void test_source_registered_in_table(void)
     TEST_CHECK(found_dot);
 }
 
+/* --- OSH-0: petrush_run_script --- */
+
+void test_run_script_missing_is_127(void)
+{
+    int rc = petrush_run_script("/var/tmp/petrush_no_such_osh0_zzz");
+    TEST_CHECK(rc == 127);
+}
+
+void test_run_script_allows_group_writable(void)
+{
+    char *path = write_temp("export OSH0_GW=1\n");
+    if (!path) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    TEST_CHECK(chmod(path, 0664) == 0);
+    petrush_unsetenv("OSH0_GW");
+    TEST_CHECK(petrush_run_script(path) == 0);
+    TEST_CHECK(petrush_getenv("OSH0_GW") != NULL);
+    unlink(path);
+    free(path);
+    petrush_unsetenv("OSH0_GW");
+}
+
+void test_run_script_rejects_directory(void)
+{
+    char dir[] = "/var/tmp/petrush_osh0_dir_XXXXXX";
+    if (!mkdtemp(dir)) {
+        TEST_SKIP("mkdtemp falhou");
+        return;
+    }
+    int rc = petrush_run_script(dir);
+    TEST_CHECK(rc != 0);
+    TEST_CHECK(rc != 127);
+    rmdir(dir);
+}
+
+void test_run_script_last_status(void)
+{
+    char *path = write_temp("/bin/false\n");
+    if (!path) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    TEST_CHECK(petrush_run_script(path) == 1);
+    unlink(path);
+    free(path);
+}
+
+void test_run_script_skips_hash_and_blank(void)
+{
+    char *path = write_temp("# comment\n\nexport OSH0_SKIP=ok\n");
+    if (!path) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    petrush_unsetenv("OSH0_SKIP");
+    TEST_CHECK(petrush_run_script(path) == 0);
+    TEST_CHECK(petrush_getenv("OSH0_SKIP") != NULL);
+    unlink(path);
+    free(path);
+    petrush_unsetenv("OSH0_SKIP");
+}
+
 TEST_LIST = {
     { "source_argc_must_be_two", test_source_argc_must_be_two },
     { "source_and_dot_same_builtin", test_source_and_dot_same_builtin },
@@ -260,5 +324,10 @@ TEST_LIST = {
     { "source_no_path_search", test_source_no_path_search },
     { "source_depth_ceiling", test_source_depth_ceiling },
     { "source_registered_in_table", test_source_registered_in_table },
+    { "run_script_missing_is_127", test_run_script_missing_is_127 },
+    { "run_script_allows_group_writable", test_run_script_allows_group_writable },
+    { "run_script_rejects_directory", test_run_script_rejects_directory },
+    { "run_script_last_status", test_run_script_last_status },
+    { "run_script_skips_hash_and_blank", test_run_script_skips_hash_and_blank },
     { NULL, NULL }
 };

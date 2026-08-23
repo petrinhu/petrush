@@ -446,8 +446,19 @@ int builtin_echo(petrush_cmd_t *cmd)
 
 int builtin_exit(petrush_cmd_t *cmd)
 {
-    (void)cmd;
-    exit(0);
+    int code = 0;
+    if (cmd && cmd->argc >= 2 && cmd->argv && cmd->argv[1]) {
+        const char *a = cmd->argv[1];
+        char *end = NULL;
+        errno = 0;
+        long v = strtol(a, &end, 10);
+        if (errno != 0 || end == a || (end && *end != '\0')) {
+            fprintf(stderr, "petrush: exit: %s: numeric argument required\n", a);
+            exit(2);
+        }
+        code = (int)(v & 0xff);
+    }
+    exit(code);
     return 0; /* nunca chega aqui */
 }
 

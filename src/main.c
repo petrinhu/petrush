@@ -101,12 +101,16 @@ static void sigint_handler(int signum)
 
 int main(int argc, char *argv[])
 {
-    (void)argc;
-    (void)argv;
-
     /* line-buffered mesmo em pipe (smoke/CI): evita vazar banner em redirs */
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IOLBF, 0);
+
+    /* OSH-0: petrush arquivo → script mode (shebang). Sem banner/linenoise/rc.
+     * Posicionais $1..$n fora desta fatia (argv[2+] ignorados). */
+    if (argc >= 2 && argv[1] && argv[1][0] != '\0') {
+        petrush_init_shell_termios();
+        return petrush_run_script(argv[1]);
+    }
 
     printf("%s %s (C23 shell)\n", PETRUSH_NAME, PETRUSH_VERSION);
     printf("Digite 'exit' ou 'quit' para sair.\n\n");

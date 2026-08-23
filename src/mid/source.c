@@ -1,5 +1,5 @@
 /*
- * source.c - source / . no processo atual (UX-22)
+ * source.c - source / . (UX-22) + script mode (OSH-0)
  */
 
 #include "petrush/source.h"
@@ -16,6 +16,48 @@
 #include <unistd.h>
 
 static int g_source_depth;
+
+/* Runner compartilhado: linha a linha, #/vazio skip, alias+parse_list+dispatch. */
+static int run_file_lines(FILE *f, const char *path)
+{
+    char linebuf[4096];
+    int lineno = 0;
+    int status = 0;
+
+    while (fgets(linebuf, sizeof(linebuf), f)) {
+        lineno++;
+
+        size_t len = strlen(linebuf);
+        if (len > 0 && linebuf[len - 1] == '\n') {
+            linebuf[len - 1] = '\0';
+        }
+
+        char *start = linebuf;
+        while (*start == ' ' || *start == '\t') {
+            start++;
+        }
+        if (*start == '\0' || *start == '#') {
+            continue;
+        }
+
+        char *expanded = alias_expand_line(start);
+        const char *to_run = expanded ? expanded : start;
+        petrush_list_t list = {0};
+        if (petrush_parse_list(to_run, &list) == 0) {
+            if (list.nitems > 0) {
+                status = dispatch_list(&list);
+            }
+        } else {
+            fprintf(stderr, "petrush: erro em %s (linha %d): %s\n",
+                    path, lineno, start);
+            status = 1;
+        }
+        petrush_list_free(&list);
+        free(expanded);
+    }
+
+    return status;
+}
 
 int petrush_source_file(const char *path, int missing_ok)
 {
@@ -57,43 +99,53 @@ int petrush_source_file(const char *path, int missing_ok)
     }
 
     g_source_depth++;
+    int status = run_file_lines(f, path);
+    fclose(f);
+    g_source_depth--;
+    return status;
+}
 
-    char linebuf[4096];
-    int lineno = 0;
-    int status = 0;
-
-    while (fgets(linebuf, sizeof(linebuf), f)) {
-        lineno++;
-
-        size_t len = strlen(linebuf);
-        if (len > 0 && linebuf[len - 1] == '\n') {
-            linebuf[len - 1] = '\0';
-        }
-
-        char *start = linebuf;
-        while (*start == ' ' || *start == '\t') {
-            start++;
-        }
-        if (*start == '\0' || *start == '#') {
-            continue;
-        }
-
-        char *expanded = alias_expand_line(start);
-        const char *to_run = expanded ? expanded : start;
-        petrush_list_t list = {0};
-        if (petrush_parse_list(to_run, &list) == 0) {
-            if (list.nitems > 0) {
-                status = dispatch_list(&list);
-            }
-        } else {
-            fprintf(stderr, "petrush: erro em %s (linha %d): %s\n",
-                    path, lineno, start);
-            status = 1;
-        }
-        petrush_list_free(&list);
-        free(expanded);
+int petrush_run_script(const char *path)
+{
+    if (!path || !*path) {
+        fprintf(stderr, "petrush: caminho de script vazio\n");
+        return 1;
     }
 
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        if (errno == ENOENT) {
+            fprintf(stderr, "petrush: %s: No such file or directory\n", path);
+            return 127;
+        }
+        fprintf(stderr, "petrush: %s: %s\n", path, strerror(errno));
+        return 1;
+    }
+
+    struct stat st;
+    if (fstat(fileno(f), &st) != 0) {
+        fprintf(stderr, "petrush: erro ao inspecionar %s: %s\n",
+                path, strerror(errno));
+        fclose(f);
+        return 1;
+    }
+    /* OSH-0: so regular+legivel. Sem SEC-10 mode&0022 (quebra /tmp de teste). */
+    if (!S_ISREG(st.st_mode)) {
+        fprintf(stderr, "petrush: %s: not a regular file\n", path);
+        fclose(f);
+        return 1;
+    }
+
+    if (g_source_depth >= PETRUSH_SOURCE_MAX_DEPTH) {
+        fprintf(stderr,
+                "petrush: source: nesting too deep (max %d)\n",
+                PETRUSH_SOURCE_MAX_DEPTH);
+        fclose(f);
+        return 1;
+    }
+
+    g_source_depth++;
+    int status = run_file_lines(f, path);
     fclose(f);
     g_source_depth--;
     return status;

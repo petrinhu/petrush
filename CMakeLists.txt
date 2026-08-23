@@ -580,8 +580,10 @@ add_custom_target(smoke
     COMMAND ${CMAKE_COMMAND} -E echo "=== Running integrated smoke test for petrush + pudo + sanitization ==="
     # Falha real propaga (CI/TDD); não engolir exit code do smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/pudo-smoke.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-0 script/shebang smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh0-script.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (≥12 comandos + pudo + paths de erro / sanitização)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0 script/shebang)"
     VERBATIM
 )
 

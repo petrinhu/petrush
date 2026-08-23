@@ -4,16 +4,16 @@
 
 Tabela canônica de 9 colunas (`tab_pendencias` v1.0.2). Ordem das linhas = ordem de execução. `Onda` agrupa o que pode rodar em paralelo.
 
-## Gate Cosimo (2026-08-14, `/bigtech` + `--reorder`)
+## Gate Cosimo (2026-08-23, bigtech)
 
-- **Porte:** early. **Variante:** Pipeline-Sprint. Marcador: `.bigtech-porte`.
-- **C-levels desta auditoria:** Celso (aceite no fim), Caetano (técnico), Narciso (só `pudo`/`pudod`).
-- **Dormentes (14/08):** Capitolino, Camilo, Cosmo, Cândido, Caio, Confúcio, Cícero, Cláudio.
-- **Ops:** security-engineer (relatório em `/var/tmp/petrush-audit-20260814/security.md`). Caetano/QA/Narciso em persona: 402 no spawn; recorte fechado na thread e gravado no mesmo scratch.
-- **TDD:** hook `.claude/tdd-guard.json` ausente (T1 fora da tabela).
-- **Setuid:** continua gate humano (`DEPLOY_CHECKLIST`). Esta passada **não** endossa 4755.
+- **Porte:** bigtech. **Variante:** Pipeline-Completo. Marcador: `.bigtech-porte`.
+- **Cadência:** Kanban, WIP ≤4 agents, **sem** SAFe/ART (1 humano). WSJF na trilha nova (coluna extra).
+- **C-levels ativos:** Celso, Capitolino, Caetano, Camilo, Cosmo, Narciso, Cândido, Confúcio, Cícero (FOSS), Cláudio.
+- **Dormente:** Caio (CAIO) até IA ser capability central.
+- **Vetos:** sem 4755, sem `/bin/sh` nesta máquina, sem `netcom -up` com root até o líder pedir.
+- Planos: [`docs/plano-shell-avancado.md`](docs/plano-shell-avancado.md) · [`docs/plano-cxx-asm-plugins.md`](docs/plano-cxx-asm-plugins.md)
 
-**Reorder 22/08/2026:** Cosmo (COO) ativo para cadência. Porte early + Pipeline-Sprint inalterado.
+**Histórico:** early 14/08 → scale 23/08 manhã → bigtech 23/08 (plugins de terceiro + ASM no núcleo + i18n 3 idiomas).
 
 Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX: [`docs/plan-implementacao-roi.md`](docs/plan-implementacao-roi.md). Snapshot AppSec: `/var/tmp/petrush-audit-20260814/`.
 
@@ -119,3 +119,39 @@ Manuais: [`TESTES.md`](TESTES.md) · [`AUDITORIAS.md`](AUDITORIAS.md). Plano UX:
 | ARCH-01 | W19 | Arquitetura | `complete.h` sem `#include "linenoise.h"` (include só no `.c`). Fecha R-I13 / P2.3. | Alta | DOC-04 | Baixa | 🔍 Pendente verificação | include só em complete.c; test_complete 4/4; rg header=0; sem push |
 | ARCH-02 | W19 | Arquitetura | Mover `rc_trust` de Front para Foundation (CMake + headers + architecture.md). Fecha R-I9 / P2.2. | Alta | DOC-04 | Média | 🔍 Pendente verificação | `src/foundation/rc_trust.c`; CMake 6 refs; architecture.md F2 fechado; test_rc_trust+test_source OK; sem push 2026-08-23 |
 | ARCH-03 | W19 | Arquitetura | Mid sem linenoise.h: porta Front clear + history get/len (DIP bind no boot). Fecha R-I8 / P2.1 (sintoma R-I15 nos testes Mid; sem lib STATIC). | Alta | ARCH-01 | Média | 🔍 Pendente verificação | ui_port DIP; Mid rg linenoise=0; 4 testes Mid sem vendor; sem push |
+| OSH-0 | W20 | Shell | Ver secção **Trilho W20+** (coluna WSJF). | Alta | ARCH-03 | Média | 🔍 Pendente verificação | impl local+Docker fedora:44; sem push |
+
+## Trilho W20+ (bigtech, WSJF = CoD/Size)
+
+Cabeçalho 10 colunas. Linhas W1–W19 não têm WSJF (histórico). Mesma Onda = paralelizável. Testes só Docker. Sem 4755.
+
+| ID | Onda | Grupo | Descrição Técnica | Prioridade | Pré-requisito | Dificuldade | WSJF | Status | Estado Auditado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | ---: | :--- | :--- |
+| OSH-0 | W20 | Shell | `petrush arquivo` + shebang; sem banner/rc; exit = último comando; sem `$1`. EXECUTAR TESTE [smoke shebang Fedora 44 clang] [NA FATIA] | Alta | ARCH-03 | Média | 2.60 | 🔍 Pendente verificação | petrush_run_script; smoke osh0-script.sh; Docker fedora:44 clang OK; sem push |
+| ASM-00 | W21 | Build | CMake C CXX ASM, ASan só C/C++, `.note.GNU-stack`, clang+binutils+gettext no Docker. EXECUTAR TESTE [cmake + `clang -c` .S] [NA FATIA] | Alta | ARCH-03 | Média | 1.60 | ⏳ Pendente | — |
+| ASM-ABI | W22 | Arch | `include/petrush/asm.h` + `src/asm/abi.inc`. EXECUTAR TESTE [TU inclui asm.h] [NA FATIA] | Alta | ASM-00 | Baixa | 4.00 | ⏳ Pendente | — |
+| PLG-ABI | W23 | Plugins | `plugins/abi.h` C11. Sem dlopen no main. EXECUTAR TESTE [ABI major=1] [NA FATIA] | Alta | ASM-ABI | Baixa | 4.33 | ⏳ Pendente | — |
+| ASM-MEMEQ | W23 | ASM | `petrush_memeq_ct`. EXECUTAR TESTE [`ctest -R asm_memeq`] [NA FATIA] | Alta | ASM-ABI | Baixa | 4.00 | ⏳ Pendente | — |
+| ASM-I64 | W23 | ASM | `petrush_parse_i64`. EXECUTAR TESTE [`ctest -R asm_parse_i64`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | ⏳ Pendente | — |
+| ASM-GLOB | W23 | ASM | `petrush_glob_match` no lugar de `match_pat`. EXECUTAR TESTE [`ctest -R test_glob`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | ⏳ Pendente | — |
+| ASM-PGID | W23 | ASM | `petrush_job_setpgid`. EXECUTAR TESTE [`ctest -R test_job`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | ⏳ Pendente | — |
+| ASM-CRC | W23 | ASM | `petrush_crc32` IEEE. EXECUTAR TESTE [`ctest -R asm_crc32`] [NA FATIA] | Média | ASM-ABI | Baixa | 2.50 | ⏳ Pendente | — |
+| ASM-HASH | W23 | ASM | `petrush_hash_path` FNV-1a. EXECUTAR TESTE [`ctest -R asm_hash_path`] [NA FATIA] | Média | ASM-ABI | Baixa | 2.50 | ⏳ Pendente | — |
+| ADR-CXXASM | W23 | Docs | ADR C23/C++23/ASM. EXECUTAR TESTE [ficheiro em docs/adr] [NA FATIA] | Média | ASM-ABI | Baixa | 1.67 | ⏳ Pendente | — |
+| TST-ASM | W23 | Testes | Harness `tests/asm/` Docker. EXECUTAR TESTE [`ctest -R asm_`] [NO FIM W23] | Alta | ASM-00 | Alta | 1.00 | ⏳ Pendente | — |
+| PLG-NARC | W24 | Sec | Threat model plugins. Antes de dlopen. EXECUTAR TESTE [review CISO] [NA FATIA] | Alta | PLG-ABI | Média | 2.60 | ⏳ Pendente | — |
+| ASM-TTY | W24 | ASM | `petrush_tty_mode`. PTY no container. EXECUTAR TESTE [`ctest -R asm_tty`] [NA FATIA] | Alta | ASM-ABI | Média | 1.60 | ⏳ Pendente | — |
+| CXX-00 | W24 | Build | Alvo configsh C++23, petrush sem libstdc++. EXECUTAR TESTE [ldd] [NA FATIA] | Alta | ASM-00 | Média | 1.60 | ⏳ Pendente | — |
+| DOC-ARCH | W24 | Docs | architecture.md stack tripla. EXECUTAR TESTE [prosa↔pastas] [NA FATIA] | Baixa | ADR-CXXASM | Baixa | 1.50 | ⏳ Pendente | — |
+| ASM-UTF8 | W24 | ASM | `petrush_utf8_width`. EXECUTAR TESTE [`ctest -R asm_utf8`] [NA FATIA] | Média | ASM-ABI | Média | 1.00 | ⏳ Pendente | — |
+| I18N-GETTEXT | W24 | i18n | po/ pt_BR es_419 en. EXECUTAR TESTE [msgfmt] [NA FATIA] | Média | ASM-00 | Alta | 0.63 | ⏳ Pendente | — |
+| PLG-LOAD | W25 | Foundation | loader XDG + SHA-256. EXECUTAR TESTE [`ctest -R plugin_`] [NA FATIA] | Alta | PLG-NARC, ASM-CRC, ASM-MEMEQ, ASM-HASH | Alta | 1.63 | ⏳ Pendente | — |
+| CXX-TUI | W25 | Front | configsh TUI raw. EXECUTAR TESTE [configsh --dump] [NA FATIA] | Média | CXX-00, ASM-TTY, ASM-UTF8 | Alta | 0.63 | ⏳ Pendente | — |
+| ASM-WAI | W25 | ASM | builtin wai (sysfs). EXECUTAR TESTE [`ctest -R asm_wai`] [NA FATIA] | Média | ASM-ABI, I18N-GETTEXT | Alta | 0.63 | ⏳ Pendente | — |
+| TST-PLG | W26 | Testes | ww/hash/ABI. EXECUTAR TESTE [`ctest -R plugin_`] [NA FATIA] | Alta | PLG-LOAD | Média | 2.60 | ⏳ Pendente | — |
+| TST-CXX | W26 | Testes | configsh PTY. EXECUTAR TESTE [`ctest -R configsh`] [NA FATIA] | Média | CXX-TUI | Média | 1.00 | ⏳ Pendente | — |
+| ASM-NET | W26 | ASM | netcom scan; -up EPERM sem CAP. EXECUTAR TESTE [`ctest -R asm_netcom`] [NA FATIA] | Média | ASM-ABI, I18N-GETTEXT | Alta | 0.38 | ⏳ Pendente | — |
+| DOC-DIA-PT | W27 | Docs | Diátaxis pt-BR. EXECUTAR TESTE [4 tipos] [NA FATIA] | Média | CXX-TUI, ASM-WAI | Alta | 0.63 | ⏳ Pendente | — |
+| DOC-DIA-EN | W28 | Docs | Diátaxis en. EXECUTAR TESTE [4 tipos] [NA FATIA] | Baixa | DOC-DIA-PT | Alta | 0.38 | ⏳ Pendente | — |
+| DOC-DIA-ES | W28 | Docs | Diátaxis es-419. EXECUTAR TESTE [4 tipos] [NA FATIA] | Baixa | DOC-DIA-PT | Alta | 0.38 | ⏳ Pendente | — |
+| GATE-CXXASM | W29 | Gate | ctest asm_/configsh/plugin_ Fedora 44. Sem tag. EXECUTAR TESTE [verify] [FIM W29] | Alta | ASM-00, ASM-ABI, ADR-CXXASM, ASM-CRC, ASM-MEMEQ, ASM-HASH, ASM-I64, ASM-GLOB, ASM-PGID, ASM-TTY, ASM-UTF8, CXX-00, CXX-TUI, ASM-WAI, PLG-ABI, PLG-NARC, PLG-LOAD, ASM-NET, I18N-GETTEXT, DOC-DIA-PT, DOC-DIA-EN, DOC-DIA-ES, TST-ASM, TST-CXX, TST-PLG, DOC-ARCH | Baixa | 4.00 | ⏳ Pendente | — |
