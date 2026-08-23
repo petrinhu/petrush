@@ -8,6 +8,12 @@ Tabela canônica de 9 colunas (`tab_pendencias` v1.0.2). Ordem das linhas = orde
 
 - **Porte:** bigtech. **Variante:** Pipeline-Completo. Marcador: `.bigtech-porte`.
 - **Cadência:** Kanban, WIP ≤4 agents, **sem** SAFe/ART (1 humano). WSJF na trilha nova (coluna extra).
+- **Pipe de implementação (onda):**
+  1. Workers implementam **todas** as fatias da onda (TDD, Docker).
+  2. **Todos** os testes da onda verdes (unit + smoke Docker; sem atalho).
+  3. Só então o **QA avalia a onda inteira** (não fatia a fatia).
+  4. QA verde → **push** da onda → onda seguinte.
+  5. QA vermelho → correção, testes de novo, **re-QA da onda**. Sem push.
 - **C-levels ativos:** Celso, Capitolino, Caetano, Camilo, Cosmo, Narciso, Cândido, Confúcio, Cícero (FOSS), Cláudio.
 - **Dormente:** Caio (CAIO) até IA ser capability central.
 - **Vetos:** sem 4755, sem `/bin/sh` nesta máquina, sem `netcom -up` com root até o líder pedir.
