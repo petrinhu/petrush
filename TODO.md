@@ -139,7 +139,7 @@ Cabeçalho 10 colunas. Linhas W1–W19 não têm WSJF (histórico). Mesma Onda =
 | ASM-HASH | W23 | ASM | `petrush_hash_path` FNV-1a. EXECUTAR TESTE [`ctest -R asm_hash_path`] [NA FATIA] | Média | ASM-ABI | Baixa | 2.50 | 🔍 Pendente verificação | hash_path.S FNV-1a64 offset+prime; ctest asm_hash_path 9/9; Docker fedora:44 clang OK; sem push; sem 4755 |
 | ADR-CXXASM | W23 | Docs | ADR C23/C++23/ASM. EXECUTAR TESTE [ficheiro em docs/adr] [NA FATIA] | Média | ASM-ABI | Baixa | 1.67 | 🔍 Pendente verificação | ADR-001 `docs/adr/001-c23-cxx-asm-plugins.md`; link `docs/architecture.md`; sem push |
 | TST-ASM | W23 | Testes | Harness `tests/asm/` Docker. EXECUTAR TESTE [`ctest -R asm_`] [NO FIM W23] | Alta | ASM-00 | Alta | 1.00 | ⏳ Pendente | — |
-| PLG-NARC | W24 | Sec | Threat model plugins. Antes de dlopen. EXECUTAR TESTE [review CISO] [NA FATIA] | Alta | PLG-ABI | Média | 2.60 | ⏳ Pendente | — |
+| PLG-NARC | W24 | Sec | Threat model plugins. Antes de dlopen. EXECUTAR TESTE [review CISO] [NA FATIA] | Alta | PLG-ABI | Média | 2.60 | 🔍 Pendente verificação | threat model `docs/security/plugins-threat.md`; STRIDE+allow-list+ww path+SHA-256; pudod sem plugin; sem dlopen; sem 4755; sem push |
 | ASM-TTY | W24 | ASM | `petrush_tty_mode`. PTY no container. EXECUTAR TESTE [`ctest -R asm_tty`] [NA FATIA] | Alta | ASM-ABI | Média | 1.60 | ⏳ Pendente | — |
 | CXX-00 | W24 | Build | Alvo configsh C++23, petrush sem libstdc++. EXECUTAR TESTE [ldd] [NA FATIA] | Alta | ASM-00 | Média | 1.60 | ⏳ Pendente | — |
 | DOC-ARCH | W24 | Docs | architecture.md stack tripla. EXECUTAR TESTE [prosa↔pastas] [NA FATIA] | Baixa | ADR-CXXASM | Baixa | 1.50 | ⏳ Pendente | — |
