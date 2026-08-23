@@ -363,6 +363,199 @@ static int dispatch_while(petrush_while_t *wh)
     }
 }
 
+/*
+ * expand_cmd_argv muta argv no AST. for precisa re-expandir $name a cada
+ * iteracao → clonar o body antes do dispatch e liberar a copia.
+ */
+static int clone_list(const petrush_list_t *src, petrush_list_t *dst);
+
+static int clone_cmd(const petrush_cmd_t *src, petrush_cmd_t *dst)
+{
+    memset(dst, 0, sizeof(*dst));
+    if (!src) {
+        return 0;
+    }
+    dst->argc = src->argc;
+    dst->redir_append = src->redir_append;
+    dst->redir_err_append = src->redir_err_append;
+    dst->redir_err_to_out = src->redir_err_to_out;
+    if (src->argc > 0) {
+        dst->argv = calloc((size_t)src->argc + 1, sizeof(char *));
+        if (!dst->argv) {
+            return -1;
+        }
+        for (int i = 0; i < src->argc; i++) {
+            if (src->argv[i]) {
+                dst->argv[i] = strdup(src->argv[i]);
+                if (!dst->argv[i]) {
+                    petrush_cmd_free(dst);
+                    return -1;
+                }
+            }
+        }
+    }
+    if (src->argv_quoted && src->argc > 0) {
+        dst->argv_quoted = malloc(sizeof(int) * (size_t)src->argc);
+        if (!dst->argv_quoted) {
+            petrush_cmd_free(dst);
+            return -1;
+        }
+        memcpy(dst->argv_quoted, src->argv_quoted,
+               sizeof(int) * (size_t)src->argc);
+    }
+    if (src->redir_in) {
+        dst->redir_in = strdup(src->redir_in);
+        if (!dst->redir_in) {
+            petrush_cmd_free(dst);
+            return -1;
+        }
+    }
+    if (src->redir_out) {
+        dst->redir_out = strdup(src->redir_out);
+        if (!dst->redir_out) {
+            petrush_cmd_free(dst);
+            return -1;
+        }
+    }
+    if (src->redir_err) {
+        dst->redir_err = strdup(src->redir_err);
+        if (!dst->redir_err) {
+            petrush_cmd_free(dst);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int clone_pipeline(const petrush_pipeline_t *src, petrush_pipeline_t *dst)
+{
+    memset(dst, 0, sizeof(*dst));
+    if (!src || src->ncmds <= 0) {
+        return 0;
+    }
+    dst->cmds = calloc((size_t)src->ncmds, sizeof(petrush_cmd_t));
+    if (!dst->cmds) {
+        return -1;
+    }
+    dst->ncmds = src->ncmds;
+    for (int i = 0; i < src->ncmds; i++) {
+        if (clone_cmd(&src->cmds[i], &dst->cmds[i]) != 0) {
+            petrush_pipeline_free(dst);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int clone_list(const petrush_list_t *src, petrush_list_t *dst)
+{
+    memset(dst, 0, sizeof(*dst));
+    if (!src || src->nitems <= 0) {
+        return 0;
+    }
+    dst->items = calloc((size_t)src->nitems, sizeof(petrush_list_item_t));
+    if (!dst->items) {
+        return -1;
+    }
+    dst->nitems = src->nitems;
+    for (int i = 0; i < src->nitems; i++) {
+        const petrush_list_item_t *si = &src->items[i];
+        petrush_list_item_t *di = &dst->items[i];
+        di->kind = si->kind;
+        di->cond = si->cond;
+        di->background = si->background;
+        if (si->kind == PETRUSH_ITEM_IF) {
+            if (si->ifc.narms > 0) {
+                di->ifc.arms =
+                    calloc((size_t)si->ifc.narms, sizeof(petrush_if_arm_t));
+                if (!di->ifc.arms) {
+                    petrush_list_free(dst);
+                    return -1;
+                }
+                di->ifc.narms = si->ifc.narms;
+                for (int a = 0; a < si->ifc.narms; a++) {
+                    di->ifc.arms[a].is_else = si->ifc.arms[a].is_else;
+                    if (clone_list(&si->ifc.arms[a].cond,
+                                   &di->ifc.arms[a].cond) != 0 ||
+                        clone_list(&si->ifc.arms[a].body,
+                                   &di->ifc.arms[a].body) != 0) {
+                        petrush_list_free(dst);
+                        return -1;
+                    }
+                }
+            }
+        } else if (si->kind == PETRUSH_ITEM_WHILE) {
+            if (clone_list(&si->wh.cond, &di->wh.cond) != 0 ||
+                clone_list(&si->wh.body, &di->wh.body) != 0) {
+                petrush_list_free(dst);
+                return -1;
+            }
+        } else if (si->kind == PETRUSH_ITEM_FOR) {
+            if (si->fr.name) {
+                di->fr.name = strdup(si->fr.name);
+                if (!di->fr.name) {
+                    petrush_list_free(dst);
+                    return -1;
+                }
+            }
+            if (si->fr.nwords > 0) {
+                di->fr.words =
+                    calloc((size_t)si->fr.nwords, sizeof(char *));
+                if (!di->fr.words) {
+                    petrush_list_free(dst);
+                    return -1;
+                }
+                di->fr.nwords = si->fr.nwords;
+                for (int w = 0; w < si->fr.nwords; w++) {
+                    if (si->fr.words[w]) {
+                        di->fr.words[w] = strdup(si->fr.words[w]);
+                        if (!di->fr.words[w]) {
+                            petrush_list_free(dst);
+                            return -1;
+                        }
+                    }
+                }
+            }
+            if (clone_list(&si->fr.body, &di->fr.body) != 0) {
+                petrush_list_free(dst);
+                return -1;
+            }
+        } else {
+            if (clone_pipeline(&si->pl, &di->pl) != 0) {
+                petrush_list_free(dst);
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+/*
+ * OSH-5: for name in words; do body; done
+ * Cada palavra: petrush_setenv(name, word) depois dispatch body clonado.
+ * Status = ultimo body; 0 se nwords==0 (body nunca rodou).
+ */
+static int dispatch_for(petrush_for_t *fr)
+{
+    if (!fr || !fr->name) {
+        return 0;
+    }
+    int status = 0;
+    for (int i = 0; i < fr->nwords; i++) {
+        const char *val = fr->words[i] ? fr->words[i] : "";
+        if (petrush_setenv(fr->name, val, 1) != 0) {
+            return 1;
+        }
+        petrush_list_t body_copy = {0};
+        if (clone_list(&fr->body, &body_copy) != 0) {
+            return 1;
+        }
+        status = dispatch_list(&body_copy);
+        petrush_list_free(&body_copy);
+    }
+    return status;
+}
+
 int dispatch_list(petrush_list_t *list)
 {
     if (!list || list->nitems <= 0) {
@@ -385,6 +578,9 @@ int dispatch_list(petrush_list_t *list)
         } else if (it->kind == PETRUSH_ITEM_WHILE) {
             /* background em while fica fora desta onda; ignora flag */
             status = dispatch_while(&it->wh);
+        } else if (it->kind == PETRUSH_ITEM_FOR) {
+            /* background em for fica fora desta onda; ignora flag */
+            status = dispatch_for(&it->fr);
         } else if (it->background) {
             status = dispatch_pipeline_background(&it->pl);
         } else {

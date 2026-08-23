@@ -507,6 +507,18 @@ void petrush_list_free(petrush_list_t *list)
         } else if (it->kind == PETRUSH_ITEM_WHILE) {
             petrush_list_free(&it->wh.cond);
             petrush_list_free(&it->wh.body);
+        } else if (it->kind == PETRUSH_ITEM_FOR) {
+            free(it->fr.name);
+            it->fr.name = NULL;
+            if (it->fr.words) {
+                for (int w = 0; w < it->fr.nwords; w++) {
+                    free(it->fr.words[w]);
+                }
+                free(it->fr.words);
+            }
+            it->fr.words = NULL;
+            it->fr.nwords = 0;
+            petrush_list_free(&it->fr.body);
         } else {
             petrush_pipeline_free(&it->pl);
         }
@@ -582,7 +594,8 @@ enum {
     KW_FI    = 16,
     KW_WHILE = 32,
     KW_DO    = 64,
-    KW_DONE  = 128
+    KW_DONE  = 128,
+    KW_FOR   = 256
 };
 
 static void skip_ws_pos(const char *s, size_t *pos)
@@ -690,6 +703,7 @@ static int if_push_arm(petrush_if_arm_t **arms, int *narms, int *cap,
 
 static int parse_if(const char *s, size_t *pos, petrush_if_t *out);
 static int parse_while(const char *s, size_t *pos, petrush_while_t *out);
+static int parse_for(const char *s, size_t *pos, petrush_for_t *out);
 static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                             petrush_list_t *out, int require_term);
 
@@ -849,6 +863,18 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                     item.background = 1;
                 }
             }
+        } else if (match_kw_at(s, *pos, "for", &kw_end)) {
+            item.kind = PETRUSH_ITEM_FOR;
+            if (parse_for(s, pos, &item.fr) != 0) {
+                goto fail;
+            }
+            int bg = 0;
+            if (take_conn_after(s, pos, &next_cond, &bg)) {
+                had_conn = 1;
+                if (bg) {
+                    item.background = 1;
+                }
+            }
         } else {
             int rc = parse_pipeline_item(s, pos, &item, &next_cond, &had_conn);
             if (rc == -1) {
@@ -878,6 +904,15 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
             } else if (item.kind == PETRUSH_ITEM_WHILE) {
                 petrush_list_free(&item.wh.cond);
                 petrush_list_free(&item.wh.body);
+            } else if (item.kind == PETRUSH_ITEM_FOR) {
+                free(item.fr.name);
+                if (item.fr.words) {
+                    for (int w = 0; w < item.fr.nwords; w++) {
+                        free(item.fr.words[w]);
+                    }
+                    free(item.fr.words);
+                }
+                petrush_list_free(&item.fr.body);
             } else {
                 petrush_pipeline_free(&item.pl);
             }
@@ -945,6 +980,186 @@ static int parse_while(const char *s, size_t *pos, petrush_while_t *out)
 
 fail:
     petrush_list_free(&out->cond);
+    petrush_list_free(&out->body);
+    memset(out, 0, sizeof(*out));
+    return -1;
+}
+
+/*
+ * OSH-5: palavra da lista for (como scan_word, mas para em `;` unquoted;
+ * ex.: `c;do` sem espaco).
+ */
+static char *scan_for_word(const char **pp, int *quoted_out)
+{
+    const char *p = *pp;
+    char quote = 0;
+    int quoted = 0;
+    if (*p == '\'' || *p == '"') {
+        quote = *p;
+        quoted = 1;
+        p++;
+    }
+    const char *start = p;
+    while (*p) {
+        if (quote) {
+            if (*p == quote) {
+                p++;
+                break;
+            }
+        } else {
+            if (isspace((unsigned char)*p)) {
+                break;
+            }
+            if (*p == ';' || *p == '|' || *p == '&' || *p == '<' ||
+                *p == '>') {
+                break;
+            }
+        }
+        p++;
+    }
+    size_t token_len = (size_t)(p - start);
+    if (quote && token_len > 0 && start[token_len - 1] == quote) {
+        token_len--;
+    }
+    char *text = malloc(token_len + 1);
+    if (!text) {
+        *pp = p;
+        *quoted_out = quoted;
+        return NULL;
+    }
+    memcpy(text, start, token_len);
+    text[token_len] = '\0';
+    *pp = p;
+    *quoted_out = quoted;
+    return text;
+}
+
+static int for_push_word(char ***words, int *nwords, int *cap, char *w)
+{
+    if (*nwords >= *cap) {
+        int ncap = *cap ? *cap * 2 : 4;
+        char **p = realloc(*words, (size_t)ncap * sizeof(*p));
+        if (!p) {
+            return -1;
+        }
+        *words = p;
+        *cap = ncap;
+    }
+    (*words)[*nwords] = w;
+    (*nwords)++;
+    return 0;
+}
+
+/* OSH-5: for name in words; do list; done (in obrigatorio; sem for (() ) */
+static int parse_for(const char *s, size_t *pos, petrush_for_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    size_t end = 0;
+    if (!match_kw_at(s, *pos, "for", &end)) {
+        return -1;
+    }
+    *pos = end;
+    skip_ws_pos(s, pos);
+
+    /* Sem C-style for (( */
+    if (s[*pos] == '(') {
+        goto fail;
+    }
+
+    const char *p = s + *pos;
+    int quoted = 0;
+    char *name = scan_for_word(&p, &quoted);
+    *pos = (size_t)(p - s);
+    if (!name || name[0] == '\0') {
+        free(name);
+        goto fail;
+    }
+    out->name = name;
+
+    skip_ws_pos(s, pos);
+    /* in obrigatorio nesta onda */
+    if (!match_kw_at(s, *pos, "in", &end)) {
+        goto fail;
+    }
+    *pos = end;
+
+    char **words = NULL;
+    int nwords = 0;
+    int wcap = 0;
+    for (;;) {
+        skip_ws_pos(s, pos);
+        if (s[*pos] == '\0') {
+            for (int i = 0; i < nwords; i++) {
+                free(words[i]);
+            }
+            free(words);
+            words = NULL;
+            nwords = 0;
+            goto fail;
+        }
+        if (s[*pos] == ';') {
+            (*pos)++;
+            break;
+        }
+        if (match_kw_at(s, *pos, "do", &end)) {
+            break;
+        }
+        p = s + *pos;
+        quoted = 0;
+        char *w = scan_for_word(&p, &quoted);
+        *pos = (size_t)(p - s);
+        if (!w) {
+            for (int i = 0; i < nwords; i++) {
+                free(words[i]);
+            }
+            free(words);
+            goto fail;
+        }
+        if (w[0] == '\0') {
+            free(w);
+            for (int i = 0; i < nwords; i++) {
+                free(words[i]);
+            }
+            free(words);
+            goto fail;
+        }
+        if (for_push_word(&words, &nwords, &wcap, w) != 0) {
+            free(w);
+            for (int i = 0; i < nwords; i++) {
+                free(words[i]);
+            }
+            free(words);
+            goto fail;
+        }
+    }
+    out->words = words;
+    out->nwords = nwords;
+
+    skip_ws_pos(s, pos);
+    if (!match_kw_at(s, *pos, "do", &end)) {
+        goto fail;
+    }
+    *pos = end;
+    if (parse_list_until(s, pos, KW_DONE, &out->body, 1) != 0) {
+        goto fail;
+    }
+    if (!match_kw_at(s, *pos, "done", &end)) {
+        goto fail;
+    }
+    *pos = end;
+    return 0;
+
+fail:
+    free(out->name);
+    out->name = NULL;
+    if (out->words) {
+        for (int i = 0; i < out->nwords; i++) {
+            free(out->words[i]);
+        }
+        free(out->words);
+    }
+    out->words = NULL;
+    out->nwords = 0;
     petrush_list_free(&out->body);
     memset(out, 0, sizeof(*out));
     return -1;

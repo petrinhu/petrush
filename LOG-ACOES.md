@@ -2,6 +2,7 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+- OSH-5: `for name in words; do list; done` no AST (`PETRUSH_ITEM_FOR`); dispatch via `petrush_setenv` + clone do body (re-expand `$name`); TDD red→green; test_parser 63/63; smoke osh5 6/6; Docker fedora:44 clang PASS; TODO 🔍. Sem for ((. Sem `for i; do`. Sem push. Sem 4755.
 ## 2026-08-23 - OSH-3
 
 - OSH-3: `if`/`then`/`elif`/`else`/`fi` no AST (`PETRUSH_ITEM_IF`) sobre `parse_list`; dispatch por status da condicao; TDD red (kind/SIGSEGV + smoke) → green; test_parser 55/55; smoke osh3 6/6; Docker fedora:44 clang PASS; TODO 🔍. Sem [[. Sem push. Sem 4755.

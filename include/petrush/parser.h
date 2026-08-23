@@ -9,6 +9,7 @@
  * UX-23: sufixo/separador `&` → `petrush_list_item_t.background`.
  * OSH-3: `if` / `then` / `elif` / `else` / `fi` (compound sobre parse_list).
  * OSH-4: `while` / `do` / `done` (compound sobre parse_list; sem for/until).
+ * OSH-5: `for name in words; do list; done` (in obrigatorio; sem for (() ).
  * NÃO: `2>&N` genérico, `[]`/`**`, `[[`, fg/bg/Ctrl-Z/%n.
  */
 
@@ -64,11 +65,12 @@ typedef enum {
     PETRUSH_COND_OR          /* run if previous status != 0 */
 } petrush_run_cond_t;
 
-/* OSH-3/4: item de lista = pipeline, compound if ou while */
+/* OSH-3/4/5: item de lista = pipeline, compound if/while/for */
 typedef enum {
     PETRUSH_ITEM_PIPELINE = 0,
     PETRUSH_ITEM_IF,
-    PETRUSH_ITEM_WHILE
+    PETRUSH_ITEM_WHILE,
+    PETRUSH_ITEM_FOR
 } petrush_item_kind_t;
 
 typedef struct petrush_list_item petrush_list_item_t;
@@ -96,11 +98,20 @@ typedef struct {
     petrush_list_t body;
 } petrush_while_t;
 
+/* OSH-5: for name in words; do body; done (name via setenv) */
+typedef struct {
+    char *name;          /* owned */
+    char **words;        /* owned strings; pode nwords==0 */
+    int nwords;
+    petrush_list_t body;
+} petrush_for_t;
+
 struct petrush_list_item {
     petrush_item_kind_t kind;
     petrush_pipeline_t pl;   /* kind == PIPELINE */
     petrush_if_t ifc;        /* kind == IF */
     petrush_while_t wh;      /* kind == WHILE */
+    petrush_for_t fr;        /* kind == FOR */
     petrush_run_cond_t cond;
     int background; /* UX-23: 1 se o item terminou com `&` */
 };

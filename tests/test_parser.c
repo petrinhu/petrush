@@ -717,6 +717,90 @@ void test_parse_while_after_seq(void)
     petrush_list_free(&list);
 }
 
+/* OSH-5: for name in words; do list; done */
+void test_parse_for_in_do_done(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("for i in a b c; do echo x; done",
+                                  &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_FOR)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].fr.name != NULL);
+    TEST_CHECK(strcmp(list.items[0].fr.name, "i") == 0);
+    TEST_CHECK(list.items[0].fr.nwords == 3);
+    TEST_CHECK(strcmp(list.items[0].fr.words[0], "a") == 0);
+    TEST_CHECK(strcmp(list.items[0].fr.words[1], "b") == 0);
+    TEST_CHECK(strcmp(list.items[0].fr.words[2], "c") == 0);
+    TEST_CHECK(list.items[0].fr.body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].fr.body.items[0].pl.cmds[0].argv[0],
+                       "echo") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-5: done quoted nao fecha; palavra done como argv */
+void test_parse_for_done_quoted_literal(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("for i in x; do echo \"done\"; done",
+                                  &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_FOR)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].fr.body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].fr.body.items[0].pl.cmds[0].argv[1],
+                       "done") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-5: for apos ; numa lista */
+void test_parse_for_after_seq(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo x; for i in y; do echo z; done",
+                                  &list) == 0);
+    if (!TEST_CHECK(list.nitems == 2)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_PIPELINE);
+    if (!TEST_CHECK(list.items[1].kind == PETRUSH_ITEM_FOR)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(strcmp(list.items[1].fr.name, "i") == 0);
+    TEST_CHECK(list.items[1].fr.nwords == 1);
+    TEST_CHECK(strcmp(list.items[1].fr.words[0], "y") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-5: in obrigatorio nesta onda (sem for i; do) */
+void test_parse_for_requires_in(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("for i; do echo x; done", &list) != 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-5: sem C-style for (( */
+void test_parse_for_rejects_c_style(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("for ((i=0;i<1;i++)); do echo x; done",
+                                  &list) != 0);
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -776,5 +860,10 @@ TEST_LIST = {
     { "parse_while_do_done", test_parse_while_do_done },
     { "parse_while_done_quoted_literal", test_parse_while_done_quoted_literal },
     { "parse_while_after_seq", test_parse_while_after_seq },
+    { "parse_for_in_do_done", test_parse_for_in_do_done },
+    { "parse_for_done_quoted_literal", test_parse_for_done_quoted_literal },
+    { "parse_for_after_seq", test_parse_for_after_seq },
+    { "parse_for_requires_in", test_parse_for_requires_in },
+    { "parse_for_rejects_c_style", test_parse_for_rejects_c_style },
     { NULL, NULL }
 };
