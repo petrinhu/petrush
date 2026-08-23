@@ -1011,10 +1011,12 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh5-for.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-6 function smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh6-fn.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-7 return smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh7-return.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1/2/3/4/5/6 + XDG-1)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1/2/3/4/5/6/7 + XDG-1)"
     VERBATIM
 )
 
@@ -1050,6 +1052,13 @@ add_custom_target(osh6_fn
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh6-fn.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush
     COMMENT "OSH-6 function smoke"
+    VERBATIM
+)
+
+add_custom_target(osh7_return
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh7-return.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "OSH-7 return smoke"
     VERBATIM
 )
 

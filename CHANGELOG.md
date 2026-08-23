@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- **OSH-7:** builtin `return` [n] so dentro de funcao (`g_fn_depth` + flag de unwind em `dispatch_list`/if/while/for); default n=0 (nao usa ultimo cmd; documentado); fora de funcao → status != 0 sem `exit`; return no meio do body nao executa o resto; smoke `tests/smoke/osh7-return.sh` + regressao osh6. Docker fedora:44 clang PASS. Sem 4755.
 - **OSH-6:** `name() { list; }` e `function name [()] { list; }` (`PETRUSH_ITEM_FN`); chamada seta posicionais so durante o body e restaura depois; status = ultimo comando do body; `"}"` quoted nao fecha; sem `local`/`return` nesta onda; smoke `tests/smoke/osh6-fn.sh`. Docker fedora:44 clang PASS. Sem 4755.
 - **OSH-3:** `if`/`then`/`elif`/`else`/`fi` (condicao = status do ultimo comando; builtins `true`/`false` e `/bin/true`/`/bin/false`); parser compound sobre `parse_list`; `"fi"` quoted nao e keyword; sem `[[`; smoke `tests/smoke/osh3-if.sh`. Docker fedora:44 clang PASS. Sem 4755.
 - **OSH-2:** builtin `shift` [n] (default 1; `shift 0` no-op; n>$# → status != 0 e posicionais intactos; `$0` intacto); API `petrush_positional_shift`; smoke `tests/smoke/osh2-shift.sh`. Docker fedora:44 clang PASS. Sem 4755.

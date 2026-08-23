@@ -71,6 +71,7 @@ static const builtin_entry_t builtins[] = {
     { "test",    builtin_test    }, /* FEAT-TEST: primaries curtos */
     { "[",       builtin_test    }, /* FEAT-TEST: [ exige ] final */
     { "shift",   builtin_shift   }, /* OSH-2: shift [n] */
+    { "return",  builtin_return  }, /* OSH-7: return [n] so em funcao */
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -212,6 +213,11 @@ typedef struct {
 
 static petrush_fn_entry_t g_fns[PETRUSH_FN_MAX];
 
+/* OSH-7: profundidade de call_fn + pedido de return (unwind ate o frame). */
+static int g_fn_depth;
+static int g_returning;
+static int g_return_status;
+
 static void fn_entry_clear(petrush_fn_entry_t *e)
 {
     if (!e) {
@@ -307,6 +313,7 @@ static int call_fn(const char *name, int argc, char **argv,
     int status = 1;
     int nargs = (argc > 1) ? (argc - 1) : 0;
     char **args = (nargs > 0) ? (argv + 1) : NULL;
+    g_fn_depth++;
     if (petrush_positional_set(name, nargs, args) != 0) {
         status = 1;
     } else {
@@ -318,6 +325,11 @@ static int call_fn(const char *name, int argc, char **argv,
             petrush_list_free(&copy);
         }
     }
+    if (g_returning) {
+        status = g_return_status;
+        g_returning = 0;
+    }
+    g_fn_depth--;
 
     (void)petrush_positional_set(saved0, (int)oldn, saved);
     free(saved0);
@@ -350,7 +362,7 @@ int dispatch_command(petrush_cmd_t *cmd)
     /* UX-12/13: ~ e $VAR em argv e redirs antes do dispatch */
     expand_cmd_argv(cmd);
 
-    /* OSH-6: funcao antes de builtin/PATH (bash-like). Sem local/return. */
+    /* OSH-6: funcao antes de builtin/PATH (bash-like). Sem local. */
     const petrush_list_t *fbody = fn_get(cmd->argv[0]);
     if (fbody) {
         return call_fn(cmd->argv[0], cmd->argc, cmd->argv, fbody);
@@ -484,6 +496,9 @@ static int dispatch_if(petrush_if_t *ifc)
             return dispatch_list(&arm->body);
         }
         int st = dispatch_list(&arm->cond);
+        if (g_returning) {
+            return g_return_status;
+        }
         if (st == 0) {
             return dispatch_list(&arm->body);
         }
@@ -504,10 +519,16 @@ static int dispatch_while(petrush_while_t *wh)
     int status = 0;
     for (;;) {
         int st = dispatch_list(&wh->cond);
+        if (g_returning) {
+            return g_return_status;
+        }
         if (st != 0) {
             return status;
         }
         status = dispatch_list(&wh->body);
+        if (g_returning) {
+            return g_return_status;
+        }
     }
 }
 
@@ -710,6 +731,9 @@ static int dispatch_for(petrush_for_t *fr)
         }
         status = dispatch_list(&body_copy);
         petrush_list_free(&body_copy);
+        if (g_returning) {
+            return g_return_status;
+        }
     }
     return status;
 }
@@ -746,6 +770,9 @@ int dispatch_list(petrush_list_t *list)
             status = dispatch_pipeline_background(&it->pl);
         } else {
             status = dispatch_pipeline(&it->pl);
+        }
+        if (g_returning) {
+            return g_return_status;
         }
     }
     return status;
@@ -913,6 +940,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  read NAME    - Lê 1 linha de stdin para NAME\n");
     printf("  test / [     - Primaries (-f -d -e -z -n = != -eq -ne -lt -gt)\n");
     printf("  shift [n]    - Desloca posicionais (default 1; n>$# erro)\n");
+    printf("  return [n]   - Sai da funcao com status n (default 0; so em fn)\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -1146,6 +1174,43 @@ int builtin_shift(petrush_cmd_t *cmd)
         return 1;
     }
     return 0;
+}
+
+/*
+ * OSH-7: return [n] so dentro de funcao.
+ * Default n=0 (nao usa status do ultimo comando; documentado).
+ * Fora de funcao: erro !=0, sem exit (script segue).
+ */
+int builtin_return(petrush_cmd_t *cmd)
+{
+    if (!cmd) {
+        return 1;
+    }
+    if (g_fn_depth <= 0) {
+        fprintf(stderr, "return: can only return from a function\n");
+        return 1;
+    }
+    if (cmd->argc > 2) {
+        fprintf(stderr, "return: too many arguments\n");
+        return 1;
+    }
+
+    int code = 0;
+    if (cmd->argc == 2) {
+        const char *arg = cmd->argv[1];
+        char *end = NULL;
+        errno = 0;
+        long v = strtol(arg, &end, 10);
+        if (arg[0] == '\0' || end == arg || *end != '\0' || errno == ERANGE) {
+            fprintf(stderr, "return: %s: numeric argument required\n", arg);
+            return 1;
+        }
+        code = (int)(v & 0xff);
+    }
+
+    g_returning = 1;
+    g_return_status = code;
+    return code;
 }
 
 int builtin_clear(petrush_cmd_t *cmd)

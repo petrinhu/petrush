@@ -842,6 +842,62 @@ void test_help_mentions_shift(void)
     TEST_CHECK(strstr(buf, "shift") != NULL);
 }
 
+/* OSH-7: return [n]; so em funcao; default n=0; fora → !=0 sem exit. */
+void test_osh7_return_in_table(void)
+{
+    TEST_CHECK(builtin_table_has("return"));
+}
+
+void test_osh7_return_outside_fn_status(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("return", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) != 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_osh7_return_n_from_fn(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("f() { return 3; }; f", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 3);
+    petrush_list_free(&list);
+}
+
+void test_osh7_return_default_zero(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("f() { false; return; }; f", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+}
+
+void test_osh7_return_skips_rest(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list(
+                   "f() { false; return 4; false; }; f", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 4);
+    petrush_list_free(&list);
+}
+
+void test_osh7_return_outside_then_continues(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("return 1; true", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+}
+
+void test_help_mentions_return(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("help", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "return") != NULL);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -891,5 +947,12 @@ TEST_LIST = {
     { "osh2_builtin_shift_too_many_intact", test_osh2_builtin_shift_too_many_intact },
     { "osh2_builtin_shift_rejects_non_numeric", test_osh2_builtin_shift_rejects_non_numeric },
     { "help_mentions_shift", test_help_mentions_shift },
+    { "osh7_return_in_table", test_osh7_return_in_table },
+    { "osh7_return_outside_fn_status", test_osh7_return_outside_fn_status },
+    { "osh7_return_n_from_fn", test_osh7_return_n_from_fn },
+    { "osh7_return_default_zero", test_osh7_return_default_zero },
+    { "osh7_return_skips_rest", test_osh7_return_skips_rest },
+    { "osh7_return_outside_then_continues", test_osh7_return_outside_then_continues },
+    { "help_mentions_return", test_help_mentions_return },
     { NULL, NULL }
 };

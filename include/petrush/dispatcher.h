@@ -77,6 +77,9 @@ int builtin_test(petrush_cmd_t *cmd);
 /* OSH-2: shift [n]; default 1; n>$# -> !=0 e posicionais intactos; shift 0 no-op */
 int builtin_shift(petrush_cmd_t *cmd);
 
+/* OSH-7: return [n] so em funcao; default n=0; fora → !=0 sem exit */
+int builtin_return(petrush_cmd_t *cmd);
+
 /* Para completion: número de builtins e nome por índice */
 int petrush_builtin_count(void);
 const char *petrush_builtin_name(int index);
