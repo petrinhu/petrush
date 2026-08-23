@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **exit N:** `builtin_exit` honra argumento numérico (0..255); inválido → stderr + exit 2.
 
 ### Added
-- **ASM-ABI:** `include/petrush/asm.h` (10 simbolos extern C: glob/utf8/parse_i64/crc32/memeq_ct/tty/hash_path/job_setpgid + stubs wai/netcom); `src/asm/abi.inc` macros System V AMD64 PIC; smoke `tests/smoke/asm-abi-header.sh` + target `asm_abi`. Sem corpos nesta fatia.
+- **ASM-ABI:** `include/petrush/asm.h` (10 simbolos extern C: glob/utf8/parse_i64/crc32/memeq_ct/tty/hash_path/job_setpgid + stubs wai/netcom); `src/asm/abi.inc` macros System V AMD64 PIC; smoke `tests/smoke/asm-abi-header.sh` + target `asm_abi` (trava memeq_ct 0=iguais/1=diferem; rejeita -1=diferente no preambulo). Sem corpos nesta fatia.
 - **ASM-00:** CMake `LANGUAGES C CXX ASM`, `PETRUSH_ASM` (default ON em x86_64; FATAL noutro arch), stub `src/asm/empty.S` com `.note.GNU-stack`, ASan/UBSan so em C/C++, gate `tests/smoke/asm00-toolchain.sh` + target `asm00`; CI instala binutils+gettext.
 - **OSH-0:** `petrush arquivo` / shebang (`#!/usr/bin/env petrush`) em modo script (sem banner/linenoise/rc); runner de `source.c`; ausente → 127; recusa não-regular; sem SEC-10 `mode&0022` no argv; posicionais `$1` fora desta fatia. Smoke: `tests/smoke/osh0-script.sh`.
 
