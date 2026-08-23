@@ -2,6 +2,10 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+## 2026-08-23 - CI-OPENSSL
+
+- CI-OPENSSL: GHA run 32629155268 12/12 vermelho; causa configure = `find_package(OpenSSL REQUIRED)` sem devel; CachyOS/Arch Build = undefined `petrush_wai_scan_impl`/`petrush_netcom_scan_impl` em `test_process`. Fix: openssl-devel/libssl-dev/openssl em ci.yml (matrix+ASan+F45); `PETRUSH_ASM_WAI_NET` no CMake. Smoke fedora:44 + CachyOS clang PASS. TODO 🔍. Sem push. Sem 4755. `-Werror` mantido.
+
 ## 2026-08-23 - TST-ASM
 
 - TST-ASM: harness `tests/asm/` via `ctest -R asm_` Docker fedora:44 clang Sanitize 10/10 + Release 10/10; ASan/UBSan static OK; mode 755 sem 4755; seccomp=unconfined (unshare sem CAP_NET_ADMIN); relatorio `docs/memory/tst-asm.md`; TODO 🔍. Sem push.

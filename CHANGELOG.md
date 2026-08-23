@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- **CI-OPENSSL:** GHA instala OpenSSL devel (`openssl-devel` / `libssl-dev` / `openssl`) em dnf/apt/pacman/CachyOS + ASan + fedora-next; CMake separa `PETRUSH_ASM_WAI_NET` (trampolines wai/netcom) dos atomos ASM core para TUs sem `wai.c`/`netcom.c` nao falharem no link. Smoke fedora:44 + CachyOS clang. Sem relaxar `-Werror`. Sem 4755.
 - **ASM-NET:** builtin `netcom` (`-wifi`/`-eth`/`-bt` scan sysfs+netlink GET; `-up`/`-down` helpers; EPERM sem CAP_NET_ADMIN sem hang); `netcom_scan.S`; ctest `asm_netcom` + smoke netns; Docker fedora:44. Sem 4755.
 
 ### Changed

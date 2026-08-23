@@ -111,7 +111,7 @@ jobs:
             cmake make \
             binutils gettext \
             valgrind cppcheck \
-            glibc-devel \
+            glibc-devel openssl-devel \
             diffutils findutils which
           command -v cmake
           command -v as
@@ -127,6 +127,7 @@ jobs:
           apt-get install -y -qq \
             build-essential clang cmake make \
             binutils gettext \
+            libssl-dev \
             diffutils findutils ca-certificates
           command -v cmake
           command -v as
@@ -139,7 +140,8 @@ jobs:
         run: |
           pacman -Syu --noconfirm
           pacman -S --noconfirm --needed \
-            base-devel clang cmake make binutils gettext diffutils which
+            base-devel clang cmake make binutils gettext openssl \
+            diffutils which
           command -v cmake
           command -v as
           command -v msgfmt
@@ -153,7 +155,8 @@ jobs:
           # seccomp do Docker; o EXIT do pacman ainda e 0 e os pacotes entram.
           # Nao e Arch renomeado (repos cachyos + ID=cachyos).
           pacman -Sy --noconfirm --needed \
-            cmake clang gcc make binutils gettext diffutils which
+            cmake clang gcc make binutils gettext openssl \
+            diffutils which
           command -v cmake
           command -v clang
           command -v gcc
@@ -244,7 +247,7 @@ jobs:
             cmake make \
             binutils gettext \
             libasan libubsan \
-            glibc-devel \
+            glibc-devel openssl-devel \
             diffutils findutils which
           command -v as
           command -v msgfmt
@@ -298,7 +301,7 @@ jobs:
         run: |
           dnf -y install gcc gcc-c++ clang cmake make binutils gettext \
             valgrind cppcheck clang-tools-extra \
-            glibc-devel diffutils findutils which
+            glibc-devel openssl-devel diffutils findutils which
       - name: Build Release gcc + install + smoke
         run: |
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc

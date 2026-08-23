@@ -59,7 +59,10 @@ endif()
 include_directories(include src)
 
 # Fontes ASM (stub empty.S no ASM-00; atomos reais nas fatias ASM-*)
+# wai_scan/netcom_scan sao trampolines -> *_impl em wai.c/netcom.c.
+# Nao ligar esses .S em TUs sem os .c (undefined reference no link).
 set(PETRUSH_ASM_SOURCES)
+set(PETRUSH_ASM_WAI_NET)
 if(PETRUSH_ASM)
     list(APPEND PETRUSH_ASM_SOURCES
         src/asm/empty.S
@@ -71,6 +74,8 @@ if(PETRUSH_ASM)
         src/asm/job_setpgid.S
         src/asm/utf8_width.S
         src/asm/tty_mode.S
+    )
+    list(APPEND PETRUSH_ASM_WAI_NET
         src/asm/wai_scan.S
         src/asm/netcom_scan.S
     )
@@ -140,6 +145,7 @@ add_executable(petrush
     src/foundation/i18n.c
     vendor/linenoise/linenoise.c
     ${PETRUSH_ASM_SOURCES}
+    ${PETRUSH_ASM_WAI_NET}
 )
 add_dependencies(petrush petrush_mo)
 target_compile_definitions(petrush PRIVATE
@@ -355,6 +361,7 @@ add_executable(test_info
     src/foundation/job.c
     src/foundation/i18n.c
     ${PETRUSH_ASM_SOURCES}
+    ${PETRUSH_ASM_WAI_NET}
 )
 target_include_directories(test_info PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -388,6 +395,7 @@ add_executable(test_pipeline_builtin
     src/foundation/job.c
     src/foundation/i18n.c
     ${PETRUSH_ASM_SOURCES}
+    ${PETRUSH_ASM_WAI_NET}
 )
 target_include_directories(test_pipeline_builtin PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -461,6 +469,7 @@ add_executable(test_complete
     src/foundation/i18n.c
     vendor/linenoise/linenoise.c
     ${PETRUSH_ASM_SOURCES}
+    ${PETRUSH_ASM_WAI_NET}
 )
 target_include_directories(test_complete PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -678,6 +687,7 @@ add_executable(test_source
     src/foundation/job.c
     src/foundation/i18n.c
     ${PETRUSH_ASM_SOURCES}
+    ${PETRUSH_ASM_WAI_NET}
 )
 target_include_directories(test_source PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
