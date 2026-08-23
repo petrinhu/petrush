@@ -2,6 +2,10 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+## 2026-08-23 - OSH-1
+
+- OSH-1: posicionais `$0`/`$1`../`$#`/`$@`/`$*` em struct (expand.c); main seta script/interativo; TDD red 9 falhas → green 26/26; smoke osh1 5/5 + osh0 9/9; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. Sem install.
+
 ## 2026-08-23 - CI-OPENSSL
 
 - CI-OPENSSL: GHA run 32629155268 12/12 vermelho; causa configure = `find_package(OpenSSL REQUIRED)` sem devel; CachyOS/Arch Build = undefined `petrush_wai_scan_impl`/`petrush_netcom_scan_impl` em `test_process`. Fix: openssl-devel/libssl-dev/openssl em ci.yml (matrix+ASan+F45); `PETRUSH_ASM_WAI_NET` no CMake. Smoke fedora:44 + CachyOS clang PASS. TODO 🔍. Sem push. Sem 4755. `-Werror` mantido.

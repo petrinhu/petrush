@@ -3,7 +3,7 @@
  *
  * Roda arquivo linha a linha no processo atual.
  * Mesma fn para "source" e ".". Sem PATH search.
- * Teto PETRUSH_SOURCE_MAX_DEPTH. Sem $1/return (posicionais fora de OSH-0).
+ * Teto PETRUSH_SOURCE_MAX_DEPTH. Sem shift/return (OSH-1: $0/$1/$#/$@/$* via expand).
  */
 
 #ifndef PETRUSH_SOURCE_H
@@ -22,10 +22,10 @@
 int petrush_source_file(const char *path, int missing_ok);
 
 /*
- * OSH-0: modo script (argv[1] / shebang).
+ * OSH-0/1: modo script (argv[1] / shebang).
  * Mesmo runner linha a linha que source; SEM SEC-10 mode&0022 / uid.
  * Recusa nao-regular. Ausente → 127. Legivel via fopen.
- * Posicionais $1..$n fora desta fatia (ignorados pelo main).
+ * Posicionais: main chama petrush_positional_set antes ($0=path, $1..=argv[2+]).
  */
 int petrush_run_script(const char *path);
 

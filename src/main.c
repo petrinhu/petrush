@@ -18,6 +18,7 @@
 #include "petrush/process.h"
 #include "petrush/job.h"
 #include "petrush/env.h"
+#include "petrush/expand.h"
 #include "petrush/alias.h"
 #include "petrush/complete.h"
 #include "petrush/hist_expand.h"
@@ -110,11 +111,21 @@ int main(int argc, char *argv[])
      * Catalogs msgid=en; ASM never calls gettext. */
     (void)petrush_i18n_init(NULL);
 
-    /* OSH-0: petrush arquivo → script mode (shebang). Sem banner/linenoise/rc.
-     * Posicionais $1..$n fora desta fatia (argv[2+] ignorados). */
+    /* OSH-0/1: petrush arquivo [args] → script mode (shebang).
+     * Sem banner/linenoise/rc. $0=script; $1..=argv[2+]. */
     if (argc >= 2 && argv[1] && argv[1][0] != '\0') {
         petrush_init_shell_termios();
+        if (petrush_positional_set(argv[1], argc - 2, argv + 2) != 0) {
+            fprintf(stderr, "petrush: sem memoria para posicionais\n");
+            return 1;
+        }
         return petrush_run_script(argv[1]);
+    }
+
+    /* Interativo: $0 = argv[0]; $1.. vazios ate existirem. */
+    if (petrush_positional_set(argv[0] ? argv[0] : "petrush", 0, NULL) != 0) {
+        fprintf(stderr, "petrush: sem memoria para posicionais\n");
+        return 1;
     }
 
     printf("%s %s (C23 shell)\n", PETRUSH_NAME, PETRUSH_VERSION);

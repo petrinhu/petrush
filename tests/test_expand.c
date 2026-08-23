@@ -180,6 +180,144 @@ void test_param_embedded(void)
     free(e);
 }
 
+/* OSH-1: posicionais $0 $1 $# $@ $* (sem shift / ${1:-}) */
+static void osh1_setup_abc(void)
+{
+    char *args[] = { "a", "b", "c" };
+    TEST_CHECK(petrush_positional_set("/tmp/script.sh", 3, args) == 0);
+}
+
+void test_osh1_dollar_0(void)
+{
+    osh1_setup_abc();
+    char *e = expand_word("$0");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "/tmp/script.sh") == 0);
+    free(e);
+    petrush_positional_clear();
+}
+
+void test_osh1_dollar_1_2(void)
+{
+    osh1_setup_abc();
+    char *e1 = expand_word("$1");
+    char *e2 = expand_word("$2");
+    TEST_CHECK(e1 && strcmp(e1, "a") == 0);
+    TEST_CHECK(e2 && strcmp(e2, "b") == 0);
+    free(e1);
+    free(e2);
+    petrush_positional_clear();
+}
+
+void test_osh1_dollar_hash(void)
+{
+    osh1_setup_abc();
+    char *e = expand_word("$#");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "3") == 0);
+    free(e);
+    petrush_positional_clear();
+}
+
+void test_osh1_dollar_1_unset_empty(void)
+{
+    TEST_CHECK(petrush_positional_set("petrush", 0, NULL) == 0);
+    char *e = expand_word("$1");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "") == 0);
+    free(e);
+    petrush_positional_clear();
+}
+
+void test_osh1_dollar_10_is_1_then_0(void)
+{
+    /* POSIX sem braces: $10 = $1 + "0" */
+    char *args[] = { "X" };
+    TEST_CHECK(petrush_positional_set("sh", 1, args) == 0);
+    char *e = expand_word("$10");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "X0") == 0);
+    free(e);
+    petrush_positional_clear();
+}
+
+void test_osh1_at_quoted_splice(void)
+{
+    osh1_setup_abc();
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo \"$@\"", &cmd) == 0);
+    expand_cmd_argv(&cmd);
+    TEST_CHECK(cmd.argc == 4);
+    if (cmd.argc == 4) {
+        TEST_CHECK(strcmp(cmd.argv[0], "echo") == 0);
+        TEST_CHECK(strcmp(cmd.argv[1], "a") == 0);
+        TEST_CHECK(strcmp(cmd.argv[2], "b") == 0);
+        TEST_CHECK(strcmp(cmd.argv[3], "c") == 0);
+    }
+    petrush_cmd_free(&cmd);
+    petrush_positional_clear();
+}
+
+void test_osh1_star_quoted_one_word(void)
+{
+    osh1_setup_abc();
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo \"$*\"", &cmd) == 0);
+    expand_cmd_argv(&cmd);
+    TEST_CHECK(cmd.argc == 2);
+    if (cmd.argc == 2) {
+        TEST_CHECK(strcmp(cmd.argv[1], "a b c") == 0);
+    }
+    petrush_cmd_free(&cmd);
+    petrush_positional_clear();
+}
+
+void test_osh1_at_unquoted_words(void)
+{
+    osh1_setup_abc();
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo $@", &cmd) == 0);
+    expand_cmd_argv(&cmd);
+    TEST_CHECK(cmd.argc == 4);
+    if (cmd.argc == 4) {
+        TEST_CHECK(strcmp(cmd.argv[1], "a") == 0);
+        TEST_CHECK(strcmp(cmd.argv[2], "b") == 0);
+        TEST_CHECK(strcmp(cmd.argv[3], "c") == 0);
+    }
+    petrush_cmd_free(&cmd);
+    petrush_positional_clear();
+}
+
+void test_osh1_at_quoted_empty_removes(void)
+{
+    TEST_CHECK(petrush_positional_set("sh", 0, NULL) == 0);
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo \"$@\"", &cmd) == 0);
+    expand_cmd_argv(&cmd);
+    TEST_CHECK(cmd.argc == 1);
+    if (cmd.argc == 1) {
+        TEST_CHECK(strcmp(cmd.argv[0], "echo") == 0);
+    }
+    petrush_cmd_free(&cmd);
+    petrush_positional_clear();
+}
+
+void test_osh1_star_ifs_first_char(void)
+{
+    osh1_setup_abc();
+    petrush_setenv("IFS", ":|", 1);
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo \"$*\"", &cmd) == 0);
+    expand_cmd_argv(&cmd);
+    TEST_CHECK(cmd.argc == 2);
+    if (cmd.argc == 2) {
+        TEST_CHECK(strcmp(cmd.argv[1], "a:b:c") == 0);
+    }
+    petrush_cmd_free(&cmd);
+    petrush_unsetenv("IFS");
+    petrush_positional_clear();
+}
+
 TEST_LIST = {
     { "tilde_alone", test_tilde_alone },
     { "tilde_slash", test_tilde_slash },
@@ -197,5 +335,15 @@ TEST_LIST = {
     { "param_length_set", test_param_length_set },
     { "param_length_unset", test_param_length_unset },
     { "param_embedded", test_param_embedded },
+    { "osh1_dollar_0", test_osh1_dollar_0 },
+    { "osh1_dollar_1_2", test_osh1_dollar_1_2 },
+    { "osh1_dollar_hash", test_osh1_dollar_hash },
+    { "osh1_dollar_1_unset_empty", test_osh1_dollar_1_unset_empty },
+    { "osh1_dollar_10_is_1_then_0", test_osh1_dollar_10_is_1_then_0 },
+    { "osh1_at_quoted_splice", test_osh1_at_quoted_splice },
+    { "osh1_star_quoted_one_word", test_osh1_star_quoted_one_word },
+    { "osh1_at_unquoted_words", test_osh1_at_unquoted_words },
+    { "osh1_at_quoted_empty_removes", test_osh1_at_quoted_empty_removes },
+    { "osh1_star_ifs_first_char", test_osh1_star_ifs_first_char },
     { NULL, NULL }
 };

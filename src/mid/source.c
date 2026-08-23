@@ -1,5 +1,5 @@
 /*
- * source.c - source / . (UX-22) + script mode (OSH-0)
+ * source.c - source / . (UX-22) + script mode (OSH-0/1)
  */
 
 #include "petrush/source.h"

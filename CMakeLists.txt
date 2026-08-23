@@ -538,6 +538,7 @@ add_test(NAME test_linenoise_history COMMAND test_linenoise_history)
 add_executable(test_expand
     tests/test_expand.c
     src/mid/expand.c
+    src/mid/parser.c
     src/foundation/env.c
     ${PETRUSH_ASM_SOURCES}
 )
@@ -978,8 +979,10 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/pudo-smoke.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-0 script/shebang smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh0-script.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-1 positional smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh1-positional.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0 script/shebang)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1)"
     VERBATIM
 )
 
