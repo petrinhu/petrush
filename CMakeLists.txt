@@ -142,6 +142,7 @@ add_executable(petrush
     src/foundation/process.c
     src/foundation/job.c
     src/foundation/env.c
+    src/foundation/xdg_paths.c
     src/foundation/i18n.c
     vendor/linenoise/linenoise.c
     ${PETRUSH_ASM_SOURCES}
@@ -357,6 +358,7 @@ add_executable(test_info
     src/mid/expand.c
     src/foundation/rc_trust.c
     src/foundation/env.c
+    src/foundation/xdg_paths.c
     src/foundation/process.c
     src/foundation/job.c
     src/foundation/i18n.c
@@ -391,6 +393,7 @@ add_executable(test_pipeline_builtin
     src/mid/expand.c
     src/foundation/rc_trust.c
     src/foundation/env.c
+    src/foundation/xdg_paths.c
     src/foundation/process.c
     src/foundation/job.c
     src/foundation/i18n.c
@@ -464,6 +467,7 @@ add_executable(test_complete
     src/mid/expand.c
     src/foundation/rc_trust.c
     src/foundation/env.c
+    src/foundation/xdg_paths.c
     src/foundation/process.c
     src/foundation/job.c
     src/foundation/i18n.c
@@ -597,6 +601,21 @@ target_compile_options(test_rc_trust PRIVATE
 )
 add_test(NAME test_rc_trust COMMAND test_rc_trust)
 
+# XDG-1: rc + history paths
+add_executable(test_xdg_paths
+    tests/test_xdg_paths.c
+    src/foundation/xdg_paths.c
+    src/foundation/env.c
+)
+target_include_directories(test_xdg_paths PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_options(test_xdg_paths PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+add_test(NAME test_xdg_paths COMMAND test_xdg_paths)
+
 # PLG-LOAD: plugins de teste (MODULE) + harness ctest -R plugin_
 add_library(plugin_test_ok MODULE tests/plugins/ok_plugin.c)
 target_include_directories(plugin_test_ok PRIVATE ${CMAKE_SOURCE_DIR}/plugins)
@@ -684,6 +703,7 @@ add_executable(test_source
     src/mid/expand.c
     src/foundation/rc_trust.c
     src/foundation/env.c
+    src/foundation/xdg_paths.c
     src/foundation/process.c
     src/foundation/job.c
     src/foundation/i18n.c
@@ -862,7 +882,7 @@ endif()
 
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_job test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust test_highlight test_source test_pipeline_builtin plugin_load pudod
+    DEPENDS test_parser test_process test_job test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust test_xdg_paths test_highlight test_source test_pipeline_builtin plugin_load pudod
     COMMENT "Executando todos os testes unitários"
 )
 
@@ -981,8 +1001,17 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh0-script.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-1 positional smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh1-positional.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1 + XDG-1)"
+    VERBATIM
+)
+
+add_custom_target(xdg_paths
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "XDG-1 smoke (HOME fake)"
     VERBATIM
 )
 

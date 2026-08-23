@@ -26,46 +26,46 @@
 #include "petrush/rc_trust.h"
 #include "petrush/source.h"
 #include "petrush/i18n.h"
+#include "petrush/xdg_paths.h"
 #include "linenoise.h"
 
 /* Caminho padrão para histórico persistente */
 #define PETRUSH_HISTORY_MAXLEN 1000
 
-/* Nome do arquivo de configuração (rc) — sem o ponto inicial (adicionado no get_rc_file) */
-#define PETRUSH_RC_FILE "petrushrc"
-
+/* XDG-1: history path (+ mkdir -p 0700 no save) */
 static const char *get_history_file(void)
 {
     static char path[PATH_MAX];
-    const char *home = petrush_getenv("HOME");
-
-    if (home && *home) {
-        snprintf(path, sizeof(path), "%s/.petrush_history", home);
-    } else {
-        /* Fallback seguro se HOME não estiver definido */
-        snprintf(path, sizeof(path), ".petrush_history");
-        fprintf(stderr, "petrush: aviso: HOME não definido, usando ./.petrush_history\n");
+    if (petrush_history_path(path, sizeof(path)) != 0) {
+        snprintf(path, sizeof(path), ".local/state/petrush/history");
+        fprintf(stderr, "petrush: aviso: falha ao resolver history path, usando %s\n", path);
     }
     return path;
 }
 
+/* XDG-1: rc path (XDG + compat ~/.petrushrc) */
 static const char *get_rc_file(void)
 {
     static char path[PATH_MAX];
-    const char *home = petrush_getenv("HOME");
-
-    if (home && *home) {
-        snprintf(path, sizeof(path), "%s/.%s", home, PETRUSH_RC_FILE);
-    } else {
-        snprintf(path, sizeof(path), ".%s", PETRUSH_RC_FILE);
+    if (petrush_rc_path(path, sizeof(path)) != 0) {
+        snprintf(path, sizeof(path), ".config/petrush/rc");
     }
     return path;
 }
 
-/* Carrega e executa ~/.petrushrc (se existir) via runner UX-22 */
+/* Carrega e executa rc do usuario (se existir) via runner UX-22 */
 static void load_rc_file(void)
 {
     (void)petrush_source_file(get_rc_file(), 1);
+}
+
+static void save_history_file(const char *histfile)
+{
+    if (!histfile) {
+        return;
+    }
+    (void)petrush_history_ensure_dir(histfile);
+    linenoiseHistorySave(histfile);
 }
 
 /* ==================== PR-09: Tratamento robusto de sinais ==================== */
@@ -73,10 +73,10 @@ static void load_rc_file(void)
 /* Salva histórico e sai de forma limpa em SIGTERM/SIGHUP */
 static void cleanup_and_exit(int signum)
 {
-    /* Tenta salvar o histórico de forma mais segura possível */
+    /* Tenta salvar o historico de forma mais segura possivel */
     const char *histfile = get_history_file();
     if (histfile) {
-        linenoiseHistorySave(histfile);
+        save_history_file(histfile);
     }
 
     if (signum > 0) {
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
     /* Tab-complete + history autosuggest (NEW-23) */
     petrush_setup_linenoise_ux();
 
-    /* Executa configuração do usuário (~/.petrushrc) antes do loop interativo */
+    /* Executa configuracao do usuario (XDG-1 rc) antes do loop interativo */
     load_rc_file();
 
     /* Loop principal do REPL com tratamento robusto de SIGINT (PR-09) */
@@ -226,8 +226,8 @@ int main(int argc, char *argv[])
         free(line);
     }
 
-    /* Salva histórico antes de sair (PR-07) */
-    linenoiseHistorySave(histfile);
+    /* Salva historico antes de sair (PR-07 / XDG-1) */
+    save_history_file(histfile);
 
     printf("saindo...\n");
     return EXIT_SUCCESS;

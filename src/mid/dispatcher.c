@@ -13,6 +13,7 @@
 #include "petrush/expand.h"
 #include "petrush/source.h"
 #include "petrush/ui_port.h"
+#include "petrush/xdg_paths.h"
 #ifdef PETRUSH_HAVE_ASM
 #include "petrush/asm.h"
 #endif
@@ -798,13 +799,11 @@ int builtin_history(petrush_cmd_t *cmd)
 {
     (void)cmd;
 
-    const char *home = petrush_getenv("HOME");
-    char path[4096];
+    char path[PATH_MAX];
 
-    if (home && *home) {
-        snprintf(path, sizeof(path), "%s/.petrush_history", home);
-    } else {
-        snprintf(path, sizeof(path), ".petrush_history");
+    if (petrush_history_path(path, sizeof(path)) != 0) {
+        printf("No history yet.\n");
+        return 0;
     }
 
     FILE *f = fopen(path, "r");
