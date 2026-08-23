@@ -77,3 +77,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - ASM-HASH
 
 - ASM-HASH: hash_path.S FNV-1a 64 (offset 0xcbf29ce484222325, prime 0x100000001b3; len==0 → semente); tests/asm/test_hash_path.c; ctest -R asm_hash_path 9/9 (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. Sem tocar crc32/parse_i64.
+
+## 2026-08-23 - ASM-PGID
+
+- ASM-PGID: job_setpgid.S via SYS_setpgid=109; retorno 0 / -errno (ESRCH/EPERM); sem tocar errno TLS; process.c + dispatcher.c (fallback libc se ASM OFF); tests/asm/test_job_setpgid.c; ctest -R asm_job_setpgid 6/6 + test_job (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. Sem tocar crc32.

@@ -4,6 +4,9 @@
 
 #include "petrush/process.h"
 #include "petrush/env.h"
+#ifdef PETRUSH_HAVE_ASM
+#include "petrush/asm.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +19,16 @@
 #include <limits.h>
 #include <signal.h>
 #include <termios.h>
+
+/* ASM-PGID: wrapper setpgid; fallback libc se PETRUSH_ASM=OFF. */
+static int petrush_setpgid(pid_t pid, pid_t pgid)
+{
+#ifdef PETRUSH_HAVE_ASM
+    return petrush_job_setpgid(pid, pgid);
+#else
+    return setpgid(pid, pgid);
+#endif
+}
 
 /* Retorna o nome legível de um sinal (com fallback seguro) */
 static const char *signal_name(int sig)
@@ -259,7 +272,7 @@ int execute_external(petrush_cmd_t *cmd, int *exit_status)
     }
 
     /* Coloca o filho em seu próprio process group (básico de job control) */
-    setpgid(pid, pid);
+    (void)petrush_setpgid(pid, pid);
 
     /* Dá o terminal para o processo filho */
     give_terminal_to(pid);
@@ -353,9 +366,9 @@ _Noreturn static void pipeline_child(petrush_cmd_t *cmd, int i, int n,
     signal(SIGQUIT, SIG_DFL);
 
     if (i == 0) {
-        setpgid(0, 0);
+        (void)petrush_setpgid(0, 0);
     } else {
-        setpgid(0, pgid);
+        (void)petrush_setpgid(0, pgid);
     }
 
     if (i > 0) {
@@ -477,10 +490,10 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
         /* pai: unico free de exe_path (filho nao libera; espelha execute_external) */
         if (i == 0) {
             pgid = pid;
-            setpgid(pid, pgid);
+            (void)petrush_setpgid(pid, pgid);
             give_terminal_to(pgid);
         } else {
-            setpgid(pid, pgid);
+            (void)petrush_setpgid(pid, pgid);
         }
         pids[i] = pid;
         free(exe_path);

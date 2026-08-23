@@ -13,6 +13,9 @@
 #include "petrush/expand.h"
 #include "petrush/source.h"
 #include "petrush/ui_port.h"
+#ifdef PETRUSH_HAVE_ASM
+#include "petrush/asm.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +27,16 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+/* ASM-PGID: wrapper setpgid; fallback libc se PETRUSH_ASM=OFF. */
+static int dispatcher_setpgid(pid_t pid, pid_t pgid)
+{
+#ifdef PETRUSH_HAVE_ASM
+    return petrush_job_setpgid(pid, pgid);
+#else
+    return setpgid(pid, pgid);
+#endif
+}
 
 static const builtin_entry_t builtins[] = {
     { "cd",      builtin_cd      },
@@ -276,7 +289,7 @@ static int dispatch_pipeline_background(petrush_pipeline_t *pl)
         return 1;
     }
     if (pid == 0) {
-        setpgid(0, 0);
+        (void)dispatcher_setpgid(0, 0);
         signal(SIGINT, SIG_DFL);
         signal(SIGQUIT, SIG_DFL);
         signal(SIGTSTP, SIG_DFL);
@@ -295,7 +308,7 @@ static int dispatch_pipeline_background(petrush_pipeline_t *pl)
         _exit(st & 0xff);
     }
 
-    setpgid(pid, pid);
+    (void)dispatcher_setpgid(pid, pid);
     int id = petrush_job_add(pid, label);
     free(label);
     if (id < 0) {

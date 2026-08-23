@@ -68,6 +68,7 @@ if(PETRUSH_ASM)
         src/asm/crc32.S
         src/asm/parse_i64.S
         src/asm/hash_path.S
+        src/asm/job_setpgid.S
     )
     add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
@@ -200,6 +201,7 @@ add_executable(test_process
     src/mid/pudo.c
     src/foundation/process.c
     src/foundation/env.c
+    ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_process PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -574,6 +576,20 @@ if(PETRUSH_ASM)
     )
     add_test(NAME asm_hash_path COMMAND asm_hash_path)
 
+    # ASM-PGID: petrush_job_setpgid (SYS_setpgid; 0 / -errno)
+    add_executable(asm_job_setpgid
+        tests/asm/test_job_setpgid.c
+        src/asm/job_setpgid.S
+    )
+    target_include_directories(asm_job_setpgid PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_options(asm_job_setpgid PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+    )
+    add_test(NAME asm_job_setpgid COMMAND asm_job_setpgid)
 endif()
 
 add_custom_target(check

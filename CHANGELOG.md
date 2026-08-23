@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **exit N:** `builtin_exit` honra argumento numérico (0..255); inválido → stderr + exit 2.
 
 ### Added
+- **ASM-PGID:** `src/asm/job_setpgid.S` (`petrush_job_setpgid`: SYS_setpgid=109; 0 sucesso / `-errno` em falha; sem tocar errno TLS); `process.c`/`dispatcher.c` via wrapper (`PETRUSH_HAVE_ASM`); harness `tests/asm/test_job_setpgid.c` + ctest `asm_job_setpgid` 6/6 + `test_job`; Docker fedora:44 clang PASS.
 - **ASM-HASH:** `src/asm/hash_path.S` (`petrush_hash_path`: FNV-1a 64, semente `0xcbf29ce484222325`, prime `0x100000001b3`; `len==0` devolve semente; nao exige NUL); harness `tests/asm/test_hash_path.c` + ctest `asm_hash_path` 9/9; Docker fedora:44 clang PASS.
 - **ASM-I64:** `src/asm/parse_i64.S` (`petrush_parse_i64`: decimal signed 64 com `+`/`-` opcional; INT64_MIN/MAX; overflow/invalido → -1 sem escrever `*out`); harness `tests/asm/test_parse_i64.c` + ctest `asm_parse_i64` 16/16; Docker fedora:44 clang PASS.
 - **ASM-CRC:** `src/asm/crc32.S` (`petrush_crc32`: IEEE poly 0xEDB88320, tabela 256, incremental; XOR final a cargo do caller); vetor `"123456789"` → digest `0xCBF43926`; harness `tests/asm/test_crc32.c` + ctest `asm_crc32` 8/8; Docker fedora:44 clang PASS.
