@@ -55,3 +55,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - ASM-00
 
 - ASM-00 toolchain: CMake C CXX ASM, PETRUSH_ASM, empty.S .note.GNU-stack, ASan so C/C++, Docker fedora:44 PASS, TODO 🔍. Sem push.
+
+## 2026-08-23 - ASM-ABI
+
+- ASM-ABI: asm.h (10 decls) + abi.inc (SysV AMD64 PIC); empty.S usa abi.inc; smoke asm-abi-header.sh + target asm_abi; Docker fedora:44 clang PASS; TODO 🔍. Sem corpos. Sem push. Sem 4755.

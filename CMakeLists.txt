@@ -631,6 +631,13 @@ add_custom_target(asm00
     VERBATIM
 )
 
+# ASM-ABI: asm.h + abi.inc (TU C -c; macros PIC). Isolado do smoke ALL.
+add_custom_target(asm_abi
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/asm-abi-header.sh
+    COMMENT "ASM-ABI header/macros gate (asm.h + abi.inc PIC)"
+    VERBATIM
+)
+
 # Robust clean target using cmake -E to bypass shell rm hooks (e.g. trash-guard)
 add_custom_target(clean-build
     COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_BINARY_DIR}

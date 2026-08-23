@@ -10,7 +10,7 @@ cleanup() { rm -rf "$WORKDIR"; }
 trap cleanup EXIT
 
 echo "=== ASM-00: clang -c src/asm/empty.S ==="
-clang -c "$ROOT/src/asm/empty.S" -o "$WORKDIR/empty.o"
+clang -c -I"$ROOT/src" "$ROOT/src/asm/empty.S" -o "$WORKDIR/empty.o"
 if command -v readelf >/dev/null 2>&1; then
   readelf -S "$WORKDIR/empty.o" | grep -q 'note.GNU-stack'
   echo "OK: .note.GNU-stack presente no objeto"
