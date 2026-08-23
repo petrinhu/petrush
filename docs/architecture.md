@@ -16,10 +16,10 @@ Fecha drift AUD-ARCH F5 / R-I12 e documenta exceções F3/F4 (R-I10 / R-I11).
 
 | Camada     | Local físico atual | Responsabilidade |
 |------------|--------------------|------------------|
-| Front      | `src/main.c` (composition root na raiz de `src/`) + `src/front/complete.c` + `src/front/highlight.c` + `src/front/rc_trust.c` | REPL, prompt, I/O, sinais de UI, rc load, history display, tab-complete, highlight, checagem uid/mode do rc |
+| Front      | `src/main.c` (composition root na raiz de `src/`) + `src/front/complete.c` + `src/front/highlight.c` | REPL, prompt, I/O, sinais de UI, rc load, history display, tab-complete, highlight |
 | Mid        | `src/mid/` (lista completa abaixo) | Domínio do shell: parse, expand, builtins/despacho, aliases, dirstack, source, hist expand, prompt string, cliente `pudo` |
 | Back       | (ainda thin) - ver `src/back/README.md` | Persistência/config futura (history file dedicado, pudo config de longo prazo) |
-| Foundation | `src/foundation/env.c` + `process.c` + `job.c` | Primitivas do SO: getenv/setenv wrappers, fork/exec/wait/pipeline/redirs, jobs em background (`&`) |
+| Foundation | `src/foundation/env.c` + `process.c` + `job.c` + `rc_trust.c` | Primitivas do SO: getenv/setenv wrappers, fork/exec/wait/pipeline/redirs, jobs em background (`&`), checagem uid/mode do rc (ARCH-02 / R-I9) |
 | Helper     | `src/pudod/` (binário `pudod` separado) | Elevação opcional / allow-list. **Fora** do quadro de 4 camadas; não inclui `petrush/*` nem linenoise |
 
 ### Mid completo (`src/mid/`)
@@ -43,7 +43,6 @@ Fecha drift AUD-ARCH F5 / R-I12 e documenta exceções F3/F4 (R-I10 / R-I11).
 | `src/main.c` | Loop REPL / composition root (mapeamento lógico = Front) |
 | `src/front/complete.c` | Completion + history autosuggest (linenoise) |
 | `src/front/highlight.c` | Colorize mínimo (UX-21) |
-| `src/front/rc_trust.c` | `petrush_rc_stat_ok` (uid/mode do rc). Fisicamente Front; semanticamente política de trust (AUD-ARCH F2: Mid `source.c` inclui `rc_trust.h`; remediação futura = mover para Foundation/Mid) |
 
 ### Foundation detalhado
 
@@ -52,16 +51,17 @@ Fecha drift AUD-ARCH F5 / R-I12 e documenta exceções F3/F4 (R-I10 / R-I11).
 | `env.c` | Wrappers de ambiente |
 | `process.c` | `execute_external` / `execute_pipeline` (+ hook de filho) |
 | `job.c` | Tabela de jobs / wait de background (UX-23) |
+| `rc_trust.c` | `petrush_rc_stat_ok` (uid/mode do rc; SEC-10). Mid `source.c` inclui `rc_trust.h` (ARCH-02 fechou F2 / R-I9) |
 
 ## Build
 
-Todo listado explicitamente em `CMakeLists.txt` (inclui `src/front/{complete,highlight,rc_trust}.c`, Mid completo, `src/foundation/{env,process,job}.c`, e o alvo separado `pudod`).
+Todo listado explicitamente em `CMakeLists.txt` (inclui `src/front/{complete,highlight}.c`, Mid completo, `src/foundation/{env,process,job,rc_trust}.c`, e o alvo separado `pudod`).
 
 ## Estado físico das pastas
 
-- `src/front/` : código real (`complete.c`, `highlight.c`, `rc_trust.c`). `main.c` permanece na raiz de `src/` por simplicidade (porte early).
+- `src/front/` : código real (`complete.c`, `highlight.c`). `main.c` permanece na raiz de `src/` por simplicidade (porte early).
 - `src/mid/` : núcleo ativo do shell (tabela acima).
-- `src/foundation/` : `env.c`, `process.c`, `job.c`.
+- `src/foundation/` : `env.c`, `process.c`, `job.c`, `rc_trust.c`.
 - `src/back/` : placeholder (README explica intenção).
 - `src/pudod/` : binário helper isolado (`pudod.c` + allow/resolve/open). Ver `docs/security/pudod-install.md`. Setuid **não** endossado nesta passada.
 
@@ -87,13 +87,13 @@ Mitigação futura opcional: `petrush_spawn_background()` em Foundation. Não bl
 | ID | Tema | Estado |
 |----|------|--------|
 | F1 / R-I8 | Mid importa linenoise (`dispatcher` clear; `hist_expand`) | Dívida de produto (porta Front); ver AUD-DEPS D1 |
-| F2 / R-I9 | `rc_trust` físico Front, usado pelo Mid | Documentado acima; move futuro |
+| F2 / R-I9 | `rc_trust` físico Front, usado pelo Mid | **Fechado** por ARCH-02 (`src/foundation/rc_trust.c`) |
 
 ## Direção de includes (alvo early)
 
 ```
-Front (main, complete, highlight, rc_trust)
-  → Mid → Foundation
+Front (main, complete, highlight)
+  → Mid → Foundation (env, process, job, rc_trust)
 Back: thin / placeholder
 pudod: headers locais apenas (0 petrush/*, 0 linenoise)
 ```
@@ -102,7 +102,7 @@ Vendor linenoise: path canônico de UI = Front. Residual Mid+linenoise = F1 (aci
 
 ## Futuro
 
-Quando o projeto crescer ou após revisão de porte (Cosimo), podemos materializar as camadas físicas movendo arquivos (ex.: `main.c` → `src/front/`, `rc_trust.c` → Foundation) e atualizando includes/CMake. Até lá, o mapeamento lógico acima é a fonte de verdade.
+Quando o projeto crescer ou após revisão de porte (Cosimo), podemos materializar as camadas físicas movendo arquivos (ex.: `main.c` → `src/front/`) e atualizando includes/CMake. `rc_trust.c` já está em Foundation (ARCH-02). Até lá, o mapeamento lógico acima é a fonte de verdade.
 
 Ver também:
 - `CLAUDE.md` (regras do projeto)
@@ -116,4 +116,4 @@ Ver também:
 
 - 0 deps runtime além de libc + linenoise (embutido; atribuição em `NOTICE`)
 - Hardening + ASan/UBSan + cppcheck + clang-tidy tuned
-- TDD com acutest nas camadas mid/foundation (e `tests/test_complete.c` / `tests/test_highlight.c` / `tests/test_rc_trust.c` para Front)
+- TDD com acutest nas camadas mid/foundation (inclui `tests/test_rc_trust.c`; Front: `tests/test_complete.c` / `tests/test_highlight.c`)

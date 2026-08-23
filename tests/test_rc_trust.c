@@ -1,6 +1,7 @@
 /*
  * test_rc_trust.c - SEC-10: ~/.petrushrc so carrega se regular,
  * st_uid == getuid() e sem write de group/other (mode & 0022).
+ * Unidade sob teste: src/foundation/rc_trust.c (ARCH-02 / R-I9).
  */
 
 #include "acutest.h"

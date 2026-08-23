@@ -43,7 +43,7 @@ add_executable(petrush
     src/mid/prompt.c
     src/front/complete.c
     src/front/highlight.c
-    src/front/rc_trust.c
+    src/foundation/rc_trust.c
     src/foundation/process.c
     src/foundation/job.c
     src/foundation/env.c
@@ -204,7 +204,7 @@ add_executable(test_info
     src/mid/dirstack.c
     src/mid/source.c
     src/mid/expand.c
-    src/front/rc_trust.c
+    src/foundation/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
@@ -233,7 +233,7 @@ add_executable(test_pipeline_builtin
     src/mid/dirstack.c
     src/mid/source.c
     src/mid/expand.c
-    src/front/rc_trust.c
+    src/foundation/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
@@ -301,7 +301,7 @@ add_executable(test_complete
     src/mid/dirstack.c
     src/mid/source.c
     src/mid/expand.c
-    src/front/rc_trust.c
+    src/foundation/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
@@ -419,7 +419,7 @@ add_test(NAME test_prompt COMMAND test_prompt)
 # ~/.petrushrc uid/mode trust (SEC-10)
 add_executable(test_rc_trust
     tests/test_rc_trust.c
-    src/front/rc_trust.c
+    src/foundation/rc_trust.c
 )
 target_include_directories(test_rc_trust PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -454,7 +454,7 @@ add_executable(test_source
     src/mid/alias.c
     src/mid/dirstack.c
     src/mid/expand.c
-    src/front/rc_trust.c
+    src/foundation/rc_trust.c
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
