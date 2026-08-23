@@ -5,6 +5,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - ASM-NET
 
 - ASM-NET: builtin `netcom` + `petrush_netcom_scan` (`netcom_scan.S` → impl C); `-wifi -eth -bt`; sysfs+netlink GET; `-up/-down` helpers C timeout; EPERM sem CAP exit 1 sem hang; ctest asm_netcom+eperm; Docker fedora:44; TODO 🔍. Sem push. Sem 4755. plugin_load intocado.
+- ASM-NET (QA fix): `netcom.c` RTA loop sem `RTA_NEXT` (int vs `RTA_ALIGNTO=4U`); sem `-Wno-sign-conversion` no produto; gcc host + Docker fedora:44 gcc 16 `-Wconversion -Werror` petrush PASS; ctest asm_netcom PASS; plugin_load intocado; sem 4755; sem push.
 
 ## 2026-08-23 - PLG-LOAD
 

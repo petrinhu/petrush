@@ -312,7 +312,8 @@ static int netlink_dump_links(struct nl_if_info *out, int out_cap, int *out_n)
             slot->flags = ifi->ifi_flags;
             rta = IFLA_RTA(ifi);
             rta_len = (int)IFLA_PAYLOAD(nh);
-            for (; RTA_OK(rta, rta_len); rta = RTA_NEXT(rta, rta_len)) {
+            /* RTA_NEXT mistura int e unsigned (RTA_ALIGNTO=4U); -Wsign-conversion. */
+            while (RTA_OK(rta, rta_len)) {
                 if (rta->rta_type == IFLA_IFNAME) {
                     size_t n = (size_t)RTA_PAYLOAD(rta);
                     if (n >= IFNAMSIZ) {
@@ -324,6 +325,11 @@ static int netlink_dump_links(struct nl_if_info *out, int out_cap, int *out_n)
                            RTA_PAYLOAD(rta) >= 1) {
                     slot->operstate = *(unsigned char *)RTA_DATA(rta);
                     slot->has_operstate = 1;
+                }
+                {
+                    unsigned int step = RTA_ALIGN(rta->rta_len);
+                    rta_len -= (int)step;
+                    rta = (struct rtattr *)((char *)rta + step);
                 }
             }
             if (slot->name[0] != '\0') {
