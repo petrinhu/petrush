@@ -85,3 +85,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - PLG-ABI
 
 - PLG-ABI: plugins/abi.h C11 (MAJOR=1 MINOR=0; query/init/cmd/fini + vtable); smoke plg-abi-header.sh + target plugin_abi; TU -std=c11 prova major=1; main sem dlopen; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. UX-25 intocado.
+
+## 2026-08-23 - ASM-UTF8
+
+- ASM-UTF8: utf8_width.S UAX#11 subset (ASCII=1, combining Mn=0, CJK/wide=2, invalid=-1; UTF-8 estrito); tests/asm/test_utf8.c; ctest -R asm_utf8 17/17 (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. tty_mode.S intocado.

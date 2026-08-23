@@ -143,7 +143,7 @@ Cabeçalho 10 colunas. Linhas W1–W19 não têm WSJF (histórico). Mesma Onda =
 | ASM-TTY | W24 | ASM | `petrush_tty_mode`. PTY no container. EXECUTAR TESTE [`ctest -R asm_tty`] [NA FATIA] | Alta | ASM-ABI | Média | 1.60 | ⏳ Pendente | — |
 | CXX-00 | W24 | Build | Alvo configsh C++23, petrush sem libstdc++. EXECUTAR TESTE [ldd] [NA FATIA] | Alta | ASM-00 | Média | 1.60 | ⏳ Pendente | — |
 | DOC-ARCH | W24 | Docs | architecture.md stack tripla. EXECUTAR TESTE [prosa↔pastas] [NA FATIA] | Baixa | ADR-CXXASM | Baixa | 1.50 | ⏳ Pendente | — |
-| ASM-UTF8 | W24 | ASM | `petrush_utf8_width`. EXECUTAR TESTE [`ctest -R asm_utf8`] [NA FATIA] | Média | ASM-ABI | Média | 1.00 | ⏳ Pendente | — |
+| ASM-UTF8 | W24 | ASM | `petrush_utf8_width`. EXECUTAR TESTE [`ctest -R asm_utf8`] [NA FATIA] | Média | ASM-ABI | Média | 1.00 | 🔍 Pendente verificação | utf8_width.S UAX#11 subset ASCII=1 combining=0 CJK=2 invalid=-1; ctest asm_utf8 17/17; Docker fedora:44 clang OK; sem push; sem 4755; tty_mode.S intocado |
 | I18N-GETTEXT | W24 | i18n | po/ pt_BR es_419 en. EXECUTAR TESTE [msgfmt] [NA FATIA] | Média | ASM-00 | Alta | 0.63 | ⏳ Pendente | — |
 | PLG-LOAD | W25 | Foundation | loader XDG + SHA-256. EXECUTAR TESTE [`ctest -R plugin_`] [NA FATIA] | Alta | PLG-NARC, ASM-CRC, ASM-MEMEQ, ASM-HASH | Alta | 1.63 | ⏳ Pendente | — |
 | CXX-TUI | W25 | Front | configsh TUI raw. EXECUTAR TESTE [configsh --dump] [NA FATIA] | Média | CXX-00, ASM-TTY, ASM-UTF8 | Alta | 0.63 | ⏳ Pendente | — |

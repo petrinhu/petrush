@@ -69,6 +69,7 @@ if(PETRUSH_ASM)
         src/asm/parse_i64.S
         src/asm/hash_path.S
         src/asm/job_setpgid.S
+        src/asm/utf8_width.S
     )
     add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
@@ -590,6 +591,21 @@ if(PETRUSH_ASM)
         -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
     )
     add_test(NAME asm_job_setpgid COMMAND asm_job_setpgid)
+
+    # ASM-UTF8: petrush_utf8_width UAX#11 subset
+    add_executable(asm_utf8
+        tests/asm/test_utf8.c
+        src/asm/utf8_width.S
+    )
+    target_include_directories(asm_utf8 PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_options(asm_utf8 PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+    )
+    add_test(NAME asm_utf8 COMMAND asm_utf8)
 endif()
 
 add_custom_target(check
