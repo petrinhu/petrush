@@ -11,9 +11,8 @@ Tabela canônica de 9 colunas (`tab_pendencias` v1.0.2). Ordem das linhas = orde
 - **Pipe de implementação (onda):**
   1. Workers implementam **todas** as fatias da onda (TDD, Docker).
   2. **Todos** os testes da onda verdes (unit + smoke Docker; sem atalho).
-  3. Só então o **QA avalia a onda inteira** (não fatia a fatia).
-  4. QA verde → **push** da onda → onda seguinte.
-  5. QA vermelho → correção, testes de novo, **re-QA da onda**. Sem push.
+  3. Testes verdes → **push** da onda → onda seguinte.
+  4. Teste vermelho → correção, testes de novo. Sem push. Sem QA que só reexecuta o que já passou.
 - **C-levels ativos:** Celso, Capitolino, Caetano, Camilo, Cosmo, Narciso, Cândido, Confúcio, Cícero (FOSS), Cláudio.
 - **Dormente:** Caio (CAIO) até IA ser capability central.
 - **Vetos:** sem 4755, sem `/bin/sh` nesta máquina, sem `netcom -up` com root até o líder pedir.
