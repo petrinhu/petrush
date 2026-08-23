@@ -6,7 +6,8 @@
  *
  * Convencao de retorno (salvo notas):
  *   0  = sucesso / igual
- *  -1  = erro (ver comentario por simbolo) ou "diferente" em memeq_ct
+ *   1  = diferem (memeq_ct); demais simbolos: ver comentario
+ *  -1  = erro (ver comentario por simbolo)
  *  Negativo estilo -errno onde o atomo e syscall wrapper (job_setpgid).
  */
 
