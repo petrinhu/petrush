@@ -324,6 +324,25 @@ static int dispatch_pipeline_background(petrush_pipeline_t *pl)
     return 0;
 }
 
+/* OSH-3: status = ultimo comando do corpo tomado; nenhum braço → 0. */
+static int dispatch_if(petrush_if_t *ifc)
+{
+    if (!ifc || ifc->narms <= 0) {
+        return 0;
+    }
+    for (int i = 0; i < ifc->narms; i++) {
+        petrush_if_arm_t *arm = &ifc->arms[i];
+        if (arm->is_else) {
+            return dispatch_list(&arm->body);
+        }
+        int st = dispatch_list(&arm->cond);
+        if (st == 0) {
+            return dispatch_list(&arm->body);
+        }
+    }
+    return 0;
+}
+
 int dispatch_list(petrush_list_t *list)
 {
     if (!list || list->nitems <= 0) {
@@ -340,7 +359,10 @@ int dispatch_list(petrush_list_t *list)
                 continue; /* short-circuit || */
             }
         }
-        if (it->background) {
+        if (it->kind == PETRUSH_ITEM_IF) {
+            /* background em if fica fora desta onda; ignora flag */
+            status = dispatch_if(&it->ifc);
+        } else if (it->background) {
             status = dispatch_pipeline_background(&it->pl);
         } else {
             status = dispatch_pipeline(&it->pl);

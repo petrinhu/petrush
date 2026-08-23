@@ -2,6 +2,10 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+## 2026-08-23 - OSH-3
+
+- OSH-3: `if`/`then`/`elif`/`else`/`fi` no AST (`PETRUSH_ITEM_IF`) sobre `parse_list`; dispatch por status da condicao; TDD red (kind/SIGSEGV + smoke) → green; test_parser 55/55; smoke osh3 6/6; Docker fedora:44 clang PASS; TODO 🔍. Sem [[. Sem push. Sem 4755.
+
 ## 2026-08-23 - OSH-2
 
 - OSH-2: `petrush_positional_shift` + builtin `shift` [n]; TDD red (link undefined) → green; `test_expand` 5 + `test_info` 7; smoke osh2 6/6 + osh1 5/5; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.

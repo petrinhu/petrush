@@ -7,7 +7,8 @@
  * UX-16: `2>`, `2>>`, `2>&1`, `&>`
  * UX-18: `argv_quoted` paralelo (1 = token nasceu quoted; sem re-glob).
  * UX-23: sufixo/separador `&` → `petrush_list_item_t.background`.
- * NÃO: `2>&N` genérico, `[]`/`**`, scripting de arquivo, fg/bg/Ctrl-Z/%n.
+ * OSH-3: `if` / `then` / `elif` / `else` / `fi` (compound sobre parse_list).
+ * NÃO: `2>&N` genérico, `[]`/`**`, `[[`, fg/bg/Ctrl-Z/%n.
  */
 
 #ifndef PETRUSH_PARSER_H
@@ -62,16 +63,38 @@ typedef enum {
     PETRUSH_COND_OR          /* run if previous status != 0 */
 } petrush_run_cond_t;
 
-typedef struct {
-    petrush_pipeline_t pl;
-    petrush_run_cond_t cond;
-    int background; /* UX-23: 1 se o item terminou com `&` */
-} petrush_list_item_t;
+/* OSH-3: item de lista = pipeline simples ou compound if */
+typedef enum {
+    PETRUSH_ITEM_PIPELINE = 0,
+    PETRUSH_ITEM_IF
+} petrush_item_kind_t;
 
-typedef struct {
+typedef struct petrush_list_item petrush_list_item_t;
+
+typedef struct petrush_list {
     petrush_list_item_t *items;
     int nitems;
 } petrush_list_t;
+
+/* Um braço: if/elif (cond+body) ou else (só body; is_else=1). */
+typedef struct {
+    petrush_list_t cond; /* vazia se is_else */
+    petrush_list_t body;
+    int is_else;
+} petrush_if_arm_t;
+
+typedef struct {
+    petrush_if_arm_t *arms;
+    int narms;
+} petrush_if_t;
+
+struct petrush_list_item {
+    petrush_item_kind_t kind;
+    petrush_pipeline_t pl;   /* kind == PIPELINE */
+    petrush_if_t ifc;        /* kind == IF */
+    petrush_run_cond_t cond;
+    int background; /* UX-23: 1 se o item terminou com `&` */
+};
 
 int petrush_parse_list(const char *input, petrush_list_t *out);
 void petrush_list_free(petrush_list_t *list);

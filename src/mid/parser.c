@@ -495,7 +495,18 @@ void petrush_list_free(petrush_list_t *list)
         return;
     }
     for (int i = 0; i < list->nitems; i++) {
-        petrush_pipeline_free(&list->items[i].pl);
+        petrush_list_item_t *it = &list->items[i];
+        if (it->kind == PETRUSH_ITEM_IF) {
+            for (int a = 0; a < it->ifc.narms; a++) {
+                petrush_list_free(&it->ifc.arms[a].cond);
+                petrush_list_free(&it->ifc.arms[a].body);
+            }
+            free(it->ifc.arms);
+            it->ifc.arms = NULL;
+            it->ifc.narms = 0;
+        } else {
+            petrush_pipeline_free(&it->pl);
+        }
     }
     free(list->items);
     list->items = NULL;
@@ -559,93 +570,422 @@ static int find_list_connector(const char *s, size_t from, size_t *out_pos,
     return 0;
 }
 
-int petrush_parse_list(const char *input, petrush_list_t *out)
-{
-    if (!input || !out) return -1;
-    memset(out, 0, sizeof(*out));
+/* OSH-3: reserved words só em posição de comando (unquoted, palavra inteira). */
+enum {
+    KW_IF   = 1,
+    KW_THEN = 2,
+    KW_ELSE = 4,
+    KW_ELIF = 8,
+    KW_FI   = 16
+};
 
-    /* contagem de segmentos */
-    int nitems = 1;
-    size_t pos = 0;
-    petrush_run_cond_t dummy;
-    size_t cpos;
+static void skip_ws_pos(const char *s, size_t *pos)
+{
+    while (s[*pos] && isspace((unsigned char)s[*pos])) {
+        (*pos)++;
+    }
+}
+
+static int match_kw_at(const char *s, size_t pos, const char *kw, size_t *end_out)
+{
+    size_t i = pos;
+    while (s[i] && isspace((unsigned char)s[i])) {
+        i++;
+    }
+    size_t klen = strlen(kw);
+    if (strncmp(s + i, kw, klen) != 0) {
+        return 0;
+    }
+    char after = s[i + klen];
+    if (after != '\0' && !isspace((unsigned char)after) && after != ';' &&
+        after != '&' && after != '|' && after != '<' && after != '>') {
+        return 0;
+    }
+    if (end_out) {
+        *end_out = i + klen;
+    }
+    return 1;
+}
+
+static int peek_kw_mask(const char *s, size_t pos, int mask, size_t *end_out)
+{
+    size_t end = 0;
+    if ((mask & KW_ELIF) && match_kw_at(s, pos, "elif", &end)) {
+        if (end_out) *end_out = end;
+        return KW_ELIF;
+    }
+    if ((mask & KW_ELSE) && match_kw_at(s, pos, "else", &end)) {
+        if (end_out) *end_out = end;
+        return KW_ELSE;
+    }
+    if ((mask & KW_THEN) && match_kw_at(s, pos, "then", &end)) {
+        if (end_out) *end_out = end;
+        return KW_THEN;
+    }
+    if ((mask & KW_FI) && match_kw_at(s, pos, "fi", &end)) {
+        if (end_out) *end_out = end;
+        return KW_FI;
+    }
+    if ((mask & KW_IF) && match_kw_at(s, pos, "if", &end)) {
+        if (end_out) *end_out = end;
+        return KW_IF;
+    }
+    return 0;
+}
+
+static int list_push_item(petrush_list_item_t **items, int *nitems, int *cap,
+                          petrush_list_item_t *item)
+{
+    if (*nitems >= *cap) {
+        int ncap = *cap ? *cap * 2 : 4;
+        petrush_list_item_t *p =
+            realloc(*items, (size_t)ncap * sizeof(*p));
+        if (!p) {
+            return -1;
+        }
+        *items = p;
+        *cap = ncap;
+    }
+    (*items)[*nitems] = *item;
+    (*nitems)++;
+    return 0;
+}
+
+static int if_push_arm(petrush_if_arm_t **arms, int *narms, int *cap,
+                       petrush_if_arm_t *arm)
+{
+    if (*narms >= *cap) {
+        int ncap = *cap ? *cap * 2 : 2;
+        petrush_if_arm_t *p = realloc(*arms, (size_t)ncap * sizeof(*p));
+        if (!p) {
+            return -1;
+        }
+        *arms = p;
+        *cap = ncap;
+    }
+    (*arms)[*narms] = *arm;
+    (*narms)++;
+    memset(arm, 0, sizeof(*arm));
+    return 0;
+}
+
+static int parse_if(const char *s, size_t *pos, petrush_if_t *out);
+static int parse_list_until(const char *s, size_t *pos, int stop_mask,
+                            petrush_list_t *out, int require_term);
+
+/*
+ * Uma pipeline até o próximo conector de lista.
+ * Retorna 0 ok, -1 erro, -2 segmento vazio (trailing ;/& ou leading vazio).
+ */
+static int parse_pipeline_item(const char *s, size_t *pos,
+                               petrush_list_item_t *item,
+                               petrush_run_cond_t *next_cond_out,
+                               int *had_conn_out)
+{
+    size_t cpos = 0;
     size_t clen = 0;
-    int dummy_bg = 0;
-    while (find_list_connector(input, pos, &cpos, &dummy, &clen, &dummy_bg)) {
-        nitems++;
-        pos = cpos + clen;
+    petrush_run_cond_t conn = PETRUSH_COND_ALWAYS;
+    int marks_bg = 0;
+    int has = find_list_connector(s, *pos, &cpos, &conn, &clen, &marks_bg);
+
+    size_t start = *pos;
+    size_t end = has ? cpos : strlen(s);
+    while (start < end && isspace((unsigned char)s[start])) {
+        start++;
+    }
+    size_t e = end;
+    while (e > start && isspace((unsigned char)s[e - 1])) {
+        e--;
+    }
+    size_t seglen = e - start;
+
+    item->kind = PETRUSH_ITEM_PIPELINE;
+    item->background = 0;
+    memset(&item->pl, 0, sizeof(item->pl));
+    memset(&item->ifc, 0, sizeof(item->ifc));
+
+    if (seglen == 0) {
+        *had_conn_out = has;
+        if (has) {
+            *next_cond_out = conn;
+            *pos = cpos + clen;
+        } else {
+            *pos = end;
+        }
+        return -2;
     }
 
-    petrush_list_item_t *items = calloc((size_t)nitems, sizeof(*items));
-    if (!items) return -1;
+    char *seg = malloc(seglen + 1);
+    if (!seg) {
+        return -1;
+    }
+    memcpy(seg, s + start, seglen);
+    seg[seglen] = '\0';
 
-    size_t start = 0;
+    if (petrush_parse_pipeline(seg, &item->pl) != 0) {
+        free(seg);
+        return -1;
+    }
+    free(seg);
+
+    if (has && marks_bg) {
+        item->background = 1;
+    }
+    if (has) {
+        *next_cond_out = conn;
+        *pos = cpos + clen;
+        *had_conn_out = 1;
+    } else {
+        *pos = end;
+        *had_conn_out = 0;
+    }
+    return 0;
+}
+
+static int take_conn_after(const char *s, size_t *pos,
+                           petrush_run_cond_t *next_cond_out,
+                           int *bg_out)
+{
+    skip_ws_pos(s, pos);
+    size_t cpos = 0;
+    size_t clen = 0;
+    petrush_run_cond_t conn = PETRUSH_COND_ALWAYS;
+    int marks_bg = 0;
+    if (!find_list_connector(s, *pos, &cpos, &conn, &clen, &marks_bg)) {
+        return 0;
+    }
+    if (cpos != *pos) {
+        return 0;
+    }
+    if (bg_out) {
+        *bg_out = marks_bg;
+    }
+    *next_cond_out = conn;
+    *pos = cpos + clen;
+    return 1;
+}
+
+static int parse_list_until(const char *s, size_t *pos, int stop_mask,
+                            petrush_list_t *out, int require_term)
+{
+    memset(out, 0, sizeof(*out));
+    petrush_list_item_t *items = NULL;
+    int nitems = 0;
+    int cap = 0;
     petrush_run_cond_t next_cond = PETRUSH_COND_ALWAYS;
-    int idx = 0;
-    pos = 0;
-    while (idx < nitems) {
-        size_t conn_pos = 0;
-        size_t conn_len = 0;
-        petrush_run_cond_t conn = PETRUSH_COND_ALWAYS;
-        int marks_bg = 0;
-        int has = find_list_connector(input, pos, &conn_pos, &conn, &conn_len,
-                                      &marks_bg);
 
-        size_t end = has ? conn_pos : strlen(input);
-        /* extrair substring [start, end) */
-        while (start < end && isspace((unsigned char)input[start])) start++;
-        size_t e = end;
-        while (e > start && isspace((unsigned char)input[e - 1])) e--;
-        size_t seglen = e - start;
+    while (1) {
+        skip_ws_pos(s, pos);
+        if (s[*pos] == '\0') {
+            if (require_term) {
+                goto fail;
+            }
+            /* trailing && / || sem operando direito */
+            if (next_cond == PETRUSH_COND_AND ||
+                next_cond == PETRUSH_COND_OR) {
+                goto fail;
+            }
+            break;
+        }
+        if (stop_mask && peek_kw_mask(s, *pos, stop_mask, NULL)) {
+            /* `then`/`fi`/... com &&/|| pendente é erro */
+            if (next_cond == PETRUSH_COND_AND ||
+                next_cond == PETRUSH_COND_OR) {
+                goto fail;
+            }
+            break;
+        }
 
-        if (seglen == 0) {
-            /* trailing ';' ou '&' → drop empty last (bg já marcado no prev) */
-            if (!has && next_cond == PETRUSH_COND_ALWAYS && idx > 0) {
+        petrush_list_item_t item;
+        memset(&item, 0, sizeof(item));
+        item.cond = next_cond;
+        next_cond = PETRUSH_COND_ALWAYS;
+
+        size_t kw_end = 0;
+        int had_conn = 0;
+
+        if (match_kw_at(s, *pos, "if", &kw_end)) {
+            item.kind = PETRUSH_ITEM_IF;
+            if (parse_if(s, pos, &item.ifc) != 0) {
+                goto fail;
+            }
+            int bg = 0;
+            if (take_conn_after(s, pos, &next_cond, &bg)) {
+                had_conn = 1;
+                if (bg) {
+                    item.background = 1;
+                }
+            }
+        } else {
+            int rc = parse_pipeline_item(s, pos, &item, &next_cond, &had_conn);
+            if (rc == -1) {
+                goto fail;
+            }
+            if (rc == -2) {
+                /* trailing ;/& after items → drop; empty after &&/|| → erro */
+                if (!had_conn && item.cond == PETRUSH_COND_ALWAYS &&
+                    nitems > 0) {
+                    break;
+                }
+                if (!had_conn && nitems == 0 &&
+                    item.cond == PETRUSH_COND_ALWAYS) {
+                    break; /* input vazio */
+                }
+                goto fail;
+            }
+        }
+
+        if (list_push_item(&items, &nitems, &cap, &item) != 0) {
+            if (item.kind == PETRUSH_ITEM_IF) {
+                for (int a = 0; a < item.ifc.narms; a++) {
+                    petrush_list_free(&item.ifc.arms[a].cond);
+                    petrush_list_free(&item.ifc.arms[a].body);
+                }
+                free(item.ifc.arms);
+            } else {
+                petrush_pipeline_free(&item.pl);
+            }
+            goto fail;
+        }
+
+        if (!had_conn) {
+            /* sem conector: próxima iteração vê EOF ou terminator */
+            skip_ws_pos(s, pos);
+            if (s[*pos] == '\0') {
+                if (require_term) {
+                    goto fail;
+                }
                 break;
             }
-            /* input vazio / só whitespace → lista vazia (compat) */
-            if (!has && idx == 0) {
-                free(items);
-                out->items = NULL;
-                out->nitems = 0;
-                return 0;
+            if (stop_mask && peek_kw_mask(s, *pos, stop_mask, NULL)) {
+                break;
             }
-            /* leading, middle, or empty after &&/||/& */
-            for (int j = 0; j < idx; j++) petrush_pipeline_free(&items[j].pl);
-            free(items);
-            return -1;
+            /* texto residual sem conector (ex.: palavra solta) → erro de lista */
+            goto fail;
         }
-
-        char *seg = malloc(seglen + 1);
-        if (!seg) {
-            for (int j = 0; j < idx; j++) petrush_pipeline_free(&items[j].pl);
-            free(items);
-            return -1;
-        }
-        memcpy(seg, input + start, seglen);
-        seg[seglen] = '\0';
-
-        items[idx].cond = next_cond;
-        items[idx].background = 0;
-        if (petrush_parse_pipeline(seg, &items[idx].pl) != 0) {
-            free(seg);
-            for (int j = 0; j < idx; j++) petrush_pipeline_free(&items[j].pl);
-            free(items);
-            return -1;
-        }
-        free(seg);
-        if (has && marks_bg) {
-            items[idx].background = 1;
-        }
-        idx++;
-
-        if (!has) break;
-        next_cond = conn;
-        start = conn_pos + conn_len;
-        pos = start;
     }
 
     out->items = items;
-    out->nitems = idx;
+    out->nitems = nitems;
     return 0;
+
+fail:
+    {
+        petrush_list_t tmp = {.items = items, .nitems = nitems};
+        petrush_list_free(&tmp);
+    }
+    memset(out, 0, sizeof(*out));
+    return -1;
+}
+
+static int parse_if(const char *s, size_t *pos, petrush_if_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    size_t end = 0;
+    if (!match_kw_at(s, *pos, "if", &end)) {
+        return -1;
+    }
+    *pos = end;
+
+    petrush_if_arm_t *arms = NULL;
+    int narms = 0;
+    int cap = 0;
+
+    petrush_if_arm_t arm;
+    memset(&arm, 0, sizeof(arm));
+    if (parse_list_until(s, pos, KW_THEN, &arm.cond, 1) != 0) {
+        goto fail;
+    }
+    if (arm.cond.nitems == 0) {
+        petrush_list_free(&arm.cond);
+        goto fail;
+    }
+    if (!match_kw_at(s, *pos, "then", &end)) {
+        petrush_list_free(&arm.cond);
+        goto fail;
+    }
+    *pos = end;
+    if (parse_list_until(s, pos, KW_ELIF | KW_ELSE | KW_FI, &arm.body, 1) != 0) {
+        petrush_list_free(&arm.cond);
+        goto fail;
+    }
+    arm.is_else = 0;
+    if (if_push_arm(&arms, &narms, &cap, &arm) != 0) {
+        petrush_list_free(&arm.cond);
+        petrush_list_free(&arm.body);
+        goto fail;
+    }
+
+    while (match_kw_at(s, *pos, "elif", &end)) {
+        *pos = end;
+        memset(&arm, 0, sizeof(arm));
+        if (parse_list_until(s, pos, KW_THEN, &arm.cond, 1) != 0) {
+            goto fail;
+        }
+        if (arm.cond.nitems == 0) {
+            petrush_list_free(&arm.cond);
+            goto fail;
+        }
+        if (!match_kw_at(s, *pos, "then", &end)) {
+            petrush_list_free(&arm.cond);
+            goto fail;
+        }
+        *pos = end;
+        if (parse_list_until(s, pos, KW_ELIF | KW_ELSE | KW_FI, &arm.body,
+                             1) != 0) {
+            petrush_list_free(&arm.cond);
+            goto fail;
+        }
+        arm.is_else = 0;
+        if (if_push_arm(&arms, &narms, &cap, &arm) != 0) {
+            petrush_list_free(&arm.cond);
+            petrush_list_free(&arm.body);
+            goto fail;
+        }
+    }
+
+    if (match_kw_at(s, *pos, "else", &end)) {
+        *pos = end;
+        memset(&arm, 0, sizeof(arm));
+        arm.is_else = 1;
+        if (parse_list_until(s, pos, KW_FI, &arm.body, 1) != 0) {
+            goto fail;
+        }
+        if (if_push_arm(&arms, &narms, &cap, &arm) != 0) {
+            petrush_list_free(&arm.body);
+            goto fail;
+        }
+    }
+
+    if (!match_kw_at(s, *pos, "fi", &end)) {
+        goto fail;
+    }
+    *pos = end;
+
+    out->arms = arms;
+    out->narms = narms;
+    return 0;
+
+fail:
+    for (int i = 0; i < narms; i++) {
+        petrush_list_free(&arms[i].cond);
+        petrush_list_free(&arms[i].body);
+    }
+    free(arms);
+    memset(out, 0, sizeof(*out));
+    return -1;
+}
+
+int petrush_parse_list(const char *input, petrush_list_t *out)
+{
+    if (!input || !out) {
+        return -1;
+    }
+    memset(out, 0, sizeof(*out));
+    size_t pos = 0;
+    skip_ws_pos(input, &pos);
+    if (input[pos] == '\0') {
+        return 0;
+    }
+    return parse_list_until(input, &pos, 0, out, 0);
 }

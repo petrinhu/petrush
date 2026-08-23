@@ -572,6 +572,88 @@ void test_parse_argv_quoted_flag_unquoted(void)
     petrush_cmd_free(&cmd);
 }
 
+/* OSH-3: if/then/fi — um item IF, cond+then */
+void test_parse_if_then_fi(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("if true; then echo a; fi", &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_IF);
+    TEST_CHECK(list.items[0].ifc.narms == 1);
+    TEST_CHECK(list.items[0].ifc.arms[0].is_else == 0);
+    TEST_CHECK(list.items[0].ifc.arms[0].cond.nitems == 1);
+    TEST_CHECK(list.items[0].ifc.arms[0].cond.items[0].kind == PETRUSH_ITEM_PIPELINE);
+    TEST_CHECK(list.items[0].ifc.arms[0].cond.items[0].pl.cmds[0].argc >= 1);
+    TEST_CHECK(strcmp(list.items[0].ifc.arms[0].cond.items[0].pl.cmds[0].argv[0],
+                       "true") == 0);
+    TEST_CHECK(list.items[0].ifc.arms[0].body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].ifc.arms[0].body.items[0].pl.cmds[0].argv[0],
+                       "echo") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-3: else */
+void test_parse_if_else_fi(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("if false; then echo a; else echo b; fi",
+                                  &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_IF);
+    TEST_CHECK(list.items[0].ifc.narms == 2);
+    TEST_CHECK(list.items[0].ifc.arms[0].is_else == 0);
+    TEST_CHECK(list.items[0].ifc.arms[1].is_else == 1);
+    TEST_CHECK(list.items[0].ifc.arms[1].cond.nitems == 0);
+    TEST_CHECK(list.items[0].ifc.arms[1].body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].ifc.arms[1].body.items[0].pl.cmds[0].argv[1],
+                       "b") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-3: um elif */
+void test_parse_if_elif_fi(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list(
+                   "if false; then echo a; elif true; then echo b; fi",
+                   &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_IF);
+    TEST_CHECK(list.items[0].ifc.narms == 2);
+    TEST_CHECK(list.items[0].ifc.arms[0].is_else == 0);
+    TEST_CHECK(list.items[0].ifc.arms[1].is_else == 0);
+    TEST_CHECK(strcmp(list.items[0].ifc.arms[1].cond.items[0].pl.cmds[0].argv[0],
+                       "true") == 0);
+    TEST_CHECK(strcmp(list.items[0].ifc.arms[1].body.items[0].pl.cmds[0].argv[1],
+                       "b") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-3: fi quoted nao fecha; palavra fi como argv */
+void test_parse_if_fi_quoted_literal(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("if true; then echo \"fi\"; fi", &list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_IF);
+    TEST_CHECK(list.items[0].ifc.narms == 1);
+    TEST_CHECK(list.items[0].ifc.arms[0].body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].ifc.arms[0].body.items[0].pl.cmds[0].argv[1],
+                       "fi") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-3: if apos ; numa lista */
+void test_parse_if_after_seq(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo x; if true; then echo y; fi", &list) == 0);
+    TEST_CHECK(list.nitems == 2);
+    TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_PIPELINE);
+    TEST_CHECK(list.items[1].kind == PETRUSH_ITEM_IF);
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -623,5 +705,10 @@ TEST_LIST = {
     { "parse_redir_out_regression", test_parse_redir_out_regression },
     { "parse_argv_quoted_flag_double", test_parse_argv_quoted_flag_double },
     { "parse_argv_quoted_flag_unquoted", test_parse_argv_quoted_flag_unquoted },
+    { "parse_if_then_fi", test_parse_if_then_fi },
+    { "parse_if_else_fi", test_parse_if_else_fi },
+    { "parse_if_elif_fi", test_parse_if_elif_fi },
+    { "parse_if_fi_quoted_literal", test_parse_if_fi_quoted_literal },
+    { "parse_if_after_seq", test_parse_if_after_seq },
     { NULL, NULL }
 };
