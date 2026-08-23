@@ -731,6 +731,13 @@ add_custom_target(asm_abi
     VERBATIM
 )
 
+# PLG-ABI: plugins/abi.h C11 (major=1, query/init/cmd/fini). Sem dlopen no main.
+add_custom_target(plugin_abi
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/plg-abi-header.sh
+    COMMENT "PLG-ABI header gate (plugins/abi.h C11 major=1)"
+    VERBATIM
+)
+
 # Robust clean target using cmake -E to bypass shell rm hooks (e.g. trash-guard)
 add_custom_target(clean-build
     COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_BINARY_DIR}
