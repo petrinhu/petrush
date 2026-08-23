@@ -89,3 +89,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - ASM-UTF8
 
 - ASM-UTF8: utf8_width.S UAX#11 subset (ASCII=1, combining Mn=0, CJK/wide=2, invalid=-1; UTF-8 estrito); tests/asm/test_utf8.c; ctest -R asm_utf8 17/17 (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. tty_mode.S intocado.
+
+## 2026-08-23 - ASM-TTY
+
+- ASM-TTY: tty_mode.S via ioctl TCGETS/TCSETSF; RAW/COOKED; retorno 0 / -errno (nao-TTY=-ENOTTY, modo invalido=-EINVAL); sem tocar errno TLS; tests/asm/test_tty_mode.c (PTY openpty, sem display :0); ctest -R asm_tty 5/5 (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.

@@ -80,7 +80,8 @@ int petrush_memeq_ct(const void *a, const void *b, size_t n);
 
 /*
  * Alterna modo do tty em fd: COOKED (canonical+echo) ou RAW (TUI).
- * Retorna 0 sucesso; -1 erro (errno set pelo wrapper C se houver).
+ * Retorna 0 sucesso; -errno em falha (sem tocar errno TLS).
+ * Nao-TTY -> -ENOTTY; modo fora de COOKED/RAW -> -EINVAL.
  */
 int petrush_tty_mode(int fd, petrush_tty_mode_t mode);
 

@@ -70,6 +70,7 @@ if(PETRUSH_ASM)
         src/asm/hash_path.S
         src/asm/job_setpgid.S
         src/asm/utf8_width.S
+        src/asm/tty_mode.S
     )
     add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
@@ -606,6 +607,21 @@ if(PETRUSH_ASM)
         -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
     )
     add_test(NAME asm_utf8 COMMAND asm_utf8)
+
+    # ASM-TTY: petrush_tty_mode (RAW/COOKED ioctl; PTY only)
+    add_executable(asm_tty
+        tests/asm/test_tty_mode.c
+        src/asm/tty_mode.S
+    )
+    target_include_directories(asm_tty PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_options(asm_tty PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+    )
+    add_test(NAME asm_tty COMMAND asm_tty)
 endif()
 
 add_custom_target(check

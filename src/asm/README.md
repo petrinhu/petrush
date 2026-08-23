@@ -12,4 +12,5 @@ Sem NASM. Sem ASan/UBSan nestes TUs (sanitizer so em C/C++).
 - `hash_path.S` - `petrush_hash_path` (ASM-HASH; FNV-1a 64).
 - `job_setpgid.S` - `petrush_job_setpgid` (ASM-PGID; SYS_setpgid; 0 / -errno).
 - `utf8_width.S` - `petrush_utf8_width` (ASM-UTF8; UAX#11 subset ASCII=1/combining=0/CJK=2/invalid=-1).
+- `tty_mode.S` - `petrush_tty_mode` (ASM-TTY; RAW/COOKED via TCGETS/TCSETSF; 0 / -errno; nao-TTY=-ENOTTY).
 - Contrato C: `include/petrush/asm.h` (ASM-ABI). Corpos nas fatias ASM-*.
