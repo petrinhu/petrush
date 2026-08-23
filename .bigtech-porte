@@ -1,4 +1,6 @@
-porte=early
-variante=Pipeline-Sprint
-data=2026-08-14
-fonte=/bigtech Cosimo 01a0011e-bbbc-77f2-94ee-2b6917cd2f45
+porte=bigtech
+variante=Pipeline-Completo
+data=2026-08-23
+fonte=/bigtech Cosimo 01a02cf8-0fb8-7a83-ae98-1966de81b00f
+cadencia=Kanban WIP<=4 sem SAFe
+gatilho_reavaliar=IA central | 4755 | /bin/sh nesta maquina | marketplace plugins | receita
