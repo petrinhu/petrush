@@ -72,6 +72,7 @@ if(PETRUSH_ASM)
         src/asm/utf8_width.S
         src/asm/tty_mode.S
         src/asm/wai_scan.S
+        src/asm/netcom_scan.S
     )
     add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
@@ -120,6 +121,7 @@ add_executable(petrush
     src/mid/parser.c
     src/mid/dispatcher.c
     src/mid/wai.c
+    src/mid/netcom.c
     src/mid/pudo.c
     src/mid/alias.c
     src/mid/dirstack.c
@@ -339,6 +341,7 @@ add_executable(test_info
     tests/test_info.c
     src/mid/dispatcher.c
     src/mid/wai.c
+    src/mid/netcom.c
     src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
@@ -371,6 +374,7 @@ add_executable(test_pipeline_builtin
     tests/test_pipeline_builtin.c
     src/mid/dispatcher.c
     src/mid/wai.c
+    src/mid/netcom.c
     src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
@@ -442,6 +446,7 @@ add_executable(test_complete
     src/front/highlight.c
     src/mid/dispatcher.c
     src/mid/wai.c
+    src/mid/netcom.c
     src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
@@ -660,6 +665,7 @@ add_executable(test_source
     src/mid/source.c
     src/mid/dispatcher.c
     src/mid/wai.c
+    src/mid/netcom.c
     src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
@@ -811,6 +817,36 @@ if(PETRUSH_ASM)
         -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
     )
     add_test(NAME asm_wai COMMAND asm_wai)
+
+    # ASM-NET: petrush_netcom_scan (sysfs overlay + EPERM -up sem CAP)
+    add_executable(asm_netcom
+        tests/asm/test_netcom.c
+        src/mid/netcom.c
+        src/asm/netcom_scan.S
+    )
+    target_include_directories(asm_netcom PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_definitions(asm_netcom PRIVATE
+        PETRUSH_HAVE_ASM=1
+    )
+    target_compile_options(asm_netcom PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+    )
+    add_test(NAME asm_netcom COMMAND asm_netcom)
+
+    # ASM-NET smoke: -up em netns sem CAP_NET_ADMIN (EPERM, sem hang)
+    add_test(
+        NAME asm_netcom_eperm
+        COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/netcom-eperm.sh
+                ${CMAKE_BINARY_DIR}
+    )
+    set_tests_properties(asm_netcom_eperm PROPERTIES
+        DEPENDS petrush
+        TIMEOUT 15
+    )
 endif()
 
 add_custom_target(check

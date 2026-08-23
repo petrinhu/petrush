@@ -110,7 +110,7 @@ Contrato C: [`include/petrush/asm.h`](../include/petrush/asm.h). Macros PIC: [`s
 | # | Símbolo C | Ficheiro `.S` | Papel | Fatia | Estado no tree |
 |---|-----------|---------------|--------|-------|----------------|
 | 1 | `petrush_wai_scan` | (ainda sem corpo; só decl. em `asm.h`) | Inventário sysfs (`-disk -video -mem` + audio/camera/keyboard/usb/pci/battery/thermal/cpu/board). Sem root. | ASM-WAI | declaração |
-| 2 | `petrush_netcom_scan` | (ainda sem corpo; só decl. em `asm.h`) | Scan `-wifi -eth -bt`. `-up`/`-down` fora do símbolo (EPERM sem CAP). | ASM-NET | declaração |
+| 2 | `petrush_netcom_scan` | `src/asm/netcom_scan.S` | Scan `-wifi -eth -bt` (sysfs+netlink GET). `-up`/`-down` em C (EPERM sem CAP). | ASM-NET | corpo + CMake |
 | 3 | `petrush_glob_match` | `src/asm/glob_match.S` | Matcher `*` `?` (expand) | ASM-GLOB | corpo + CMake |
 | 4 | `petrush_utf8_width` | `src/asm/utf8_width.S` | Colunas, subset UAX#11 | ASM-UTF8 | corpo + CMake |
 | 5 | `petrush_parse_i64` | `src/asm/parse_i64.S` | Decimal signed 64 sem overflow UB | ASM-I64 | corpo + CMake |

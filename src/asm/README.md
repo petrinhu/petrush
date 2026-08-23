@@ -14,4 +14,5 @@ Sem NASM. Sem ASan/UBSan nestes TUs (sanitizer so em C/C++).
 - `utf8_width.S` - `petrush_utf8_width` (ASM-UTF8; UAX#11 subset ASCII=1/combining=0/CJK=2/invalid=-1).
 - `tty_mode.S` - `petrush_tty_mode` (ASM-TTY; RAW/COOKED via TCGETS/TCSETSF; 0 / -errno; nao-TTY=-ENOTTY).
 - `wai_scan.S` - `petrush_wai_scan` (ASM-WAI; entrada ASM → `petrush_wai_scan_impl` em `mid/wai.c`; sysfs/proc; sem serial/uuid).
+- `netcom_scan.S` - `petrush_netcom_scan` (ASM-NET; entrada ASM → `petrush_netcom_scan_impl` em `mid/netcom.c`; sysfs+netlink GET; -up/-down em C com EPERM sem CAP).
 - Contrato C: `include/petrush/asm.h` (ASM-ABI). Corpos nas fatias ASM-*.

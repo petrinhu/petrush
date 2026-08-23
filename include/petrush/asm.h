@@ -114,11 +114,33 @@ int petrush_wai_scan(unsigned flags, char *out, size_t out_cap);
 int petrush_wai_scan_impl(unsigned flags, char *out, size_t out_cap);
 
 /*
- * Stub de declaracao (corpo ASM-NET): scan -wifi/-eth/-bt.
- * -up/-down fora deste simbolo (EPERM sem CAP_NET_ADMIN nesta maquina).
- * Retorno: como petrush_wai_scan.
+ * Prefixo de overlay para testes (sysfs sob root).
+ * NULL ou "" = caminhos absolutos /sys. Sem root/setuid.
+ */
+void petrush_netcom_set_root(const char *root);
+
+/*
+ * ASM-NET: scan -wifi/-eth/-bt via sysfs + netlink GET (read-only).
+ * flags 0 = PETRUSH_NETCOM_WIFI|ETH|BT. Escreve texto em out (NUL se cap>0).
+ * Retorna bytes escritos (sem NUL) ou -1 / -ENOSPC.
+ * Entrada ASM (netcom_scan.S); I/O em C (ASan) via petrush_netcom_scan_impl.
+ * -up/-down NAO entram neste simbolo (ver petrush_netcom_link_set).
  */
 int petrush_netcom_scan(unsigned flags, char *out, size_t out_cap);
+int petrush_netcom_scan_impl(unsigned flags, char *out, size_t out_cap);
+
+/*
+ * 1 se CapEff tem CAP_NET_ADMIN; 0 caso contrario. Sem libcap.
+ */
+int petrush_netcom_have_cap_net_admin(void);
+
+/*
+ * -up/-down via helpers C (ip / iw / iwd / bluetoothctl se existirem).
+ * Sem CAP_NET_ADMIN: retorna -EPERM de imediato (sem hang, sem spawn).
+ * Com CAP: exec com timeout curto; -ETIMEDOUT se helper pendurar;
+ * -ENOENT se nenhum helper no PATH. up!=0 sobe; up==0 desce.
+ */
+int petrush_netcom_link_set(const char *iface, int up);
 
 #ifdef __cplusplus
 }

@@ -2,6 +2,10 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+## 2026-08-23 - ASM-NET
+
+- ASM-NET: builtin `netcom` + `petrush_netcom_scan` (`netcom_scan.S` → impl C); `-wifi -eth -bt`; sysfs+netlink GET; `-up/-down` helpers C timeout; EPERM sem CAP exit 1 sem hang; ctest asm_netcom+eperm; Docker fedora:44; TODO 🔍. Sem push. Sem 4755. plugin_load intocado.
+
 ## 2026-08-23 - PLG-LOAD
 
 - PLG-LOAD: `plugin_load.c` XDG + `PETRUSH_PLUGIN_PATH`, allow-list SHA-256 (OpenSSL), recusa world-writable (ficheiro+dirs), dlopen so apos checks; pudod sem .so (`plugin_pudod_no_dl`); TDD red stub → green; ctest -R plugin_ PASS; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. Sem mexer netcom.

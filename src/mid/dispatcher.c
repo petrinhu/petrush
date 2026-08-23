@@ -52,6 +52,7 @@ static const builtin_entry_t builtins[] = {
     { "pudo",    builtin_pudo    },
     { "info",    builtin_info    },
     { "wai",     builtin_wai     }, /* ASM-WAI: inventario sysfs/proc */
+    { "netcom",  builtin_netcom  }, /* ASM-NET: wifi/eth/bt + -up/-down */
     { "alias",   builtin_alias   },
     { "unalias", builtin_unalias },
     { "which",   builtin_which   },
@@ -494,6 +495,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  history      - Mostra histórico de comandos\n");
     printf("  info         - Mostra informações do shell\n");
     printf("  wai […]      - Inventário de hardware (sysfs/proc, sem root)\n");
+    printf("  netcom […]   - Rede wifi/eth/bt; -up/-down precisa CAP_NET_ADMIN\n");
     printf("  alias        - Define/lista aliases\n");
     printf("  unalias      - Remove alias\n");
     printf("  which        - Localiza comando (builtin ou PATH)\n");

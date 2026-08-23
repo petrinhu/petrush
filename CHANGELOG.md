@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- **ASM-NET:** builtin `netcom` (`-wifi`/`-eth`/`-bt` scan sysfs+netlink GET; `-up`/`-down` helpers; EPERM sem CAP_NET_ADMIN sem hang); `netcom_scan.S`; ctest `asm_netcom` + smoke netns; Docker fedora:44. Sem 4755.
 
 ### Changed
 - **ARCH-03 / P2.1:** porta DIP `petrush/ui_port.h` (`clear` + history get/len); Mid (`dispatcher`, `hist_expand`) sem `linenoise.h`; adapter no Front (`petrush_setup_linenoise_ux`). Sem lib STATIC (P2.4 fora).

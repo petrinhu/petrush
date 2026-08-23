@@ -47,6 +47,9 @@ int builtin_info(petrush_cmd_t *cmd);
 /* ASM-WAI: inventario sysfs/proc (flags -disk … -board) */
 int builtin_wai(petrush_cmd_t *cmd);
 
+/* ASM-NET: scan -wifi/-eth/-bt; -up/-down (EPERM sem CAP_NET_ADMIN) */
+int builtin_netcom(petrush_cmd_t *cmd);
+
 /* NEW-22 UX */
 int builtin_alias(petrush_cmd_t *cmd);
 int builtin_unalias(petrush_cmd_t *cmd);
