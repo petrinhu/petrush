@@ -67,11 +67,12 @@ Decisao registada em [`docs/adr/001-c23-cxx-asm-plugins.md`](adr/001-c23-cxx-asm
 
 ## Build
 
-Todo listado explicitamente em `CMakeLists.txt` (inclui `src/front/{complete,highlight}.c`, Mid completo, `src/foundation/{env,process,job,rc_trust}.c`, e o alvo separado `pudod`). Linguagens do `project()`: C, CXX, ASM (ASM-00). Alvo `configsh` ainda nao existe (CXX-00).
+Todo listado explicitamente em `CMakeLists.txt` (inclui `src/front/{complete,highlight}.c`, Mid completo, `src/foundation/{env,process,job,rc_trust}.c`, o alvo separado `pudod`, e `configsh` em `src/cxx/`). Linguagens do `project()`: C, CXX, ASM (ASM-00 + CXX-00).
 
 ## Estado físico das pastas
 
 - `src/front/` : código real (`complete.c`, `highlight.c`). `main.c` permanece na raiz de `src/` por simplicidade (porte early).
+- `src/cxx/` : `configsh` C++23 (CXX-00 stub; TUI em CXX-TUI).
 - `src/mid/` : núcleo ativo do shell (tabela acima).
 - `src/foundation/` : `env.c`, `process.c`, `job.c`, `rc_trust.c`.
 - `src/back/` : placeholder (README explica intenção).
@@ -127,7 +128,7 @@ Ver também:
 
 ## Notas de qualidade
 
-- `petrush`: 0 deps runtime alem de libc + linenoise (embutido; atribuicao em `NOTICE`) + ASM opcional. Sem `libstdc++` (ADR-CXXASM / CXX-00).
-- `configsh` (futuro CXX-00): C++23, binario separado. Ver ADR-001.
+- `petrush`: 0 deps runtime alem de libc + linenoise (embutido; atribuicao em `NOTICE`) + ASM opcional. Sem `libstdc++` (ADR-CXXASM / CXX-00; prova `tests/smoke/cxx00-ldd.sh`).
+- `configsh` (CXX-00): C++23 (`-fno-exceptions -fno-rtti`), binario separado; stub help nesta fatia; TUI = CXX-TUI. Ver ADR-001.
 - Hardening + ASan/UBSan + cppcheck + clang-tidy tuned
 - TDD com acutest nas camadas mid/foundation (inclui `tests/test_rc_trust.c`; Front: `tests/test_complete.c` / `tests/test_highlight.c`)

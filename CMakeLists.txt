@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-# ASM-00: C23 + C++23 (declarado; alvo configsh so em CXX-00) + ASM (GAS/Clang, sem NASM)
+# ASM-00 + CXX-00: C23 + C++23 (configsh) + ASM (GAS/Clang, sem NASM)
 project(petrush LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 23)
@@ -160,6 +160,43 @@ target_link_options(petrush PRIVATE
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_options(petrush PRIVATE -D_FORTIFY_SOURCE=2)
+endif()
+
+# ============================================================
+# CXX-00: configsh (C++23 separado; petrush NAO liga libstdc++)
+# Stub help+exit0 nesta fatia; TUI raw = CXX-TUI.
+# ============================================================
+set(CONFIGSH_SOURCES src/cxx/main.cpp)
+set(CONFIGSH_ASM_SOURCES)
+if(PETRUSH_ASM)
+    list(APPEND CONFIGSH_ASM_SOURCES
+        src/asm/tty_mode.S
+        src/asm/utf8_width.S
+    )
+endif()
+add_executable(configsh
+    ${CONFIGSH_SOURCES}
+    ${CONFIGSH_ASM_SOURCES}
+)
+target_include_directories(configsh PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+target_compile_features(configsh PRIVATE cxx_std_23)
+target_compile_options(configsh PRIVATE
+    -Wall -Wextra -Wpedantic -Werror
+    -Wshadow -Wformat=2 -Wnull-dereference
+    -fno-exceptions
+    -fno-rtti
+    -fstack-protector-strong
+    -fPIE
+)
+target_link_options(configsh PRIVATE
+    -pie
+    -Wl,-z,relro,-z,now,-z,noexecstack
+)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(configsh PRIVATE -D_FORTIFY_SOURCE=2)
 endif()
 
 # ============================================================
@@ -705,7 +742,7 @@ endif()
 # Ou use capabilities (recomendado quando possível):
 #   sudo setcap cap_setuid,cap_setgid+ep /usr/local/libexec/petrush-pudod
 
-install(TARGETS petrush pudod
+install(TARGETS petrush pudod configsh
     RUNTIME DESTINATION bin
 )
 
@@ -753,6 +790,13 @@ add_custom_target(smoke
 add_custom_target(asm00
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/asm00-toolchain.sh
     COMMENT "ASM-00 toolchain gate (GAS/Clang, .note.GNU-stack, arch check)"
+    VERBATIM
+)
+
+# CXX-00: gate ldd isolado (petrush sem libstdc++; configsh com). Nao entra no smoke ALL.
+add_custom_target(cxx00
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/cxx00-ldd.sh
+    COMMENT "CXX-00 ldd gate (configsh C++23; petrush sem libstdc++)"
     VERBATIM
 )
 

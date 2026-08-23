@@ -93,3 +93,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - ASM-TTY
 
 - ASM-TTY: tty_mode.S via ioctl TCGETS/TCSETSF; RAW/COOKED; retorno 0 / -errno (nao-TTY=-ENOTTY, modo invalido=-EINVAL); sem tocar errno TLS; tests/asm/test_tty_mode.c (PTY openpty, sem display :0); ctest -R asm_tty 5/5 (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
+
+## 2026-08-23 - CXX-00
+
+- CXX-00: alvo configsh C++23 (src/cxx/main.cpp stub help+exit 0; -fno-exceptions -fno-rtti); liga tty_mode.S + utf8_width.S se PETRUSH_ASM; ldd: libstdc++ so em configsh (petrush limpo); smoke cxx00-ldd.sh + target cxx00 (RED sem alvo → GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
