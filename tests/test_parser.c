@@ -801,6 +801,99 @@ void test_parse_for_rejects_c_style(void)
     petrush_list_free(&list);
 }
 
+/* OSH-6: name() { list; } */
+void test_parse_fn_posix_brace(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("f() { echo x; }", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_FN)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].fn.name != NULL);
+    TEST_CHECK(strcmp(list.items[0].fn.name, "f") == 0);
+    TEST_CHECK(list.items[0].fn.body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].fn.body.items[0].pl.cmds[0].argv[0],
+                       "echo") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-6: function name { list; } */
+void test_parse_fn_keyword(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("function g { echo y; }", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_FN)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(strcmp(list.items[0].fn.name, "g") == 0);
+    TEST_CHECK(list.items[0].fn.body.nitems == 1);
+    petrush_list_free(&list);
+}
+
+/* OSH-6: function name() { list; } */
+void test_parse_fn_keyword_parens(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("function h() { echo z; }", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_FN)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(strcmp(list.items[0].fn.name, "h") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-6: } quoted nao fecha; palavra } como argv */
+void test_parse_fn_rbrace_quoted_literal(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("f() { echo \"}\"; }", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_FN)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].fn.body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].fn.body.items[0].pl.cmds[0].argv[1],
+                       "}") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-6: def apos ; numa lista */
+void test_parse_fn_after_seq(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo a; f() { echo b; }", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 2)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_PIPELINE);
+    if (!TEST_CHECK(list.items[1].kind == PETRUSH_ITEM_FN)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(strcmp(list.items[1].fn.name, "f") == 0);
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -865,5 +958,10 @@ TEST_LIST = {
     { "parse_for_after_seq", test_parse_for_after_seq },
     { "parse_for_requires_in", test_parse_for_requires_in },
     { "parse_for_rejects_c_style", test_parse_for_rejects_c_style },
+    { "parse_fn_posix_brace", test_parse_fn_posix_brace },
+    { "parse_fn_keyword", test_parse_fn_keyword },
+    { "parse_fn_keyword_parens", test_parse_fn_keyword_parens },
+    { "parse_fn_rbrace_quoted_literal", test_parse_fn_rbrace_quoted_literal },
+    { "parse_fn_after_seq", test_parse_fn_after_seq },
     { NULL, NULL }
 };

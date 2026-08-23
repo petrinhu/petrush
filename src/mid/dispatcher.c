@@ -199,6 +199,148 @@ static builtin_fn_t find_builtin(const char *name)
     return NULL;
 }
 
+static int clone_list(const petrush_list_t *src, petrush_list_t *dst);
+
+/* OSH-6: tabela de funcoes (body owned; clone em cada call). */
+#define PETRUSH_FN_MAX 64
+
+typedef struct {
+    int used;
+    char *name;
+    petrush_list_t body;
+} petrush_fn_entry_t;
+
+static petrush_fn_entry_t g_fns[PETRUSH_FN_MAX];
+
+static void fn_entry_clear(petrush_fn_entry_t *e)
+{
+    if (!e) {
+        return;
+    }
+    free(e->name);
+    e->name = NULL;
+    petrush_list_free(&e->body);
+    e->used = 0;
+}
+
+static int fn_set(const char *name, const petrush_list_t *body)
+{
+    if (!name || !name[0] || !body) {
+        return -1;
+    }
+    int slot = -1;
+    for (int i = 0; i < PETRUSH_FN_MAX; i++) {
+        if (g_fns[i].used && g_fns[i].name &&
+            strcmp(g_fns[i].name, name) == 0) {
+            slot = i;
+            break;
+        }
+        if (slot < 0 && !g_fns[i].used) {
+            slot = i;
+        }
+    }
+    if (slot < 0) {
+        return -1;
+    }
+    petrush_list_t copy = {0};
+    if (clone_list(body, &copy) != 0) {
+        return -1;
+    }
+    if (g_fns[slot].used) {
+        fn_entry_clear(&g_fns[slot]);
+    }
+    g_fns[slot].name = strdup(name);
+    if (!g_fns[slot].name) {
+        petrush_list_free(&copy);
+        return -1;
+    }
+    g_fns[slot].body = copy;
+    g_fns[slot].used = 1;
+    return 0;
+}
+
+static const petrush_list_t *fn_get(const char *name)
+{
+    if (!name) {
+        return NULL;
+    }
+    for (int i = 0; i < PETRUSH_FN_MAX; i++) {
+        if (g_fns[i].used && g_fns[i].name &&
+            strcmp(g_fns[i].name, name) == 0) {
+            return &g_fns[i].body;
+        }
+    }
+    return NULL;
+}
+
+/* Define posicionais da chamada; restaura os anteriores ao sair. */
+static int call_fn(const char *name, int argc, char **argv,
+                   const petrush_list_t *body)
+{
+    const char *old0 = petrush_positional_get(0);
+    char *saved0 = strdup(old0 ? old0 : "");
+    if (!saved0) {
+        return 1;
+    }
+    unsigned oldn = petrush_positional_count();
+    char **saved = NULL;
+    if (oldn > 0) {
+        saved = calloc(oldn, sizeof(char *));
+        if (!saved) {
+            free(saved0);
+            return 1;
+        }
+        for (unsigned i = 0; i < oldn; i++) {
+            const char *v = petrush_positional_get(i + 1);
+            saved[i] = strdup(v ? v : "");
+            if (!saved[i]) {
+                for (unsigned j = 0; j < i; j++) {
+                    free(saved[j]);
+                }
+                free(saved);
+                free(saved0);
+                return 1;
+            }
+        }
+    }
+
+    int status = 1;
+    int nargs = (argc > 1) ? (argc - 1) : 0;
+    char **args = (nargs > 0) ? (argv + 1) : NULL;
+    if (petrush_positional_set(name, nargs, args) != 0) {
+        status = 1;
+    } else {
+        petrush_list_t copy = {0};
+        if (clone_list(body, &copy) != 0) {
+            status = 1;
+        } else {
+            status = dispatch_list(&copy);
+            petrush_list_free(&copy);
+        }
+    }
+
+    (void)petrush_positional_set(saved0, (int)oldn, saved);
+    free(saved0);
+    if (saved) {
+        for (unsigned i = 0; i < oldn; i++) {
+            free(saved[i]);
+        }
+        free(saved);
+    }
+    return status;
+}
+
+static int dispatch_fn_def(petrush_fn_t *fn)
+{
+    if (!fn || !fn->name) {
+        return 1;
+    }
+    if (fn_set(fn->name, &fn->body) != 0) {
+        return 1;
+    }
+    return 0;
+}
+
 int dispatch_command(petrush_cmd_t *cmd)
 {
     if (!cmd || cmd->argc == 0 || !cmd->argv[0]) {
@@ -207,6 +349,12 @@ int dispatch_command(petrush_cmd_t *cmd)
 
     /* UX-12/13: ~ e $VAR em argv e redirs antes do dispatch */
     expand_cmd_argv(cmd);
+
+    /* OSH-6: funcao antes de builtin/PATH (bash-like). Sem local/return. */
+    const petrush_list_t *fbody = fn_get(cmd->argv[0]);
+    if (fbody) {
+        return call_fn(cmd->argv[0], cmd->argc, cmd->argv, fbody);
+    }
 
     builtin_fn_t fn = find_builtin(cmd->argv[0]);
     if (fn) {
@@ -364,11 +512,9 @@ static int dispatch_while(petrush_while_t *wh)
 }
 
 /*
- * expand_cmd_argv muta argv no AST. for precisa re-expandir $name a cada
- * iteracao → clonar o body antes do dispatch e liberar a copia.
+ * expand_cmd_argv muta argv no AST. for/fn precisam re-expandir a cada
+ * iteracao/call → clonar o body antes do dispatch e liberar a copia.
  */
-static int clone_list(const petrush_list_t *src, petrush_list_t *dst);
-
 static int clone_cmd(const petrush_cmd_t *src, petrush_cmd_t *dst)
 {
     memset(dst, 0, sizeof(*dst));
@@ -520,6 +666,18 @@ static int clone_list(const petrush_list_t *src, petrush_list_t *dst)
                 petrush_list_free(dst);
                 return -1;
             }
+        } else if (si->kind == PETRUSH_ITEM_FN) {
+            if (si->fn.name) {
+                di->fn.name = strdup(si->fn.name);
+                if (!di->fn.name) {
+                    petrush_list_free(dst);
+                    return -1;
+                }
+            }
+            if (clone_list(&si->fn.body, &di->fn.body) != 0) {
+                petrush_list_free(dst);
+                return -1;
+            }
         } else {
             if (clone_pipeline(&si->pl, &di->pl) != 0) {
                 petrush_list_free(dst);
@@ -581,6 +739,9 @@ int dispatch_list(petrush_list_t *list)
         } else if (it->kind == PETRUSH_ITEM_FOR) {
             /* background em for fica fora desta onda; ignora flag */
             status = dispatch_for(&it->fr);
+        } else if (it->kind == PETRUSH_ITEM_FN) {
+            /* definicao: registra body; chamada e via dispatch_command */
+            status = dispatch_fn_def(&it->fn);
         } else if (it->background) {
             status = dispatch_pipeline_background(&it->pl);
         } else {

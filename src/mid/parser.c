@@ -519,6 +519,10 @@ void petrush_list_free(petrush_list_t *list)
             it->fr.words = NULL;
             it->fr.nwords = 0;
             petrush_list_free(&it->fr.body);
+        } else if (it->kind == PETRUSH_ITEM_FN) {
+            free(it->fn.name);
+            it->fn.name = NULL;
+            petrush_list_free(&it->fn.body);
         } else {
             petrush_pipeline_free(&it->pl);
         }
@@ -585,17 +589,18 @@ static int find_list_connector(const char *s, size_t from, size_t *out_pos,
     return 0;
 }
 
-/* OSH-3/4: reserved words só em posição de comando (unquoted, palavra inteira). */
+/* OSH-3/4/5/6: reserved words só em posição de comando (unquoted). */
 enum {
-    KW_IF    = 1,
-    KW_THEN  = 2,
-    KW_ELSE  = 4,
-    KW_ELIF  = 8,
-    KW_FI    = 16,
-    KW_WHILE = 32,
-    KW_DO    = 64,
-    KW_DONE  = 128,
-    KW_FOR   = 256
+    KW_IF     = 1,
+    KW_THEN   = 2,
+    KW_ELSE   = 4,
+    KW_ELIF   = 8,
+    KW_FI     = 16,
+    KW_WHILE  = 32,
+    KW_DO     = 64,
+    KW_DONE   = 128,
+    KW_FOR    = 256,
+    KW_RBRACE = 512
 };
 
 static void skip_ws_pos(const char *s, size_t *pos)
@@ -622,6 +627,37 @@ static int match_kw_at(const char *s, size_t pos, const char *kw, size_t *end_ou
     }
     if (end_out) {
         *end_out = i + klen;
+    }
+    return 1;
+}
+
+/* OSH-6: `{` / `}` sem exigir delimitador apos (aceita `f(){echo;}`). */
+static int match_lbrace_at(const char *s, size_t pos, size_t *end_out)
+{
+    size_t i = pos;
+    while (s[i] && isspace((unsigned char)s[i])) {
+        i++;
+    }
+    if (s[i] != '{') {
+        return 0;
+    }
+    if (end_out) {
+        *end_out = i + 1;
+    }
+    return 1;
+}
+
+static int match_rbrace_at(const char *s, size_t pos, size_t *end_out)
+{
+    size_t i = pos;
+    while (s[i] && isspace((unsigned char)s[i])) {
+        i++;
+    }
+    if (s[i] != '}') {
+        return 0;
+    }
+    if (end_out) {
+        *end_out = i + 1;
     }
     return 1;
 }
@@ -661,6 +697,11 @@ static int peek_kw_mask(const char *s, size_t pos, int mask, size_t *end_out)
     if ((mask & KW_DO) && match_kw_at(s, pos, "do", &end)) {
         if (end_out) *end_out = end;
         return KW_DO;
+    }
+    /* `}` e token de 1 char; quoted nao chega aqui (fica no argv). */
+    if ((mask & KW_RBRACE) && match_rbrace_at(s, pos, &end)) {
+        if (end_out) *end_out = end;
+        return KW_RBRACE;
     }
     return 0;
 }
@@ -704,6 +745,8 @@ static int if_push_arm(petrush_if_arm_t **arms, int *narms, int *cap,
 static int parse_if(const char *s, size_t *pos, petrush_if_t *out);
 static int parse_while(const char *s, size_t *pos, petrush_while_t *out);
 static int parse_for(const char *s, size_t *pos, petrush_for_t *out);
+static int parse_fn(const char *s, size_t *pos, petrush_fn_t *out, int from_kw);
+static int looks_like_fn_def(const char *s, size_t pos);
 static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                             petrush_list_t *out, int require_term);
 
@@ -875,6 +918,30 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                     item.background = 1;
                 }
             }
+        } else if (match_kw_at(s, *pos, "function", &kw_end)) {
+            item.kind = PETRUSH_ITEM_FN;
+            if (parse_fn(s, pos, &item.fn, 1) != 0) {
+                goto fail;
+            }
+            int bg = 0;
+            if (take_conn_after(s, pos, &next_cond, &bg)) {
+                had_conn = 1;
+                if (bg) {
+                    item.background = 1;
+                }
+            }
+        } else if (looks_like_fn_def(s, *pos)) {
+            item.kind = PETRUSH_ITEM_FN;
+            if (parse_fn(s, pos, &item.fn, 0) != 0) {
+                goto fail;
+            }
+            int bg = 0;
+            if (take_conn_after(s, pos, &next_cond, &bg)) {
+                had_conn = 1;
+                if (bg) {
+                    item.background = 1;
+                }
+            }
         } else {
             int rc = parse_pipeline_item(s, pos, &item, &next_cond, &had_conn);
             if (rc == -1) {
@@ -913,6 +980,9 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                     free(item.fr.words);
                 }
                 petrush_list_free(&item.fr.body);
+            } else if (item.kind == PETRUSH_ITEM_FN) {
+                free(item.fn.name);
+                petrush_list_free(&item.fn.body);
             } else {
                 petrush_pipeline_free(&item.pl);
             }
@@ -1160,6 +1230,126 @@ fail:
     }
     out->words = NULL;
     out->nwords = 0;
+    petrush_list_free(&out->body);
+    memset(out, 0, sizeof(*out));
+    return -1;
+}
+
+static int is_fn_name_start(char c)
+{
+    return isalpha((unsigned char)c) || c == '_';
+}
+
+static int is_fn_name_char(char c)
+{
+    return isalnum((unsigned char)c) || c == '_';
+}
+
+/* Nome de funcao: [A-Za-z_][A-Za-z0-9_]* (sem aspas). */
+static char *scan_fn_name(const char *s, size_t *pos)
+{
+    skip_ws_pos(s, pos);
+    if (!is_fn_name_start(s[*pos])) {
+        return NULL;
+    }
+    size_t start = *pos;
+    (*pos)++;
+    while (is_fn_name_char(s[*pos])) {
+        (*pos)++;
+    }
+    size_t len = *pos - start;
+    char *name = malloc(len + 1);
+    if (!name) {
+        return NULL;
+    }
+    memcpy(name, s + start, len);
+    name[len] = '\0';
+    return name;
+}
+
+static int match_empty_parens(const char *s, size_t *pos)
+{
+    skip_ws_pos(s, pos);
+    if (s[*pos] != '(') {
+        return 0;
+    }
+    (*pos)++;
+    skip_ws_pos(s, pos);
+    if (s[*pos] != ')') {
+        return 0;
+    }
+    (*pos)++;
+    return 1;
+}
+
+/* Peek: name () {  (POSIX). Nao consome. */
+static int looks_like_fn_def(const char *s, size_t pos)
+{
+    skip_ws_pos(s, &pos);
+    if (!is_fn_name_start(s[pos])) {
+        return 0;
+    }
+    pos++;
+    while (is_fn_name_char(s[pos])) {
+        pos++;
+    }
+    if (!match_empty_parens(s, &pos)) {
+        return 0;
+    }
+    size_t end = 0;
+    return match_lbrace_at(s, pos, &end);
+}
+
+/*
+ * OSH-6: name() { list; }  ou  function name [()] { list; }
+ * from_kw=1 ja viu/consome "function"; from_kw=0 exige ().
+ */
+static int parse_fn(const char *s, size_t *pos, petrush_fn_t *out, int from_kw)
+{
+    memset(out, 0, sizeof(*out));
+    size_t end = 0;
+
+    if (from_kw) {
+        if (!match_kw_at(s, *pos, "function", &end)) {
+            return -1;
+        }
+        *pos = end;
+    }
+
+    char *name = scan_fn_name(s, pos);
+    if (!name || name[0] == '\0') {
+        free(name);
+        goto fail;
+    }
+    out->name = name;
+
+    skip_ws_pos(s, pos);
+    if (s[*pos] == '(') {
+        if (!match_empty_parens(s, pos)) {
+            goto fail;
+        }
+    } else if (!from_kw) {
+        /* forma POSIX exige () */
+        goto fail;
+    }
+
+    if (!match_lbrace_at(s, *pos, &end)) {
+        goto fail;
+    }
+    *pos = end;
+
+    if (parse_list_until(s, pos, KW_RBRACE, &out->body, 1) != 0) {
+        goto fail;
+    }
+    if (!match_rbrace_at(s, *pos, &end)) {
+        goto fail;
+    }
+    *pos = end;
+    return 0;
+
+fail:
+    free(out->name);
+    out->name = NULL;
     petrush_list_free(&out->body);
     memset(out, 0, sizeof(*out));
     return -1;
