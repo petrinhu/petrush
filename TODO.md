@@ -133,7 +133,7 @@ Cabeçalho 10 colunas. Linhas W1–W19 não têm WSJF (histórico). Mesma Onda =
 | PLG-ABI | W23 | Plugins | `plugins/abi.h` C11. Sem dlopen no main. EXECUTAR TESTE [ABI major=1] [NA FATIA] | Alta | ASM-ABI | Baixa | 4.33 | ⏳ Pendente | — |
 | ASM-MEMEQ | W23 | ASM | `petrush_memeq_ct`. EXECUTAR TESTE [`ctest -R asm_memeq`] [NA FATIA] | Alta | ASM-ABI | Baixa | 4.00 | 🔍 Pendente verificação | memeq_ct.S XOR\|OR sem early-out; ctest asm_memeq 11/11; Docker fedora:44 clang OK; sem push; sem 4755 |
 | ASM-I64 | W23 | ASM | `petrush_parse_i64`. EXECUTAR TESTE [`ctest -R asm_parse_i64`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | ⏳ Pendente | — |
-| ASM-GLOB | W23 | ASM | `petrush_glob_match` no lugar de `match_pat`. EXECUTAR TESTE [`ctest -R test_glob`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | ⏳ Pendente | — |
+| ASM-GLOB | W23 | ASM | `petrush_glob_match` no lugar de `match_pat`. EXECUTAR TESTE [`ctest -R test_glob`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | 🔍 Pendente verificação | glob_match.S iterativo * ? ([ literal); expand.c via petrush_glob_match; ctest test_glob PASS; Docker fedora:44 clang OK; sem push; sem 4755 |
 | ASM-PGID | W23 | ASM | `petrush_job_setpgid`. EXECUTAR TESTE [`ctest -R test_job`] [NA FATIA] | Alta | ASM-ABI | Baixa | 2.67 | ⏳ Pendente | — |
 | ASM-CRC | W23 | ASM | `petrush_crc32` IEEE. EXECUTAR TESTE [`ctest -R asm_crc32`] [NA FATIA] | Média | ASM-ABI | Baixa | 2.50 | ⏳ Pendente | — |
 | ASM-HASH | W23 | ASM | `petrush_hash_path` FNV-1a. EXECUTAR TESTE [`ctest -R asm_hash_path`] [NA FATIA] | Média | ASM-ABI | Baixa | 2.50 | ⏳ Pendente | — |

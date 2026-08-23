@@ -64,7 +64,9 @@ if(PETRUSH_ASM)
     list(APPEND PETRUSH_ASM_SOURCES
         src/asm/empty.S
         src/asm/memeq_ct.S
+        src/asm/glob_match.S
     )
+    add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
 
 # Executável principal
@@ -249,6 +251,7 @@ add_executable(test_info
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
+    ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_info PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -275,6 +278,7 @@ add_executable(test_pipeline_builtin
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
+    ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_pipeline_builtin PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -341,6 +345,7 @@ add_executable(test_complete
     src/foundation/process.c
     src/foundation/job.c
     vendor/linenoise/linenoise.c
+    ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_complete PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -407,6 +412,7 @@ add_executable(test_expand
     tests/test_expand.c
     src/mid/expand.c
     src/foundation/env.c
+    ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_expand PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -423,6 +429,7 @@ add_executable(test_glob
     src/mid/expand.c
     src/mid/parser.c
     src/foundation/env.c
+    ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_glob PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
@@ -492,6 +499,7 @@ add_executable(test_source
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
+    ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_source PRIVATE
     ${CMAKE_SOURCE_DIR}/tests

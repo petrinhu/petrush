@@ -4,6 +4,9 @@
 
 #include "petrush/expand.h"
 #include "petrush/env.h"
+#ifdef PETRUSH_HAVE_ASM
+#include "petrush/asm.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -245,30 +248,39 @@ char *expand_word(const char *word)
     return out;
 }
 
-/* UX-18: matcher próprio (* = sequência, ? = um byte; [ literal). */
+/* UX-18 / ASM-GLOB: * = sequência, ? = um byte; [ literal (sem classes []). */
 static int match_pat(const char *pat, const char *str)
 {
-    while (*pat && *str) {
-        if (*pat == '*') {
-            pat++;
-            if (!*pat) return 1;
-            while (*str) {
-                if (match_pat(pat, str)) return 1;
-                str++;
+#ifdef PETRUSH_HAVE_ASM
+    return petrush_glob_match(pat, str);
+#else
+    /* Fallback iterativo (mesmo contrato) quando PETRUSH_ASM=OFF. */
+    const char *p = pat;
+    const char *s = str;
+    const char *star_p = NULL;
+    const char *star_s = NULL;
+
+    while (*s) {
+        if (*p == '*') {
+            star_p = ++p;
+            star_s = s;
+            while (*p == '*') {
+                star_p = ++p;
             }
+            if (!*p) return 1;
+        } else if (*p == '?' || (*p && *p == *s)) {
+            p++;
+            s++;
+        } else if (star_p) {
+            p = star_p;
+            s = ++star_s;
+        } else {
             return 0;
         }
-        if (*pat == '?') {
-            pat++;
-            str++;
-            continue;
-        }
-        if (*pat != *str) return 0;
-        pat++;
-        str++;
     }
-    while (*pat == '*') pat++;
-    return *pat == '\0' && *str == '\0';
+    while (*p == '*') p++;
+    return *p == '\0';
+#endif
 }
 
 static int pattern_has_meta(const char *s)
