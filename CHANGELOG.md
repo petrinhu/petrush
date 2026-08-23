@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **exit N:** `builtin_exit` honra argumento numérico (0..255); inválido → stderr + exit 2.
 
 ### Added
+- **ASM-I64:** `src/asm/parse_i64.S` (`petrush_parse_i64`: decimal signed 64 com `+`/`-` opcional; INT64_MIN/MAX; overflow/invalido → -1 sem escrever `*out`); harness `tests/asm/test_parse_i64.c` + ctest `asm_parse_i64` 16/16; Docker fedora:44 clang PASS.
 - **ASM-CRC:** `src/asm/crc32.S` (`petrush_crc32`: IEEE poly 0xEDB88320, tabela 256, incremental; XOR final a cargo do caller); vetor `"123456789"` → digest `0xCBF43926`; harness `tests/asm/test_crc32.c` + ctest `asm_crc32` 8/8; Docker fedora:44 clang PASS.
 - **ASM-GLOB:** `src/asm/glob_match.S` (`petrush_glob_match`: `*` `?` iterativo; `[` literal); `expand.c` `match_pat` chama o atomo quando `PETRUSH_ASM`; fallback C se OFF; `ctest -R test_glob` PASS; Docker fedora:44 clang PASS.
 - **ASM-MEMEQ:** `src/asm/memeq_ct.S` (`petrush_memeq_ct`: 0 iguais / 1 diferem; n==0 igual; NULL so se n==0; XOR|OR acumula sem early-out); harness `tests/asm/test_memeq.c` + ctest `asm_memeq`; Docker fedora:44 clang PASS.

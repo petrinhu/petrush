@@ -66,6 +66,7 @@ if(PETRUSH_ASM)
         src/asm/memeq_ct.S
         src/asm/glob_match.S
         src/asm/crc32.S
+        src/asm/parse_i64.S
     )
     add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
@@ -541,6 +542,21 @@ if(PETRUSH_ASM)
         -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
     )
     add_test(NAME asm_crc32 COMMAND asm_crc32)
+
+    # ASM-I64: petrush_parse_i64 (decimal signed 64, sem overflow UB)
+    add_executable(asm_parse_i64
+        tests/asm/test_parse_i64.c
+        src/asm/parse_i64.S
+    )
+    target_include_directories(asm_parse_i64 PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_options(asm_parse_i64 PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+    )
+    add_test(NAME asm_parse_i64 COMMAND asm_parse_i64)
 endif()
 
 add_custom_target(check
