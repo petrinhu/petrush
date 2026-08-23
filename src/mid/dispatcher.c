@@ -72,6 +72,7 @@ static const builtin_entry_t builtins[] = {
     { "[",       builtin_test    }, /* FEAT-TEST: [ exige ] final */
     { "shift",   builtin_shift   }, /* OSH-2: shift [n] */
     { "return",  builtin_return  }, /* OSH-7: return [n] so em funcao */
+    { "local",   builtin_local   }, /* OSH-8: local name[=value] so em fn */
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -218,6 +219,58 @@ static int g_fn_depth;
 static int g_returning;
 static int g_return_status;
 
+/* OSH-8: stack de valores salvos por `local` (LIFO; tag = g_fn_depth). */
+#define PETRUSH_LOCAL_STACK_MAX 256
+
+typedef struct {
+    int depth;
+    int had;       /* 1 se a var existia antes deste local */
+    char *name;
+    char *old;     /* valor anterior (strdup); NULL se !had */
+} petrush_local_save_t;
+
+static petrush_local_save_t g_locals[PETRUSH_LOCAL_STACK_MAX];
+static int g_local_n;
+
+static int local_push(const char *name)
+{
+    if (!name || !name[0] || g_local_n >= PETRUSH_LOCAL_STACK_MAX) {
+        return -1;
+    }
+    petrush_local_save_t *e = &g_locals[g_local_n];
+    const char *cur = petrush_getenv(name);
+    e->depth = g_fn_depth;
+    e->had = (cur != NULL) ? 1 : 0;
+    e->name = strdup(name);
+    e->old = (cur != NULL) ? strdup(cur) : NULL;
+    if (!e->name || (cur && !e->old)) {
+        free(e->name);
+        free(e->old);
+        e->name = NULL;
+        e->old = NULL;
+        return -1;
+    }
+    g_local_n++;
+    return 0;
+}
+
+static void local_restore_frame(int depth)
+{
+    while (g_local_n > 0 && g_locals[g_local_n - 1].depth == depth) {
+        petrush_local_save_t *e = &g_locals[g_local_n - 1];
+        if (e->had) {
+            (void)petrush_setenv(e->name, e->old ? e->old : "", 1);
+        } else {
+            (void)petrush_unsetenv(e->name);
+        }
+        free(e->name);
+        free(e->old);
+        e->name = NULL;
+        e->old = NULL;
+        g_local_n--;
+    }
+}
+
 static void fn_entry_clear(petrush_fn_entry_t *e)
 {
     if (!e) {
@@ -329,6 +382,8 @@ static int call_fn(const char *name, int argc, char **argv,
         status = g_return_status;
         g_returning = 0;
     }
+    /* OSH-8: restaura locals deste frame (inclusive apos return). */
+    local_restore_frame(g_fn_depth);
     g_fn_depth--;
 
     (void)petrush_positional_set(saved0, (int)oldn, saved);
@@ -362,7 +417,7 @@ int dispatch_command(petrush_cmd_t *cmd)
     /* UX-12/13: ~ e $VAR em argv e redirs antes do dispatch */
     expand_cmd_argv(cmd);
 
-    /* OSH-6: funcao antes de builtin/PATH (bash-like). Sem local. */
+    /* OSH-6: funcao antes de builtin/PATH (bash-like). */
     const petrush_list_t *fbody = fn_get(cmd->argv[0]);
     if (fbody) {
         return call_fn(cmd->argv[0], cmd->argc, cmd->argv, fbody);
@@ -941,6 +996,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  test / [     - Primaries (-f -d -e -z -n = != -eq -ne -lt -gt)\n");
     printf("  shift [n]    - Desloca posicionais (default 1; n>$# erro)\n");
     printf("  return [n]   - Sai da funcao com status n (default 0; so em fn)\n");
+    printf("  local NAME[=VALUE] - Var local na funcao (restaura ao sair; sem flags)\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -1211,6 +1267,77 @@ int builtin_return(petrush_cmd_t *cmd)
     g_returning = 1;
     g_return_status = code;
     return code;
+}
+
+/*
+ * OSH-8: local name[=value] so dentro de funcao.
+ * Sem flags (local -a/-r/...). local name sem =: unset local.
+ * Ao sair do frame (return ou fim do body), restaura valor anterior
+ * ou unset se a var nao existia.
+ */
+int builtin_local(petrush_cmd_t *cmd)
+{
+    if (!cmd) {
+        return 1;
+    }
+    if (g_fn_depth <= 0) {
+        fprintf(stderr, "local: can only be used in a function\n");
+        return 1;
+    }
+    if (cmd->argc < 2) {
+        fprintf(stderr, "local: usage: local name[=value]...\n");
+        return 1;
+    }
+
+    int ret = 0;
+    for (int i = 1; i < cmd->argc; i++) {
+        const char *arg = cmd->argv[i];
+        if (!arg || arg[0] == '\0') {
+            fprintf(stderr, "local: invalid variable name\n");
+            ret = 1;
+            continue;
+        }
+        if (arg[0] == '-') {
+            fprintf(stderr, "local: options not supported\n");
+            return 1;
+        }
+
+        const char *eq = strchr(arg, '=');
+        char namebuf[256];
+        const char *name;
+        const char *val = NULL;
+        int assign = 0;
+
+        if (eq) {
+            size_t nlen = (size_t)(eq - arg);
+            if (nlen == 0 || nlen >= sizeof(namebuf)) {
+                fprintf(stderr, "local: invalid variable name\n");
+                ret = 1;
+                continue;
+            }
+            memcpy(namebuf, arg, nlen);
+            namebuf[nlen] = '\0';
+            name = namebuf;
+            val = eq + 1;
+            assign = 1;
+        } else {
+            name = arg;
+        }
+
+        if (local_push(name) != 0) {
+            fprintf(stderr, "local: stack full or out of memory\n");
+            return 1;
+        }
+        if (assign) {
+            if (petrush_setenv(name, val, 1) != 0) {
+                perror("local");
+                ret = 1;
+            }
+        } else {
+            (void)petrush_unsetenv(name);
+        }
+    }
+    return ret;
 }
 
 int builtin_clear(petrush_cmd_t *cmd)

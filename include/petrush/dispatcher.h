@@ -80,6 +80,9 @@ int builtin_shift(petrush_cmd_t *cmd);
 /* OSH-7: return [n] so em funcao; default n=0; fora → !=0 sem exit */
 int builtin_return(petrush_cmd_t *cmd);
 
+/* OSH-8: local name[=value] so em funcao; restaura ao sair; sem flags */
+int builtin_local(petrush_cmd_t *cmd);
+
 /* Para completion: número de builtins e nome por índice */
 int petrush_builtin_count(void);
 const char *petrush_builtin_name(int index);

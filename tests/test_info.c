@@ -898,6 +898,105 @@ void test_help_mentions_return(void)
     TEST_CHECK(strstr(buf, "return") != NULL);
 }
 
+/* OSH-8: local name[=value]; so em funcao; restaura ao sair; sem flags. */
+void test_osh8_local_in_table(void)
+{
+    TEST_CHECK(builtin_table_has("local"));
+}
+
+void test_osh8_local_outside_fn_status(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("local x=1", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) != 0);
+    petrush_cmd_free(&cmd);
+}
+
+void test_osh8_local_value_in_body(void)
+{
+    petrush_list_t list = {0};
+    (void)petrush_unsetenv("OSH8_LV");
+    (void)petrush_unsetenv("OSH8_SEEN");
+    TEST_CHECK(petrush_parse_list(
+                   "f() { local OSH8_LV=1; export OSH8_SEEN=$OSH8_LV; }; f",
+                   &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    const char *seen = petrush_getenv("OSH8_SEEN");
+    TEST_CHECK(seen != NULL && strcmp(seen, "1") == 0);
+    TEST_CHECK(petrush_getenv("OSH8_LV") == NULL);
+    (void)petrush_unsetenv("OSH8_SEEN");
+}
+
+void test_osh8_local_restores_outer(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_setenv("OSH8_RO", "outer", 1) == 0);
+    TEST_CHECK(petrush_parse_list(
+                   "f() { local OSH8_RO=inner; }; f", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    const char *v = petrush_getenv("OSH8_RO");
+    TEST_CHECK(v != NULL && strcmp(v, "outer") == 0);
+    (void)petrush_unsetenv("OSH8_RO");
+}
+
+void test_osh8_local_bare_unsets_in_body(void)
+{
+    petrush_list_t list = {0};
+    (void)petrush_unsetenv("OSH8_BU_SEEN");
+    TEST_CHECK(petrush_setenv("OSH8_BU", "outer", 1) == 0);
+    /* local bare: mascara (unset); ao sair restaura outer */
+    TEST_CHECK(petrush_parse_list(
+                   "f() { local OSH8_BU; export OSH8_BU_SEEN=${OSH8_BU:-UNSET}; }; f",
+                   &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    const char *seen = petrush_getenv("OSH8_BU_SEEN");
+    TEST_CHECK(seen != NULL && strcmp(seen, "UNSET") == 0);
+    const char *v = petrush_getenv("OSH8_BU");
+    TEST_CHECK(v != NULL && strcmp(v, "outer") == 0);
+    (void)petrush_unsetenv("OSH8_BU");
+    (void)petrush_unsetenv("OSH8_BU_SEEN");
+}
+
+void test_osh8_local_rejects_flags(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list(
+                   "f() { local -a x; false; }; f", &list) == 0);
+    /* flag rejeitada: status != 0; false nao deve rodar se local falhar
+     * e for o unico stmt... na verdade ; false ainda roda. Checar so
+     * que local -a dentro da fn falha o status da fn se for ultimo. */
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_parse_list(
+                   "f() { local -a x; }; f", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) != 0);
+    petrush_list_free(&list);
+}
+
+void test_osh8_local_restore_on_return(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_setenv("OSH8_RR", "outer", 1) == 0);
+    TEST_CHECK(petrush_parse_list(
+                   "f() { local OSH8_RR=inner; return 0; }; f", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    const char *v = petrush_getenv("OSH8_RR");
+    TEST_CHECK(v != NULL && strcmp(v, "outer") == 0);
+    (void)petrush_unsetenv("OSH8_RR");
+}
+
+void test_help_mentions_local(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("help", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "local") != NULL);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -954,5 +1053,13 @@ TEST_LIST = {
     { "osh7_return_skips_rest", test_osh7_return_skips_rest },
     { "osh7_return_outside_then_continues", test_osh7_return_outside_then_continues },
     { "help_mentions_return", test_help_mentions_return },
+    { "osh8_local_in_table", test_osh8_local_in_table },
+    { "osh8_local_outside_fn_status", test_osh8_local_outside_fn_status },
+    { "osh8_local_value_in_body", test_osh8_local_value_in_body },
+    { "osh8_local_restores_outer", test_osh8_local_restores_outer },
+    { "osh8_local_bare_unsets_in_body", test_osh8_local_bare_unsets_in_body },
+    { "osh8_local_rejects_flags", test_osh8_local_rejects_flags },
+    { "osh8_local_restore_on_return", test_osh8_local_restore_on_return },
+    { "help_mentions_local", test_help_mentions_local },
     { NULL, NULL }
 };

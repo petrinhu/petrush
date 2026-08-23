@@ -10,7 +10,7 @@
  * OSH-3: `if` / `then` / `elif` / `else` / `fi` (compound sobre parse_list).
  * OSH-4: `while` / `do` / `done` (compound sobre parse_list; sem for/until).
  * OSH-5: `for name in words; do list; done` (in obrigatorio; sem for (() ).
- * OSH-6: `name() { list; }` / `function name { list; }` (sem local/return).
+ * OSH-6: `name() { list; }` / `function name { list; }` (return/local = OSH-7/8).
  * NÃO: `2>&N` genérico, `[]`/`**`, `[[`, fg/bg/Ctrl-Z/%n.
  */
 
