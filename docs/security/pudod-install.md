@@ -49,6 +49,8 @@ O pudod verifica:
 
 Se falhar, **nega tudo** (fail secure).
 
+Shells genéricos são recusados na carga (SEC-12 / R-C3): depois do `realpath`, se o basename canônico for `sh`, `bash`, `dash`, `ash` ou `busybox`, a linha é ignorada com WARNING no log. Allow-listar um shell reabre o modelo POSIX completo já como root. Se todas as linhas forem puladas (ou o arquivo ficar só com shells), a lista fica vazia e o comportamento é deny-all. O example oficial fica em `id` / `whoami` / `true`.
+
 ## 4. Aplicação de Privilégios (manual e perigoso)
 
 **NUNCA** faça isso em CI ou sem revisão.

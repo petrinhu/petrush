@@ -138,16 +138,23 @@ static int load_allow_list(void)
         if (*p == '/' && allowed_count < MAX_ALLOWED) {
             char canonical[PATH_MAX];
             /* SEC-05: realpath falhou => skip (fail closed; nunca aceitar literal). */
-            if (pudod_resolve_allow_entry(p, canonical, sizeof(canonical)) == 0) {
-                size_t len = strlen(canonical);
-                if (len >= PATH_MAX) len = PATH_MAX - 1;
-                memcpy(allowed_paths[allowed_count], canonical, len);
-                allowed_paths[allowed_count][len] = '\0';
-                allowed_count++;
-            } else {
+            if (pudod_resolve_allow_entry(p, canonical, sizeof(canonical)) != 0) {
                 pudod_log(LOG_WARNING,
                           "allow-list entry skipped (realpath failed): %s", p);
+                continue;
             }
+            /* SEC-12 / R-C3: shell genérico => skip (lista vazia = deny-all). */
+            if (pudod_path_is_generic_shell(canonical) == 1) {
+                pudod_log(LOG_WARNING,
+                          "allow-list entry skipped (generic shell): %s",
+                          canonical);
+                continue;
+            }
+            size_t len = strlen(canonical);
+            if (len >= PATH_MAX) len = PATH_MAX - 1;
+            memcpy(allowed_paths[allowed_count], canonical, len);
+            allowed_paths[allowed_count][len] = '\0';
+            allowed_count++;
         }
     }
 

@@ -281,11 +281,36 @@ void test_pudod_allow_entry_accepts_existing(void)
     char out[PATH_MAX];
     out[0] = '\0';
 
-    /* /bin/sh existe em qualquer Linux razoável; realpath pode canonicalizar. */
-    int rc = pudod_resolve_allow_entry("/bin/sh", out, sizeof(out));
+    /* /usr/bin/true: inocente (não shell). SEC-12: não usar /bin/sh aqui. */
+    int rc = pudod_resolve_allow_entry("/usr/bin/true", out, sizeof(out));
     TEST_CHECK(rc == 0);
     TEST_CHECK(out[0] == '/');
     TEST_CHECK(access(out, F_OK) == 0);
+}
+
+/* SEC-12 / R-C3: shells genéricos na allow-list. */
+void test_sec12_generic_shell_null_empty_no_slash(void)
+{
+    TEST_CHECK(pudod_path_is_generic_shell(NULL) == -1);
+    TEST_CHECK(pudod_path_is_generic_shell("") == -1);
+    TEST_CHECK(pudod_path_is_generic_shell("sh") == -1);
+    TEST_CHECK(pudod_path_is_generic_shell("bash") == -1);
+}
+
+void test_sec12_generic_shell_basenames(void)
+{
+    TEST_CHECK(pudod_path_is_generic_shell("/bin/sh") == 1);
+    TEST_CHECK(pudod_path_is_generic_shell("/usr/bin/bash") == 1);
+    TEST_CHECK(pudod_path_is_generic_shell("/bin/dash") == 1);
+    TEST_CHECK(pudod_path_is_generic_shell("/usr/bin/ash") == 1);
+    TEST_CHECK(pudod_path_is_generic_shell("/bin/busybox") == 1);
+}
+
+void test_sec12_innocent_binaries_not_shell(void)
+{
+    TEST_CHECK(pudod_path_is_generic_shell("/usr/bin/true") == 0);
+    TEST_CHECK(pudod_path_is_generic_shell("/usr/bin/id") == 0);
+    TEST_CHECK(pudod_path_is_generic_shell("/usr/bin/whoami") == 0);
 }
 
 /* SEC-06: alvo deve ser regular, root-owned e com bit de exec. */
@@ -544,6 +569,9 @@ TEST_LIST = {
     { "sec11_sudo_fallback_always_denied", test_sec11_sudo_fallback_always_denied },
     { "pudod_allow_rejects_unresolvable",  test_pudod_allow_entry_rejects_unresolvable },
     { "pudod_allow_accepts_existing",      test_pudod_allow_entry_accepts_existing },
+    { "sec12_shell_null_empty_no_slash",   test_sec12_generic_shell_null_empty_no_slash },
+    { "sec12_shell_basenames",             test_sec12_generic_shell_basenames },
+    { "sec12_innocent_not_shell",          test_sec12_innocent_binaries_not_shell },
     { "sec06_rejects_null_stat",           test_sec06_rejects_null_stat },
     { "sec06_accepts_root_exec",           test_sec06_accepts_root_owned_executable },
     { "sec06_rejects_non_root",            test_sec06_rejects_non_root_owner },

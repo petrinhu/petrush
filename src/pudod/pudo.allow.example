@@ -7,6 +7,8 @@
 #   - comentários com #
 #
 # Exemplo intencionalmente mínimo (só inocentes). NÃO copie apt/dnf/systemctl/passwd.
+# SEC-12: shells genéricos (sh/bash/dash/ash/busybox) são ignorados no load
+# com WARNING; lista vazia = deny-all. Mantenha só id/whoami/true.
 
 /usr/bin/id
 /usr/bin/whoami
