@@ -6,6 +6,7 @@
 #include "acutest.h"
 #include "petrush/dispatcher.h"
 #include "petrush/env.h"
+#include "petrush/expand.h"
 #include "petrush/parser.h"
 #include "petrush/ui_port.h"
 
@@ -748,6 +749,99 @@ void test_help_mentions_test(void)
     TEST_CHECK(strstr(buf, "test") != NULL);
 }
 
+/* OSH-2: builtin shift [n]; default 1; n>$# erro + intactos; shift 0 no-op. */
+void test_osh2_shift_in_table(void)
+{
+    TEST_CHECK(builtin_table_has("shift"));
+}
+
+void test_osh2_builtin_shift_default_one(void)
+{
+    char *args[] = { "a", "b", "c" };
+    TEST_CHECK(petrush_positional_set("sh", 3, args) == 0);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("shift", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+
+    TEST_CHECK(petrush_positional_count() == 2);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "b") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(2), "c") == 0);
+    petrush_positional_clear();
+}
+
+void test_osh2_builtin_shift_n_two(void)
+{
+    char *args[] = { "a", "b", "c" };
+    TEST_CHECK(petrush_positional_set("sh", 3, args) == 0);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("shift 2", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+
+    TEST_CHECK(petrush_positional_count() == 1);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "c") == 0);
+    petrush_positional_clear();
+}
+
+void test_osh2_builtin_shift_zero_noop(void)
+{
+    char *args[] = { "a", "b", "c" };
+    TEST_CHECK(petrush_positional_set("sh", 3, args) == 0);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("shift 0", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) == 0);
+    petrush_cmd_free(&cmd);
+
+    TEST_CHECK(petrush_positional_count() == 3);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "a") == 0);
+    petrush_positional_clear();
+}
+
+void test_osh2_builtin_shift_too_many_intact(void)
+{
+    char *args[] = { "a", "b", "c" };
+    TEST_CHECK(petrush_positional_set("sh", 3, args) == 0);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("shift 4", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) != 0);
+    petrush_cmd_free(&cmd);
+
+    TEST_CHECK(petrush_positional_count() == 3);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "a") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(2), "b") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(3), "c") == 0);
+    petrush_positional_clear();
+}
+
+void test_osh2_builtin_shift_rejects_non_numeric(void)
+{
+    char *args[] = { "a" };
+    TEST_CHECK(petrush_positional_set("sh", 1, args) == 0);
+
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("shift x", &cmd) == 0);
+    TEST_CHECK(dispatch_command(&cmd) != 0);
+    petrush_cmd_free(&cmd);
+
+    TEST_CHECK(petrush_positional_count() == 1);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "a") == 0);
+    petrush_positional_clear();
+}
+
+void test_help_mentions_shift(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("help", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "shift") != NULL);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -790,5 +884,12 @@ TEST_LIST = {
     { "builtin_bracket_requires_closing", test_builtin_bracket_requires_closing },
     { "builtin_test_short_circuit", test_builtin_test_short_circuit },
     { "help_mentions_test", test_help_mentions_test },
+    { "osh2_shift_in_table", test_osh2_shift_in_table },
+    { "osh2_builtin_shift_default_one", test_osh2_builtin_shift_default_one },
+    { "osh2_builtin_shift_n_two", test_osh2_builtin_shift_n_two },
+    { "osh2_builtin_shift_zero_noop", test_osh2_builtin_shift_zero_noop },
+    { "osh2_builtin_shift_too_many_intact", test_osh2_builtin_shift_too_many_intact },
+    { "osh2_builtin_shift_rejects_non_numeric", test_osh2_builtin_shift_rejects_non_numeric },
+    { "help_mentions_shift", test_help_mentions_shift },
     { NULL, NULL }
 };

@@ -3,7 +3,7 @@
  *
  * Roda arquivo linha a linha no processo atual.
  * Mesma fn para "source" e ".". Sem PATH search.
- * Teto PETRUSH_SOURCE_MAX_DEPTH. Sem shift/return (OSH-1: $0/$1/$#/$@/$* via expand).
+ * Teto PETRUSH_SOURCE_MAX_DEPTH. Sem return (OSH-1/2: $0/$1/$#/$@/$* + shift via expand).
  */
 
 #ifndef PETRUSH_SOURCE_H

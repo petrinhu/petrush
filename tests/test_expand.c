@@ -180,7 +180,7 @@ void test_param_embedded(void)
     free(e);
 }
 
-/* OSH-1: posicionais $0 $1 $# $@ $* (sem shift / ${1:-}) */
+/* OSH-1: posicionais $0 $1 $# $@ $* ; OSH-2: shift (sem ${1:-}) */
 static void osh1_setup_abc(void)
 {
     char *args[] = { "a", "b", "c" };
@@ -318,6 +318,63 @@ void test_osh1_star_ifs_first_char(void)
     petrush_positional_clear();
 }
 
+/* OSH-2: petrush_positional_shift */
+void test_osh2_shift_default_one(void)
+{
+    osh1_setup_abc();
+    TEST_CHECK(petrush_positional_shift(1) == 0);
+    TEST_CHECK(petrush_positional_count() == 2);
+    TEST_CHECK(strcmp(petrush_positional_get(0), "/tmp/script.sh") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "b") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(2), "c") == 0);
+    TEST_CHECK(petrush_positional_get(3) == NULL);
+    petrush_positional_clear();
+}
+
+void test_osh2_shift_two(void)
+{
+    osh1_setup_abc();
+    TEST_CHECK(petrush_positional_shift(2) == 0);
+    TEST_CHECK(petrush_positional_count() == 1);
+    TEST_CHECK(strcmp(petrush_positional_get(0), "/tmp/script.sh") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "c") == 0);
+    TEST_CHECK(petrush_positional_get(2) == NULL);
+    petrush_positional_clear();
+}
+
+void test_osh2_shift_zero_noop(void)
+{
+    osh1_setup_abc();
+    TEST_CHECK(petrush_positional_shift(0) == 0);
+    TEST_CHECK(petrush_positional_count() == 3);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "a") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(2), "b") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(3), "c") == 0);
+    petrush_positional_clear();
+}
+
+void test_osh2_shift_too_many_intact(void)
+{
+    osh1_setup_abc();
+    TEST_CHECK(petrush_positional_shift(4) != 0);
+    TEST_CHECK(petrush_positional_count() == 3);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "a") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(2), "b") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(3), "c") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(0), "/tmp/script.sh") == 0);
+    petrush_positional_clear();
+}
+
+void test_osh2_shift_all_leaves_empty(void)
+{
+    osh1_setup_abc();
+    TEST_CHECK(petrush_positional_shift(3) == 0);
+    TEST_CHECK(petrush_positional_count() == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(0), "/tmp/script.sh") == 0);
+    TEST_CHECK(petrush_positional_get(1) == NULL);
+    petrush_positional_clear();
+}
+
 TEST_LIST = {
     { "tilde_alone", test_tilde_alone },
     { "tilde_slash", test_tilde_slash },
@@ -345,5 +402,10 @@ TEST_LIST = {
     { "osh1_at_unquoted_words", test_osh1_at_unquoted_words },
     { "osh1_at_quoted_empty_removes", test_osh1_at_quoted_empty_removes },
     { "osh1_star_ifs_first_char", test_osh1_star_ifs_first_char },
+    { "osh2_shift_default_one", test_osh2_shift_default_one },
+    { "osh2_shift_two", test_osh2_shift_two },
+    { "osh2_shift_zero_noop", test_osh2_shift_zero_noop },
+    { "osh2_shift_too_many_intact", test_osh2_shift_too_many_intact },
+    { "osh2_shift_all_leaves_empty", test_osh2_shift_all_leaves_empty },
     { NULL, NULL }
 };

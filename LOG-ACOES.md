@@ -2,6 +2,10 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+## 2026-08-23 - OSH-2
+
+- OSH-2: `petrush_positional_shift` + builtin `shift` [n]; TDD red (link undefined) → green; `test_expand` 5 + `test_info` 7; smoke osh2 6/6 + osh1 5/5; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
+
 ## 2026-08-23 - XDG-1
 
 - XDG-1: `xdg_paths.c` rc/history XDG + compat legacy; mkdir -p 0700 no save; main+builtin_history; TDD `test_xdg_paths` 9/9 + smoke `xdg-paths.sh` 7/7; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.

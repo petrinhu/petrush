@@ -1001,10 +1001,19 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh0-script.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-1 positional smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh1-positional.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-2 shift smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh2-shift.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1 + XDG-1)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1/2 + XDG-1)"
+    VERBATIM
+)
+
+add_custom_target(osh2_shift
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh2-shift.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "OSH-2 shift smoke"
     VERBATIM
 )
 

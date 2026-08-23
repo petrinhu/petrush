@@ -1,5 +1,5 @@
 /*
- * expand.c — tilde and environment variable expansion + OSH-1 posicionais
+ * expand.c — tilde and environment variable expansion + OSH-1/2 posicionais
  */
 
 #include "petrush/expand.h"
@@ -79,6 +79,34 @@ const char *petrush_positional_get(unsigned n)
 unsigned petrush_positional_count(void)
 {
     return (unsigned)g_pos_nargs;
+}
+
+int petrush_positional_shift(unsigned n)
+{
+    if (n == 0) {
+        return 0;
+    }
+    if ((int)n > g_pos_nargs) {
+        return -1;
+    }
+    /* Libera os n primeiros $1..; desliza o resto; $0 intacto. */
+    for (int i = 0; i < (int)n; i++) {
+        free(g_pos_args[i]);
+        g_pos_args[i] = NULL;
+    }
+    int remain = g_pos_nargs - (int)n;
+    if (remain > 0) {
+        memmove(g_pos_args, g_pos_args + (int)n, (size_t)remain * sizeof(char *));
+        for (int i = remain; i < g_pos_nargs; i++) {
+            g_pos_args[i] = NULL;
+        }
+    }
+    if (remain == 0) {
+        free(g_pos_args);
+        g_pos_args = NULL;
+    }
+    g_pos_nargs = remain;
+    return 0;
 }
 
 static int is_name_char(char c)

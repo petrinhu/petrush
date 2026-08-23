@@ -74,6 +74,9 @@ int builtin_read(petrush_cmd_t *cmd);
 /* FEAT-TEST: test / [ primaries curtos (-f -d -e -z -n = != -eq -ne -lt -gt); [ exige ] */
 int builtin_test(petrush_cmd_t *cmd);
 
+/* OSH-2: shift [n]; default 1; n>$# -> !=0 e posicionais intactos; shift 0 no-op */
+int builtin_shift(petrush_cmd_t *cmd);
+
 /* Para completion: número de builtins e nome por índice */
 int petrush_builtin_count(void);
 const char *petrush_builtin_name(int index);

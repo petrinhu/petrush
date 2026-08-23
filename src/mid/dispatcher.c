@@ -70,6 +70,7 @@ static const builtin_entry_t builtins[] = {
     { "read",    builtin_read    }, /* FEAT-READ: 1 linha → 1 var */
     { "test",    builtin_test    }, /* FEAT-TEST: primaries curtos */
     { "[",       builtin_test    }, /* FEAT-TEST: [ exige ] final */
+    { "shift",   builtin_shift   }, /* OSH-2: shift [n] */
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -509,6 +510,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  umask [oct]  - Mostra/define máscara octal do shell\n");
     printf("  read NAME    - Lê 1 linha de stdin para NAME\n");
     printf("  test / [     - Primaries (-f -d -e -z -n = != -eq -ne -lt -gt)\n");
+    printf("  shift [n]    - Desloca posicionais (default 1; n>$# erro)\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -706,6 +708,42 @@ int builtin_test(petrush_cmd_t *cmd)
 
     fprintf(stderr, "%s: too many arguments\n", prog);
     return 2;
+}
+
+/* OSH-2: shift [n]; default 1; n>$# → 1 e intactos; shift 0 no-op. */
+int builtin_shift(petrush_cmd_t *cmd)
+{
+    if (!cmd) {
+        return 1;
+    }
+    if (cmd->argc > 2) {
+        fprintf(stderr, "shift: too many arguments\n");
+        return 1;
+    }
+
+    unsigned n = 1;
+    if (cmd->argc == 2) {
+        const char *arg = cmd->argv[1];
+        char *end = NULL;
+        errno = 0;
+        long v = strtol(arg, &end, 10);
+        if (arg[0] == '\0' || end == arg || *end != '\0' || errno == ERANGE
+            || v < 0) {
+            fprintf(stderr, "shift: %s: numeric argument required\n", arg);
+            return 1;
+        }
+        if (v > (long)UINT_MAX) {
+            fprintf(stderr, "shift: %ld: shift count out of range\n", v);
+            return 1;
+        }
+        n = (unsigned)v;
+    }
+
+    if (petrush_positional_shift(n) != 0) {
+        fprintf(stderr, "shift: %u: shift count out of range\n", n);
+        return 1;
+    }
+    return 0;
 }
 
 int builtin_clear(petrush_cmd_t *cmd)

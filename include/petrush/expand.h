@@ -1,7 +1,8 @@
 /*
  * expand.h — ~ / $VAR / ${VAR:-} / ${VAR:+} / ${#VAR} (UX-12/13, FEAT-PARAM)
  * + glob * ? (UX-18)
- * + posicionais $0 $1.. $# $@ $* (OSH-1; sem shift / ${1:-} / arrays)
+ * + posicionais $0 $1.. $# $@ $* (OSH-1)
+ * + shift [n] (OSH-2; sem ${1:-} / arrays)
  */
 
 #ifndef PETRUSH_EXPAND_H
@@ -21,6 +22,14 @@ void petrush_positional_clear(void);
 /* n=0 → $0 ("" se unset); n>=1 → $n ou NULL se fora do range. */
 const char *petrush_positional_get(unsigned n);
 unsigned petrush_positional_count(void); /* $# */
+
+/*
+ * OSH-2: desloca $1..$# em n posicoes; $0 intacto.
+ * n==0 → no-op, retorna 0.
+ * n > $# → retorna -1 e nao altera posicionais.
+ * senao retorna 0.
+ */
+int petrush_positional_shift(unsigned n);
 
 /* Expande uma palavra (malloc). Nunca retorna NULL se word != NULL (exceto OOM). */
 char *expand_word(const char *word);

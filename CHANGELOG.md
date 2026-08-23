@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- **OSH-2:** builtin `shift` [n] (default 1; `shift 0` no-op; n>$# → status != 0 e posicionais intactos; `$0` intacto); API `petrush_positional_shift`; smoke `tests/smoke/osh2-shift.sh`. Docker fedora:44 clang PASS. Sem 4755.
 - **XDG-1:** rc `$XDG_CONFIG_HOME/petrush/rc` (fallback `~/.config/petrush/rc`); history `$XDG_STATE_HOME/petrush/history` (fallback `~/.local/state/petrush/history`); compat `~/.petrushrc` / `~/.petrush_history` se XDG ausente; `mkdir -p` 0700 ao gravar history; script mode sem rc (OSH-0). `xdg_paths.c` + `test_xdg_paths` + smoke `xdg-paths.sh`. Docker fedora:44 PASS. Sem 4755.
 - **CI-OPENSSL:** GHA instala OpenSSL devel (`openssl-devel` / `libssl-dev` / `openssl`) em dnf/apt/pacman/CachyOS + ASan + fedora-next; CMake separa `PETRUSH_ASM_WAI_NET` (trampolines wai/netcom) dos atomos ASM core para TUs sem `wai.c`/`netcom.c` nao falharem no link. Smoke fedora:44 + CachyOS clang. Sem relaxar `-Werror`. Sem 4755.
 - **ASM-NET:** builtin `netcom` (`-wifi`/`-eth`/`-bt` scan sysfs+netlink GET; `-up`/`-down` helpers; EPERM sem CAP_NET_ADMIN sem hang); `netcom_scan.S`; ctest `asm_netcom` + smoke netns; Docker fedora:44. Sem 4755.
