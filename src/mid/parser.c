@@ -504,6 +504,9 @@ void petrush_list_free(petrush_list_t *list)
             free(it->ifc.arms);
             it->ifc.arms = NULL;
             it->ifc.narms = 0;
+        } else if (it->kind == PETRUSH_ITEM_WHILE) {
+            petrush_list_free(&it->wh.cond);
+            petrush_list_free(&it->wh.body);
         } else {
             petrush_pipeline_free(&it->pl);
         }
@@ -570,13 +573,16 @@ static int find_list_connector(const char *s, size_t from, size_t *out_pos,
     return 0;
 }
 
-/* OSH-3: reserved words só em posição de comando (unquoted, palavra inteira). */
+/* OSH-3/4: reserved words só em posição de comando (unquoted, palavra inteira). */
 enum {
-    KW_IF   = 1,
-    KW_THEN = 2,
-    KW_ELSE = 4,
-    KW_ELIF = 8,
-    KW_FI   = 16
+    KW_IF    = 1,
+    KW_THEN  = 2,
+    KW_ELSE  = 4,
+    KW_ELIF  = 8,
+    KW_FI    = 16,
+    KW_WHILE = 32,
+    KW_DO    = 64,
+    KW_DONE  = 128
 };
 
 static void skip_ws_pos(const char *s, size_t *pos)
@@ -610,6 +616,7 @@ static int match_kw_at(const char *s, size_t pos, const char *kw, size_t *end_ou
 static int peek_kw_mask(const char *s, size_t pos, int mask, size_t *end_out)
 {
     size_t end = 0;
+    /* Prefixos longos primeiro: elif>else, done>do */
     if ((mask & KW_ELIF) && match_kw_at(s, pos, "elif", &end)) {
         if (end_out) *end_out = end;
         return KW_ELIF;
@@ -629,6 +636,18 @@ static int peek_kw_mask(const char *s, size_t pos, int mask, size_t *end_out)
     if ((mask & KW_IF) && match_kw_at(s, pos, "if", &end)) {
         if (end_out) *end_out = end;
         return KW_IF;
+    }
+    if ((mask & KW_WHILE) && match_kw_at(s, pos, "while", &end)) {
+        if (end_out) *end_out = end;
+        return KW_WHILE;
+    }
+    if ((mask & KW_DONE) && match_kw_at(s, pos, "done", &end)) {
+        if (end_out) *end_out = end;
+        return KW_DONE;
+    }
+    if ((mask & KW_DO) && match_kw_at(s, pos, "do", &end)) {
+        if (end_out) *end_out = end;
+        return KW_DO;
     }
     return 0;
 }
@@ -670,6 +689,7 @@ static int if_push_arm(petrush_if_arm_t **arms, int *narms, int *cap,
 }
 
 static int parse_if(const char *s, size_t *pos, petrush_if_t *out);
+static int parse_while(const char *s, size_t *pos, petrush_while_t *out);
 static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                             petrush_list_t *out, int require_term);
 
@@ -703,6 +723,7 @@ static int parse_pipeline_item(const char *s, size_t *pos,
     item->background = 0;
     memset(&item->pl, 0, sizeof(item->pl));
     memset(&item->ifc, 0, sizeof(item->ifc));
+    memset(&item->wh, 0, sizeof(item->wh));
 
     if (seglen == 0) {
         *had_conn_out = has;
@@ -816,6 +837,18 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                     item.background = 1;
                 }
             }
+        } else if (match_kw_at(s, *pos, "while", &kw_end)) {
+            item.kind = PETRUSH_ITEM_WHILE;
+            if (parse_while(s, pos, &item.wh) != 0) {
+                goto fail;
+            }
+            int bg = 0;
+            if (take_conn_after(s, pos, &next_cond, &bg)) {
+                had_conn = 1;
+                if (bg) {
+                    item.background = 1;
+                }
+            }
         } else {
             int rc = parse_pipeline_item(s, pos, &item, &next_cond, &had_conn);
             if (rc == -1) {
@@ -842,6 +875,9 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                     petrush_list_free(&item.ifc.arms[a].body);
                 }
                 free(item.ifc.arms);
+            } else if (item.kind == PETRUSH_ITEM_WHILE) {
+                petrush_list_free(&item.wh.cond);
+                petrush_list_free(&item.wh.body);
             } else {
                 petrush_pipeline_free(&item.pl);
             }
@@ -874,6 +910,42 @@ fail:
         petrush_list_t tmp = {.items = items, .nitems = nitems};
         petrush_list_free(&tmp);
     }
+    memset(out, 0, sizeof(*out));
+    return -1;
+}
+
+/* OSH-4: while <list> do <list> done */
+static int parse_while(const char *s, size_t *pos, petrush_while_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    size_t end = 0;
+    if (!match_kw_at(s, *pos, "while", &end)) {
+        return -1;
+    }
+    *pos = end;
+
+    if (parse_list_until(s, pos, KW_DO, &out->cond, 1) != 0) {
+        goto fail;
+    }
+    if (out->cond.nitems == 0) {
+        goto fail;
+    }
+    if (!match_kw_at(s, *pos, "do", &end)) {
+        goto fail;
+    }
+    *pos = end;
+    if (parse_list_until(s, pos, KW_DONE, &out->body, 1) != 0) {
+        goto fail;
+    }
+    if (!match_kw_at(s, *pos, "done", &end)) {
+        goto fail;
+    }
+    *pos = end;
+    return 0;
+
+fail:
+    petrush_list_free(&out->cond);
+    petrush_list_free(&out->body);
     memset(out, 0, sizeof(*out));
     return -1;
 }

@@ -343,6 +343,26 @@ static int dispatch_if(petrush_if_t *ifc)
     return 0;
 }
 
+/*
+ * OSH-4: while cond; do body; done
+ * Condicao = status do ultimo comando da lista cond (==0 continua).
+ * Status do while = ultimo body executado; 0 se body nunca rodou (POSIX).
+ */
+static int dispatch_while(petrush_while_t *wh)
+{
+    if (!wh) {
+        return 0;
+    }
+    int status = 0;
+    for (;;) {
+        int st = dispatch_list(&wh->cond);
+        if (st != 0) {
+            return status;
+        }
+        status = dispatch_list(&wh->body);
+    }
+}
+
 int dispatch_list(petrush_list_t *list)
 {
     if (!list || list->nitems <= 0) {
@@ -362,6 +382,9 @@ int dispatch_list(petrush_list_t *list)
         if (it->kind == PETRUSH_ITEM_IF) {
             /* background em if fica fora desta onda; ignora flag */
             status = dispatch_if(&it->ifc);
+        } else if (it->kind == PETRUSH_ITEM_WHILE) {
+            /* background em while fica fora desta onda; ignora flag */
+            status = dispatch_while(&it->wh);
         } else if (it->background) {
             status = dispatch_pipeline_background(&it->pl);
         } else {

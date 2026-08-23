@@ -1005,10 +1005,12 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh2-shift.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-3 if smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh3-if.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-4 while smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh4-while.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1/2/3 + XDG-1)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1/2/3/4 + XDG-1)"
     VERBATIM
 )
 
@@ -1023,6 +1025,13 @@ add_custom_target(osh3_if
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh3-if.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush
     COMMENT "OSH-3 if/then/else/elif/fi smoke"
+    VERBATIM
+)
+
+add_custom_target(osh4_while
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh4-while.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "OSH-4 while/do/done smoke"
     VERBATIM
 )
 

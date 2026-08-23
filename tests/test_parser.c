@@ -654,6 +654,69 @@ void test_parse_if_after_seq(void)
     petrush_list_free(&list);
 }
 
+/* OSH-4: while/do/done - um item WHILE, cond+body */
+void test_parse_while_do_done(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("while true; do echo a; done", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_WHILE)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].wh.cond.nitems == 1);
+    TEST_CHECK(list.items[0].wh.cond.items[0].kind == PETRUSH_ITEM_PIPELINE);
+    TEST_CHECK(strcmp(list.items[0].wh.cond.items[0].pl.cmds[0].argv[0],
+                       "true") == 0);
+    TEST_CHECK(list.items[0].wh.body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].wh.body.items[0].pl.cmds[0].argv[0],
+                       "echo") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-4: done quoted nao fecha; palavra done como argv */
+void test_parse_while_done_quoted_literal(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("while true; do echo \"done\"; done",
+                                  &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_WHILE)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].wh.body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].wh.body.items[0].pl.cmds[0].argv[1],
+                       "done") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-4: while apos ; numa lista */
+void test_parse_while_after_seq(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("echo x; while false; do echo y; done",
+                                  &list) == 0);
+    if (!TEST_CHECK(list.nitems == 2)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_PIPELINE);
+    if (!TEST_CHECK(list.items[1].kind == PETRUSH_ITEM_WHILE)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(strcmp(list.items[1].wh.cond.items[0].pl.cmds[0].argv[0],
+                       "false") == 0);
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -710,5 +773,8 @@ TEST_LIST = {
     { "parse_if_elif_fi", test_parse_if_elif_fi },
     { "parse_if_fi_quoted_literal", test_parse_if_fi_quoted_literal },
     { "parse_if_after_seq", test_parse_if_after_seq },
+    { "parse_while_do_done", test_parse_while_do_done },
+    { "parse_while_done_quoted_literal", test_parse_while_done_quoted_literal },
+    { "parse_while_after_seq", test_parse_while_after_seq },
     { NULL, NULL }
 };
