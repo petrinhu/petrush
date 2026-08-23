@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **exit N:** `builtin_exit` honra argumento numérico (0..255); inválido → stderr + exit 2.
 
 ### Added
+- **PLG-LOAD:** `src/foundation/plugin_load.c` + `include/petrush/plugin_load.h` (XDG data + `PETRUSH_PLUGIN_PATH`, allow-list path canónico + SHA-256 OpenSSL EVP, recusa `S_IWOTH` em ficheiro/dirs, `dlopen` só após checks, ABI major antes de `init`); `pudod` sem `dlopen`/libcrypto; ctest `plugin_load` + `plugin_pudod_no_dl`; Docker fedora:44 clang PASS. Sem 4755. Consome `docs/security/plugins-threat.md`.
 - **CXX-TUI:** `configsh` TUI raw ANSI (sem ncurses/Qt); `--section`/`--dump`/`--check`; XDG `$XDG_CONFIG_HOME/petrush/config.ini`; `src/cxx/{main,config,tui}.cpp`; smoke `tests/smoke/cxx-tui.sh` + target `cxx_tui`; PTY fedora:44 PASS. Sem 4755.
 - **I18N-GETTEXT:** `po/` catalogs `en` / `pt_BR` / `es_419` (msgid=English); `include/petrush/i18n.h` + `src/foundation/i18n.c` (`bindtextdomain`/`textdomain`, `PETRUSH_LOCALEDIR` env/compile); CMake `FindGettext` + `msgfmt` → `build/locale/<lang>/LC_MESSAGES/petrush.mo` (`petrush_mo`); probe + smoke `tests/smoke/i18n-gettext.sh` + target `i18n_gettext`; ASM does not call gettext; Docker fedora:44 clang PASS. Sem 4755.
 - **CXX-00:** alvo `configsh` C++23 (`src/cxx/main.cpp` stub help+exit 0; `-fno-exceptions -fno-rtti`); liga `tty_mode.S` + `utf8_width.S` quando `PETRUSH_ASM`; `petrush` sem `libstdc++` (prova `ldd`); smoke `tests/smoke/cxx00-ldd.sh` + target `cxx00`; Docker fedora:44 clang PASS. TUI raw = CXX-TUI.

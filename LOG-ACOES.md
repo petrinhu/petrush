@@ -2,6 +2,10 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+## 2026-08-23 - PLG-LOAD
+
+- PLG-LOAD: `plugin_load.c` XDG + `PETRUSH_PLUGIN_PATH`, allow-list SHA-256 (OpenSSL), recusa world-writable (ficheiro+dirs), dlopen so apos checks; pudod sem .so (`plugin_pudod_no_dl`); TDD red stub → green; ctest -R plugin_ PASS; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. Sem mexer netcom.
+
 ## 2026-08-23 - CXX-TUI
 
 - CXX-TUI: configsh TUI raw ANSI (sem ncurses); --section/--dump/--check; XDG `$XDG_CONFIG_HOME/petrush/config.ini`; src/cxx/{main,config,tui}.cpp; smoke cxx-tui.sh + target cxx_tui; PTY fedora:44 PASS (python pty + docker -t); TODO 🔍. Sem push. Sem 4755.

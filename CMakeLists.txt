@@ -131,6 +131,7 @@ add_executable(petrush
     src/front/complete.c
     src/front/highlight.c
     src/foundation/rc_trust.c
+    src/foundation/plugin_load.c
     src/foundation/process.c
     src/foundation/job.c
     src/foundation/env.c
@@ -142,6 +143,10 @@ add_dependencies(petrush petrush_mo)
 target_compile_definitions(petrush PRIVATE
     "PETRUSH_LOCALEDIR=\"${PETRUSH_BUILD_LOCALEDIR}\""
 )
+# PLG-LOAD: SHA-256 (OpenSSL) + dlopen so no petrush unpriv. pudod NAO liga isto.
+find_package(OpenSSL REQUIRED)
+target_link_libraries(petrush PRIVATE OpenSSL::Crypto ${CMAKE_DL_LIBS})
+target_include_directories(petrush PRIVATE ${CMAKE_SOURCE_DIR}/plugins)
 
 # pudod — helper setuid mínimo (NEW-05, Fase 1)
 # Compilado separado. NÃO aplicar sanitize (incompatível com setuid).
@@ -577,6 +582,63 @@ target_compile_options(test_rc_trust PRIVATE
 )
 add_test(NAME test_rc_trust COMMAND test_rc_trust)
 
+# PLG-LOAD: plugins de teste (MODULE) + harness ctest -R plugin_
+add_library(plugin_test_ok MODULE tests/plugins/ok_plugin.c)
+target_include_directories(plugin_test_ok PRIVATE ${CMAKE_SOURCE_DIR}/plugins)
+target_compile_options(plugin_test_ok PRIVATE -Wall -Wextra -Wpedantic -Werror)
+set_target_properties(plugin_test_ok PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "ok_plugin"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test_plugins"
+)
+
+add_library(plugin_test_bad_major MODULE tests/plugins/bad_major_plugin.c)
+target_include_directories(plugin_test_bad_major PRIVATE ${CMAKE_SOURCE_DIR}/plugins)
+target_compile_options(plugin_test_bad_major PRIVATE -Wall -Wextra -Wpedantic -Werror)
+set_target_properties(plugin_test_bad_major PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "bad_major_plugin"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test_plugins"
+)
+
+set(PETRUSH_PLUGIN_LOAD_SOURCES src/foundation/plugin_load.c)
+if(PETRUSH_ASM)
+    list(APPEND PETRUSH_PLUGIN_LOAD_SOURCES src/asm/memeq_ct.S)
+endif()
+
+add_executable(plugin_load
+    tests/test_plugin_load.c
+    ${PETRUSH_PLUGIN_LOAD_SOURCES}
+)
+target_include_directories(plugin_load PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/plugins
+    ${CMAKE_SOURCE_DIR}/src
+)
+target_compile_definitions(plugin_load PRIVATE
+    "PLUGIN_TEST_OK_SO=\"${CMAKE_BINARY_DIR}/test_plugins/ok_plugin.so\""
+    "PLUGIN_TEST_BAD_SO=\"${CMAKE_BINARY_DIR}/test_plugins/bad_major_plugin.so\""
+)
+if(PETRUSH_ASM)
+    target_compile_definitions(plugin_load PRIVATE PETRUSH_HAVE_ASM=1)
+endif()
+target_compile_options(plugin_load PRIVATE
+    -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+)
+target_link_libraries(plugin_load PRIVATE OpenSSL::Crypto ${CMAKE_DL_LIBS})
+add_dependencies(plugin_load plugin_test_ok plugin_test_bad_major)
+add_test(NAME plugin_load COMMAND plugin_load)
+
+# PLG-LOAD invariante: pudod nao referencia dlopen/libdl (plugins-threat.md §9)
+add_test(
+    NAME plugin_pudod_no_dl
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/plugin-pudod-no-dl.sh
+            $<TARGET_FILE:pudod>
+            ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(plugin_pudod_no_dl PROPERTIES DEPENDS pudod)
+
 # Syntax highlight mínimo (UX-21) — só highlight.c, sem parser
 add_executable(test_highlight
     tests/test_highlight.c
@@ -753,7 +815,7 @@ endif()
 
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_parser test_process test_job test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust test_highlight test_source test_pipeline_builtin
+    DEPENDS test_parser test_process test_job test_pudo test_env test_info test_alias test_complete test_dirstack test_hist_expand test_linenoise_history test_expand test_glob test_prompt test_rc_trust test_highlight test_source test_pipeline_builtin plugin_load pudod
     COMMENT "Executando todos os testes unitários"
 )
 

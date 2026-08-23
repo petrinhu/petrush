@@ -20,7 +20,7 @@ Fecha drift AUD-ARCH F5 / R-I12 e documenta exceções F3/F4 (R-I10 / R-I11). A 
 | Front      | `src/main.c` (composition root na raiz de `src/`) + `src/front/complete.c` + `src/front/highlight.c` + binário `configsh` em `src/cxx/` | REPL, prompt, I/O, sinais de UI, rc load, history display, tab-complete, highlight; TUI de configuração (processo separado) |
 | Mid        | `src/mid/` (lista completa abaixo) | Domínio do shell: parse, expand, builtins/despacho, aliases, dirstack, source, hist expand, prompt string, cliente `pudo` |
 | Back       | (ainda thin); ver `src/back/README.md` | Persistência/config futura (history file dedicado, pudo config de longo prazo) |
-| Foundation | `src/foundation/env.c` + `process.c` + `job.c` + `rc_trust.c` + átomos em `src/asm/` + loader de plugins (futuro PLG-LOAD) | Primitivas do SO: getenv/setenv wrappers, fork/exec/wait/pipeline/redirs, jobs em background (`&`), checagem uid/mode do rc (ARCH-02 / R-I9); ilhas ASM; carga de `.so` (ainda sem `dlopen`) |
+| Foundation | `src/foundation/env.c` + `process.c` + `job.c` + `rc_trust.c` + `plugin_load.c` + átomos em `src/asm/` | Primitivas do SO: getenv/setenv wrappers, fork/exec/wait/pipeline/redirs, jobs em background (`&`), checagem uid/mode do rc (ARCH-02 / R-I9); ilhas ASM; loader de `.so` (PLG-LOAD: XDG + SHA-256 + allow-list; `pudod` sem `dlopen`) |
 | Helper     | `src/pudod/` (binário `pudod` separado) | Elevação opcional / allow-list. **Fora** do quadro de 4 camadas; não inclui `petrush/*` nem linenoise; **nunca** carrega plugin |
 
 ### Mid completo (`src/mid/`)
@@ -56,7 +56,7 @@ Fecha drift AUD-ARCH F5 / R-I12 e documenta exceções F3/F4 (R-I10 / R-I11). A 
 | `job.c` | Tabela de jobs / wait de background (UX-23) |
 | `rc_trust.c` | `petrush_rc_stat_ok` (uid/mode do rc; SEC-10). Mid `source.c` inclui `rc_trust.h` (ARCH-02 fechou F2 / R-I9) |
 | `src/asm/*.S` | Dez ilhas System V AMD64 (contrato em `include/petrush/asm.h`) |
-| `plugins/abi.h` | Contrato C11 dos `.so` de terceiro (PLG-ABI). Loader = PLG-LOAD (ainda não no tree) |
+| `plugins/abi.h` | Contrato C11 dos `.so` de terceiro (PLG-ABI). Loader = `src/foundation/plugin_load.c` (PLG-LOAD) |
 
 ## Stack tripla (DOC-ARCH)
 
@@ -65,7 +65,7 @@ Autoridade: ADR-001. Quatro regras fechadas:
 1. **Parser POSIX e eval OSH = C23.** C++23 **não** entra em `src/mid/parser.c`, nem no runner de script (OSH-0+), nem no caminho fork/exec do REPL `petrush`.
 2. **C++23 só no binário `configsh`** (`src/cxx/`). `petrush` **não** liga `libstdc++`.
 3. **ASM = exatamente 10 ilhas** nomeadas em `include/petrush/asm.h`, corpos em `src/asm/`, System V AMD64, GAS via Clang/GCC (`.S`). Sem NASM. Sem ASan/UBSan nos TUs `.S`.
-4. **Plugins = ABI C11** em `plugins/abi.h` (major=1). Sem tipos C++ na fronteira. Sem `dlopen` no `main` até PLG-LOAD.
+4. **Plugins = ABI C11** em `plugins/abi.h` (major=1). Sem tipos C++ na fronteira. `dlopen` só em `plugin_load.c` (não no `main`; nunca no `pudod`).
 
 ### Prosa ↔ pastas (linguagens)
 
@@ -74,7 +74,7 @@ Autoridade: ADR-001. Quatro regras fechadas:
 | Parser / eval OSH / REPL | C23 | `src/mid/parser.c`, restante Mid/Front/Foundation em `.c` | `petrush` |
 | TUI de configuração | C++23 (`-fno-exceptions -fno-rtti`) | `src/cxx/main.cpp` (+ TUI futura na mesma pasta) | `configsh` |
 | 10 ilhas nomeadas | ASM System V AMD64 (GAS/Clang) | `src/asm/*.S` + `src/asm/abi.inc` + `include/petrush/asm.h` | ligadas em `petrush` e, quando útil, em `configsh` se `PETRUSH_ASM=ON` |
-| Plugins de terceiro | ABI C11 | `plugins/abi.h` (header); loader Foundation ainda PLG-LOAD | `.so` externo; threat model em `docs/security/plugins-threat.md` |
+| Plugins de terceiro | ABI C11 | `plugins/abi.h` + `plugin_load.c` (XDG/`PETRUSH_PLUGIN_PATH`, allow-list SHA-256, recusa `o+w`) | `.so` externo; threat model em `docs/security/plugins-threat.md` |
 | Helper de elevação | C | `src/pudod/` | `pudod` (sem plugin, sem linenoise, sem `petrush/*`) |
 
 ### Trava: sem C++ no parser
@@ -133,7 +133,7 @@ Extras de toolchain (não contam como 11ª ilha):
 |------|-------|
 | Header | [`plugins/abi.h`](../plugins/abi.h) (C11, `PETRUSH_PLUGIN_ABI_MAJOR 1`, minor 0) |
 | Entry points | `petrush_plugin_query` / `init` / `cmd` / `fini` (+ vtable opcional `petrush_plugin_abi`) |
-| Loader | Foundation, fatia PLG-LOAD (ainda não implementado; **zero** `dlopen` no `main` hoje) |
+| Loader | Foundation `plugin_load.c` (PLG-LOAD); **zero** `dlopen` no `main` e no `pudod` |
 | Paths futuros | XDG + `PETRUSH_PLUGIN_PATH` |
 | Controles (PLG-NARC) | allow-list, recusa world-writable, integridade **SHA-256** (não CRC/FNV) |
 | Threat model | [`docs/security/plugins-threat.md`](security/plugins-threat.md) |
@@ -153,7 +153,7 @@ graph TD
   user --> configsh
   petrush --> asmH
   configsh -.->|"extern C"| asmH
-  petrush -.->|"PLG-LOAD futuro"| plugin
+  petrush -->|"PLG-LOAD plugin_load.c"| plugin
   plugin --> abiH
   petrush --> pudod
 ```
@@ -213,7 +213,7 @@ Mitigação futura opcional: `petrush_spawn_background()` em Foundation. Não bl
 Front (main, complete, highlight) + configsh (src/cxx, processo separado)
   → Mid → Foundation (env, process, job, rc_trust, asm.h)
 Back: thin / placeholder
-plugins: abi.h (C11) → loader Foundation futuro (PLG-LOAD)
+plugins: abi.h (C11) → plugin_load.c (PLG-LOAD; SHA-256; pudod sem .so)
 pudod: headers locais apenas (0 petrush/*, 0 linenoise, 0 plugins)
 ```
 
@@ -223,7 +223,7 @@ Vendor linenoise: path canônico de UI = Front. Mid acessa clear/history só via
 
 Quando o projeto crescer ou após revisão de porte (Cosimo), podemos materializar as camadas físicas movendo arquivos (ex.: `main.c` → `src/front/`) e atualizando includes/CMake. `rc_trust.c` já está em Foundation (ARCH-02). Até lá, o mapeamento lógico acima é a fonte de verdade.
 
-Próximas fatias da stack tripla (não reabrem ADR-001): PLG-LOAD, ASM-WAI, ASM-NET, DOC-DIA-*, TST-CXX, TST-ASM, TST-PLG, GATE-CXXASM.
+Próximas fatias da stack tripla (não reabrem ADR-001): ASM-NET, DOC-DIA-*, TST-CXX, TST-ASM, TST-PLG, GATE-CXXASM.
 
 Ver também:
 

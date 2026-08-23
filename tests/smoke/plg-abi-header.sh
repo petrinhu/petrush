@@ -52,16 +52,13 @@ for ty in petrush_plugin_info_t petrush_plugin_host_t petrush_plugin_abi_t; do
 done
 echo "OK: tipos presentes"
 
-echo "=== PLG-ABI: main sem dlopen (contrato desta fatia) ==="
+echo "=== PLG-ABI: main sem dlopen directo (loader = plugin_load / PLG-LOAD) ==="
 MAIN="$ROOT/src/main.c"
 if grep -E -n '\b(dlopen|dlsym|dlclose|dlerror)\b' "$MAIN"; then
-  echo "FAIL: src/main.c referencia dlopen/dlsym (PLG-ABI proibe; loader = PLG-LOAD)" >&2
+  echo "FAIL: src/main.c referencia dlopen/dlsym (deve viver em plugin_load.c)" >&2
   exit 1
 fi
-if grep -E -n 'target_link_libraries\s*\(\s*petrush[^)]*\bdl\b' "$ROOT/CMakeLists.txt"; then
-  echo "FAIL: CMake linka libdl em petrush (cedo demais para PLG-ABI)" >&2
-  exit 1
-fi
+# libdl no petrush e permitido desde PLG-LOAD (OpenSSL+dl no unpriv; pudod continua sem).
 echo "OK: main sem dlopen"
 
 echo "=== PLG-ABI: clang -std=c11 -c TU com #include abi.h ==="

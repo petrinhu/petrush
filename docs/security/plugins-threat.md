@@ -242,16 +242,16 @@ Elevação continua só: utilizador → builtin `pudo` → helper + `/etc/petrus
 
 ## 14. Checklist para PLG-LOAD (consumo directo)
 
-- [ ] Allow-list default-deny; path canónico + SHA-256 hex64
-- [ ] `realpath` fail-closed
-- [ ] Recusa `S_IWOTH` no ficheiro **e** em cada dir do realpath
-- [ ] SHA-256 via lib madura; comparação constant-time
-- [ ] **Proibido** autenticar com `petrush_crc32` / FNV
-- [ ] ABI major check antes de `init`
-- [ ] Zero `dlopen` em `pudod`
-- [ ] Zero `4755` / setcap aplicado por scripts desta fatia
-- [ ] Log de allow/deny sem segredos
-- [ ] Testes: world-writable file, world-writable parent dir, hash mismatch, major mismatch (TST-PLG)
+- [x] Allow-list default-deny; path canónico + SHA-256 hex64 (`plugin_load.c`, PLG-LOAD)
+- [x] `realpath` fail-closed
+- [x] Recusa `S_IWOTH` no ficheiro **e** em cada dir do realpath
+- [x] SHA-256 via lib madura (OpenSSL EVP); comparação constant-time (`petrush_memeq_ct` / `CRYPTO_memcmp`)
+- [x] **Proibido** autenticar com `petrush_crc32` / FNV
+- [x] ABI major check antes de `init`
+- [x] Zero `dlopen` em `pudod` (`plugin_pudod_no_dl`)
+- [x] Zero `4755` / setcap aplicado por scripts desta fatia
+- [x] Log de allow/deny sem segredos
+- [x] Testes: world-writable file, world-writable parent dir, hash mismatch, major mismatch (`ctest -R plugin_`; TST-PLG amplia)
 
 ## 15. Referências
 
