@@ -73,3 +73,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - ASM-I64
 
 - ASM-I64: parse_i64.S (decimal +/-; mag uint64; INT64_MIN/MAX; overflow/invalido -1 sem tocar *out); tests/asm/test_parse_i64.c; ctest -R asm_parse_i64 16/16 (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. Sem tocar glob/memeq.
+
+## 2026-08-23 - ASM-HASH
+
+- ASM-HASH: hash_path.S FNV-1a 64 (offset 0xcbf29ce484222325, prime 0x100000001b3; len==0 → semente); tests/asm/test_hash_path.c; ctest -R asm_hash_path 9/9 (RED stub→GREEN); Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. Sem tocar crc32/parse_i64.

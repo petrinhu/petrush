@@ -67,6 +67,7 @@ if(PETRUSH_ASM)
         src/asm/glob_match.S
         src/asm/crc32.S
         src/asm/parse_i64.S
+        src/asm/hash_path.S
     )
     add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
@@ -557,6 +558,22 @@ if(PETRUSH_ASM)
         -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
     )
     add_test(NAME asm_parse_i64 COMMAND asm_parse_i64)
+
+    # ASM-HASH: petrush_hash_path FNV-1a 64
+    add_executable(asm_hash_path
+        tests/asm/test_hash_path.c
+        src/asm/hash_path.S
+    )
+    target_include_directories(asm_hash_path PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_options(asm_hash_path PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+    )
+    add_test(NAME asm_hash_path COMMAND asm_hash_path)
+
 endif()
 
 add_custom_target(check

@@ -9,4 +9,5 @@ Sem NASM. Sem ASan/UBSan nestes TUs (sanitizer so em C/C++).
 - `glob_match.S` - `petrush_glob_match` (ASM-GLOB; `*` `?` iterativo; `[` literal).
 - `crc32.S` - `petrush_crc32` (ASM-CRC; IEEE 0xEDB88320 incremental).
 - `parse_i64.S` - `petrush_parse_i64` (ASM-I64; decimal signed 64 sem overflow UB).
+- `hash_path.S` - `petrush_hash_path` (ASM-HASH; FNV-1a 64).
 - Contrato C: `include/petrush/asm.h` (ASM-ABI). Corpos nas fatias ASM-*.
