@@ -71,6 +71,7 @@ if(PETRUSH_ASM)
         src/asm/job_setpgid.S
         src/asm/utf8_width.S
         src/asm/tty_mode.S
+        src/asm/wai_scan.S
     )
     add_compile_definitions(PETRUSH_HAVE_ASM=1)
 endif()
@@ -118,6 +119,7 @@ add_executable(petrush
     src/main.c
     src/mid/parser.c
     src/mid/dispatcher.c
+    src/mid/wai.c
     src/mid/pudo.c
     src/mid/alias.c
     src/mid/dirstack.c
@@ -331,6 +333,7 @@ add_test(NAME test_env COMMAND test_env)
 add_executable(test_info
     tests/test_info.c
     src/mid/dispatcher.c
+    src/mid/wai.c
     src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
@@ -342,11 +345,15 @@ add_executable(test_info
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
+    src/foundation/i18n.c
     ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_info PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_definitions(test_info PRIVATE
+    "PETRUSH_LOCALEDIR=\"${PETRUSH_BUILD_LOCALEDIR}\""
 )
 target_compile_options(test_info PRIVATE
     -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
@@ -358,6 +365,7 @@ add_test(NAME test_info COMMAND test_info)
 add_executable(test_pipeline_builtin
     tests/test_pipeline_builtin.c
     src/mid/dispatcher.c
+    src/mid/wai.c
     src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
@@ -369,11 +377,15 @@ add_executable(test_pipeline_builtin
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
+    src/foundation/i18n.c
     ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_pipeline_builtin PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_definitions(test_pipeline_builtin PRIVATE
+    "PETRUSH_LOCALEDIR=\"${PETRUSH_BUILD_LOCALEDIR}\""
 )
 target_compile_options(test_pipeline_builtin PRIVATE
     -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
@@ -424,6 +436,7 @@ add_executable(test_complete
     src/front/complete.c
     src/front/highlight.c
     src/mid/dispatcher.c
+    src/mid/wai.c
     src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
@@ -435,6 +448,7 @@ add_executable(test_complete
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
+    src/foundation/i18n.c
     vendor/linenoise/linenoise.c
     ${PETRUSH_ASM_SOURCES}
 )
@@ -442,6 +456,9 @@ target_include_directories(test_complete PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/vendor/linenoise
+)
+target_compile_definitions(test_complete PRIVATE
+    "PETRUSH_LOCALEDIR=\"${PETRUSH_BUILD_LOCALEDIR}\""
 )
 set_source_files_properties(vendor/linenoise/linenoise.c PROPERTIES
     COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion -Wno-unused-function"
@@ -580,6 +597,7 @@ add_executable(test_source
     tests/test_source.c
     src/mid/source.c
     src/mid/dispatcher.c
+    src/mid/wai.c
     src/mid/ui_port.c
     src/mid/parser.c
     src/mid/pudo.c
@@ -590,11 +608,15 @@ add_executable(test_source
     src/foundation/env.c
     src/foundation/process.c
     src/foundation/job.c
+    src/foundation/i18n.c
     ${PETRUSH_ASM_SOURCES}
 )
 target_include_directories(test_source PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_definitions(test_source PRIVATE
+    "PETRUSH_LOCALEDIR=\"${PETRUSH_BUILD_LOCALEDIR}\""
 )
 target_compile_options(test_source PRIVATE
     -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
@@ -706,6 +728,27 @@ if(PETRUSH_ASM)
         -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
     )
     add_test(NAME asm_tty COMMAND asm_tty)
+
+    # ASM-WAI: petrush_wai_scan (sysfs/proc overlay; sem serial/uuid)
+    add_executable(asm_wai
+        tests/asm/test_wai.c
+        src/mid/wai.c
+        src/foundation/i18n.c
+        src/asm/wai_scan.S
+    )
+    target_include_directories(asm_wai PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_definitions(asm_wai PRIVATE
+        "PETRUSH_LOCALEDIR=\"${PETRUSH_BUILD_LOCALEDIR}\""
+        PETRUSH_HAVE_ASM=1
+    )
+    target_compile_options(asm_wai PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -Wno-sign-conversion
+    )
+    add_test(NAME asm_wai COMMAND asm_wai)
 endif()
 
 add_custom_target(check

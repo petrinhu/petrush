@@ -35,6 +35,7 @@ extern "C" {
 #define PETRUSH_WAI_THERMAL  (1u << 9)
 #define PETRUSH_WAI_CPU      (1u << 10)
 #define PETRUSH_WAI_BOARD    (1u << 11)
+#define PETRUSH_WAI_ALL      ((1u << 12) - 1u)
 
 /* ---- flags netcom (corpo em ASM-NET) ---- */
 #define PETRUSH_NETCOM_WIFI  (1u << 0)
@@ -98,11 +99,19 @@ uint64_t petrush_hash_path(const char *path, size_t len);
 int petrush_job_setpgid(pid_t pid, pid_t pgid);
 
 /*
- * Stub de declaracao (corpo ASM-WAI): inventaria sysfs conforme flags.
- * Escreve texto em out (cap out_cap, NUL-terminated se cap>0).
+ * Prefixo de overlay para testes (sysfs/proc sob root).
+ * NULL ou "" = caminhos absolutos /sys e /proc. Sem root/setuid.
+ */
+void petrush_wai_set_root(const char *root);
+
+/*
+ * ASM-WAI: inventaria sysfs/proc conforme flags (0 = PETRUSH_WAI_ALL).
+ * Sem serial/uuid. Escreve texto em out (NUL-terminated se cap>0).
  * Retorna bytes escritos (sem contar NUL) ou -1 erro / -ENOSPC.
+ * Entrada ASM (wai_scan.S); corpo I/O em C (ASan) via petrush_wai_scan_impl.
  */
 int petrush_wai_scan(unsigned flags, char *out, size_t out_cap);
+int petrush_wai_scan_impl(unsigned flags, char *out, size_t out_cap);
 
 /*
  * Stub de declaracao (corpo ASM-NET): scan -wifi/-eth/-bt.

@@ -105,3 +105,7 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 ## 2026-08-23 - I18N-GETTEXT
 
 - I18N-GETTEXT: po/ en+pt_BR+es_419 (msgid=en); i18n.h/i18n.c bindtextdomain; msgfmt no CMake (petrush_mo); smoke i18n-gettext.sh + target i18n_gettext (RED missing po → GREEN); Docker fedora:44 clang+gettext PASS; ASM sem gettext; TODO 🔍. Sem push. Sem 4755.
+
+## 2026-08-23 - ASM-WAI
+
+- ASM-WAI: builtin `wai` + `petrush_wai_scan` (entrada `wai_scan.S` → `petrush_wai_scan_impl` em `mid/wai.c`); flags `-disk -video -mem -audio -camera -keyboard -usb -pci -battery -thermal -cpu -board`; overlay via `petrush_wai_set_root`; sem serial/uuid; ctest -R asm_wai 11/11; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755. configsh/CXX-TUI intocado.

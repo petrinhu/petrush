@@ -44,6 +44,9 @@ int builtin_history(petrush_cmd_t *cmd);
 /* Onda 3 placeholder */
 int builtin_info(petrush_cmd_t *cmd);
 
+/* ASM-WAI: inventario sysfs/proc (flags -disk … -board) */
+int builtin_wai(petrush_cmd_t *cmd);
+
 /* NEW-22 UX */
 int builtin_alias(petrush_cmd_t *cmd);
 int builtin_unalias(petrush_cmd_t *cmd);
