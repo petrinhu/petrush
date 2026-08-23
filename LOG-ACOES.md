@@ -49,3 +49,4 @@ Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.
 - UX-21 Opção A: highlight mínimo (aspas/CMD/OP); `test_highlight` + check 16/16; TODO 🔍. Sem push.
 - UX-22 impl: Mid source.h/c + test_source; load_rc_file=missing_ok; check 17/17 smoke 50; TODO 🔍. Sem push.
 - AUD-REPORT (W16): livro `docs/auditoria/aud-report.md` + índice `docs/auditoria/README.md`. Score 73/100, APROVADO COM RESSALVAS (unpriv early). Setuid 4755 NÃO endossado. 3 vermelhos P0 (gate 4755, fallback sudo, allow-list). `src/` intocado. TODO AUD-REPORT → 🔍. Sem push.
+- W18 docs P1: DOC-02/03/04 commits `7f50edc` `5b271b5` `1e773ae`. QA APROVAR PUSH. Push origin. CI via github-gossips (sem poll). Próximo após sinal verde: P2 fronteira (R-I8/I9/I13).
