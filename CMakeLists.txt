@@ -995,6 +995,16 @@ add_custom_target(cxx_tui
     VERBATIM
 )
 
+# TST-CXX: ctest -R configsh (PTY via smoke cxx-tui.sh; sem display :0; sem 4755).
+add_test(
+    NAME configsh
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/cxx-tui.sh
+)
+set_tests_properties(configsh PROPERTIES
+    TIMEOUT 300
+    LABELS "cxx;configsh;pty"
+)
+
 # ASM-ABI: asm.h + abi.inc (TU C -c; macros PIC). Isolado do smoke ALL.
 add_custom_target(asm_abi
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/asm-abi-header.sh

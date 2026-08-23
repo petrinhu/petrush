@@ -2,6 +2,10 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+## 2026-08-23 - TST-CXX
+
+- TST-CXX: `add_test(NAME configsh)` → `tests/smoke/cxx-tui.sh`; `ctest -R configsh` host PASS + Docker fedora:44 `-t` PASS (PTY python; sem `script`); mode 755 sem ncurses; sem display `:0`; relatório `docs/memory/tst-cxx.md`; TODO 🔍. Sem push. Sem 4755.
+
 ## 2026-08-23 - ASM-NET
 
 - ASM-NET: builtin `netcom` + `petrush_netcom_scan` (`netcom_scan.S` → impl C); `-wifi -eth -bt`; sysfs+netlink GET; `-up/-down` helpers C timeout; EPERM sem CAP exit 1 sem hang; ctest asm_netcom+eperm; Docker fedora:44; TODO 🔍. Sem push. Sem 4755. plugin_load intocado.
