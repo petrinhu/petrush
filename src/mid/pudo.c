@@ -319,7 +319,7 @@ int pudo_sanitize_environment(void)
 }
 
 /*
- * Constrói um envp limpo e mínimo para passar ao pudod (ou sudo fallback).
+ * Constrói um envp limpo e mínimo para passar ao pudod.
  * NÃO muta o ambiente do processo pai (petrush).
  */
 static char **build_clean_envp(void)
@@ -369,26 +369,28 @@ static int pudod_basename_ok(const char *base)
 }
 
 /*
- * SEC-04: cabe o argv do helper em PUDO_HELPER_ARGV_MAX (com NULL)?
- * via_sudo: sudo + "--" + cmd->argv[1..]
- * !via_sudo: pudod + target + cmd->argv[2..]
+ * SEC-04: cabe o argv do helper pudod em PUDO_HELPER_ARGV_MAX (com NULL)?
+ * Layout: pudod + target + cmd->argv[2..]
  */
-int pudo_helper_argv_fits(int cmd_argc, int via_sudo)
+int pudo_helper_argv_fits(int cmd_argc)
 {
     if (cmd_argc < 2) {
         return 0;
     }
 
     int fixed = 2;
-    int payload = via_sudo ? (cmd_argc - 1) : (cmd_argc - 2);
-    if (payload < 0) {
-        return 0;
-    }
+    int payload = cmd_argc - 2;
     /* fixed + payload + NULL <= MAX */
     if (fixed + payload + 1 > PUDO_HELPER_ARGV_MAX) {
         return 0;
     }
     return 1;
+}
+
+/* SEC-11: Boundary B abolida. Debug = Release. Sempre recusar. */
+int pudo_allow_sudo_fallback(void)
+{
+    return 0;
 }
 
 /*
@@ -666,40 +668,20 @@ static int run_via_pudod(petrush_cmd_t *cmd)
 
     const char *pudod = find_pudod_binary();
     if (!pudod) {
-        /* Fallback conservador: usa sudo do sistema.
-         * Recomendado apenas se pudod indisponível. Prefira pudod (helper mínimo) em produção.
-         */
-        fprintf(stderr, "pudo: aviso: pudod não encontrado, usando sudo como fallback\n");
-
-        /* SEC-04: fail closed se argc nao cabe em sudo_argv[128] */
-        if (!pudo_helper_argv_fits(cmd->argc, 1)) {
-            fprintf(stderr,
-                    "pudo: too many arguments (limit %d), refusing truncated exec\n",
-                    PUDO_HELPER_ARGV_MAX - 3);
-            return 1;
+        /* SEC-11: fail closed (Debug = Release). Sem Boundary B. */
+        if (!pudo_allow_sudo_fallback()) {
+            fprintf(stderr, "pudo: erro: pudod não encontrado\n");
+            return 127;
         }
-
-        char *sudo_argv[PUDO_HELPER_ARGV_MAX];
-        int sidx = 0;
-        sudo_argv[sidx++] = "/usr/bin/sudo";
-        sudo_argv[sidx++] = "--";
-        for (int i = 1; i < cmd->argc; i++) {
-            sudo_argv[sidx++] = cmd->argv[i];
-        }
-        sudo_argv[sidx] = NULL;
-
-        char **clean = build_clean_envp();
-        execve("/usr/bin/sudo", sudo_argv, clean);
-        /* fallback mais bruto */
-        execvp("sudo", sudo_argv);
-        perror("pudo: falha no fallback sudo");
+        /* política é 0; se mudar, ainda recusar sem wiring explícito */
+        fprintf(stderr, "pudo: erro: pudod não encontrado\n");
         return 127;
     }
 
     if (cmd->argc < 2) return 127;
 
     /* SEC-04: fail closed se argc nao cabe em pudod_argv[128] */
-    if (!pudo_helper_argv_fits(cmd->argc, 0)) {
+    if (!pudo_helper_argv_fits(cmd->argc)) {
         fprintf(stderr,
                 "pudo: too many arguments (limit %d), refusing truncated exec\n",
                 PUDO_HELPER_ARGV_MAX - 3);

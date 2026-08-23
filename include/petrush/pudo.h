@@ -1,10 +1,11 @@
 /*
- * pudo.h — Frontend do builtin 'pudo' (similar ao sudo)
+ * pudo.h — Frontend do builtin 'pudo'
  *
  * AVISO DE SEGURANÇA:
  * Este módulo deve ser tratado com extremo cuidado.
  * Toda lógica de elevação de privilégio real deve acontecer
- * fora deste processo (via /usr/bin/sudo ou helper setuid/setcap).
+ * fora deste processo (apenas via helper setuid/setcap pudod).
+ * Sem pudod: fail closed. Sem fallback para sudo (SEC-11).
  *
  * Este código roda SEM privilégios elevados.
  */
@@ -32,12 +33,17 @@ int pudo_sanitize_environment(void);
 int pudo_allow_pudod_candidate(const char *path, int release_mode);
 
 /*
- * SEC-04: o argv montado para o helper cabe em buffer[PUDO_HELPER_ARGV_MAX]?
- * via_sudo != 0: layout sudo + "--" + cmd->argv[1..]
- * via_sudo == 0: layout pudod + target + cmd->argv[2..]
+ * SEC-04: o argv montado para o helper pudod cabe em buffer[PUDO_HELPER_ARGV_MAX]?
+ * Layout: pudod + target + cmd->argv[2..] (+ NULL).
  * Retorna 1 se cabe (com room para NULL), 0 se excederia (fail closed).
  */
 #define PUDO_HELPER_ARGV_MAX 128
-int pudo_helper_argv_fits(int cmd_argc, int via_sudo);
+int pudo_helper_argv_fits(int cmd_argc);
+
+/*
+ * SEC-11: política de fallback Boundary B (sudo). Sempre 0.
+ * Debug e Release iguais: nunca execve/execvp de sudo.
+ */
+int pudo_allow_sudo_fallback(void);
 
 #endif /* PETRUSH_PUDO_H */

@@ -242,21 +242,23 @@ void test_sec04_pudod_build_accepts_at_limit(void)
 void test_sec04_pudo_helper_rejects_overflow(void)
 {
     /* pudod path: fixed 2 + (argc-2) user + NULL > 128 */
-    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX, 0) == 0);
-    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX + 10, 0) == 0);
-    /* sudo path: fixed 2 + (argc-1) payload + NULL */
-    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX, 1) == 0);
-    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX - 1, 1) == 0);
+    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX) == 0);
+    TEST_CHECK(pudo_helper_argv_fits(PUDO_HELPER_ARGV_MAX + 10) == 0);
 }
 
 void test_sec04_pudo_helper_accepts_small(void)
 {
-    TEST_CHECK(pudo_helper_argv_fits(2, 0) == 1);  /* pudo cmd */
-    TEST_CHECK(pudo_helper_argv_fits(3, 0) == 1);  /* pudo cmd arg */
-    TEST_CHECK(pudo_helper_argv_fits(2, 1) == 1);
-    TEST_CHECK(pudo_helper_argv_fits(10, 1) == 1);
-    TEST_CHECK(pudo_helper_argv_fits(1, 0) == 0);  /* argc invalido */
-    TEST_CHECK(pudo_helper_argv_fits(0, 1) == 0);
+    TEST_CHECK(pudo_helper_argv_fits(2) == 1);  /* pudo cmd */
+    TEST_CHECK(pudo_helper_argv_fits(3) == 1);  /* pudo cmd arg */
+    TEST_CHECK(pudo_helper_argv_fits(10) == 1);
+    TEST_CHECK(pudo_helper_argv_fits(1) == 0);  /* argc invalido */
+    TEST_CHECK(pudo_helper_argv_fits(0) == 0);
+}
+
+/* SEC-11: Boundary B abolida — nunca fallback para sudo (Debug = Release). */
+void test_sec11_sudo_fallback_always_denied(void)
+{
+    TEST_CHECK(pudo_allow_sudo_fallback() == 0);
 }
 
 /* SEC-05: realpath falhou => recusar entrada (nunca aceitar o literal). */
@@ -539,6 +541,7 @@ TEST_LIST = {
     { "sec04_pudod_build_accepts_at_limit", test_sec04_pudod_build_accepts_at_limit },
     { "sec04_pudo_helper_rejects_overflow", test_sec04_pudo_helper_rejects_overflow },
     { "sec04_pudo_helper_accepts_small",    test_sec04_pudo_helper_accepts_small },
+    { "sec11_sudo_fallback_always_denied", test_sec11_sudo_fallback_always_denied },
     { "pudod_allow_rejects_unresolvable",  test_pudod_allow_entry_rejects_unresolvable },
     { "pudod_allow_accepts_existing",      test_pudod_allow_entry_accepts_existing },
     { "sec06_rejects_null_stat",           test_sec06_rejects_null_stat },
