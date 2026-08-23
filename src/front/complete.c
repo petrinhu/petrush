@@ -6,6 +6,7 @@
 #include "petrush/dispatcher.h"
 #include "petrush/env.h"
 #include "petrush/highlight.h"
+#include "linenoise.h"
 
 #include <stdio.h>
 #include <stdlib.h>

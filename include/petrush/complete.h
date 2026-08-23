@@ -6,9 +6,8 @@
 #ifndef PETRUSH_COMPLETE_H
 #define PETRUSH_COMPLETE_H
 
-#include "linenoise.h"
-
-/* Registra callbacks linenoise (completion + hints). Chamar uma vez no startup. */
+/* Registra callbacks linenoise (completion + hints). Chamar uma vez no startup.
+ * Declaração sem expor linenoiseCompletions / linenoise.h (ARCH-01 / R-I13). */
 void petrush_setup_linenoise_ux(void);
 
 /* Testável: quantos completions seriam gerados para buf (prefixo). */
