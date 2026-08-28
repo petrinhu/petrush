@@ -28,6 +28,7 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 
 /* ASM-PGID: wrapper setpgid; fallback libc se PETRUSH_ASM=OFF. */
 static int dispatcher_setpgid(pid_t pid, pid_t pgid)
@@ -793,8 +794,147 @@ static int dispatch_for(petrush_for_t *fr)
     return status;
 }
 
+/* OSH-9: profundidade de cmdsubst (herdada via fork). */
+static int g_cmdsubst_depth;
+
+char *petrush_run_cmdsubst(const char *inner_cmd)
+{
+    if (g_cmdsubst_depth >= PETRUSH_CMDSUBST_MAX_DEPTH) {
+        char *empty = malloc(1);
+        if (empty) {
+            empty[0] = '\0';
+        }
+        return empty;
+    }
+
+    int fds[2];
+    if (pipe(fds) != 0) {
+        char *empty = malloc(1);
+        if (empty) {
+            empty[0] = '\0';
+        }
+        return empty;
+    }
+
+    g_cmdsubst_depth++;
+    pid_t pid = fork();
+    if (pid < 0) {
+        g_cmdsubst_depth--;
+        close(fds[0]);
+        close(fds[1]);
+        char *empty = malloc(1);
+        if (empty) {
+            empty[0] = '\0';
+        }
+        return empty;
+    }
+
+    if (pid == 0) {
+        /* Filho: stdout → pipe; status interno nao sobe ao pai. */
+        close(fds[0]);
+        if (dup2(fds[1], STDOUT_FILENO) < 0) {
+            _exit(127);
+        }
+        close(fds[1]);
+
+        if (!inner_cmd) {
+            inner_cmd = "";
+        }
+        petrush_list_t list = {0};
+        if (petrush_parse_list(inner_cmd, &list) != 0) {
+            _exit(1);
+        }
+        (void)dispatch_list(&list);
+        petrush_list_free(&list);
+        fflush(stdout);
+        _exit(0);
+    }
+
+    close(fds[1]);
+    /* cap inclui byte NUL; captura ate MAX_BYTES de payload. */
+    size_t cap = 4096;
+    size_t len = 0;
+    char *buf = malloc(cap);
+    if (!buf) {
+        close(fds[0]);
+        int st = 0;
+        (void)waitpid(pid, &st, 0);
+        g_cmdsubst_depth--;
+        return NULL;
+    }
+
+    for (;;) {
+        if (len >= PETRUSH_CMDSUBST_MAX_BYTES) {
+            break;
+        }
+        if (len + 1 >= cap) {
+            size_t ncap = cap * 2;
+            if (ncap < len + 2) {
+                ncap = len + 2;
+            }
+            if (ncap > PETRUSH_CMDSUBST_MAX_BYTES + 1) {
+                ncap = PETRUSH_CMDSUBST_MAX_BYTES + 1;
+            }
+            if (ncap <= cap) {
+                break;
+            }
+            char *nbuf = realloc(buf, ncap);
+            if (!nbuf) {
+                free(buf);
+                close(fds[0]);
+                int st = 0;
+                (void)waitpid(pid, &st, 0);
+                g_cmdsubst_depth--;
+                return NULL;
+            }
+            buf = nbuf;
+            cap = ncap;
+        }
+        size_t room = cap - len - 1; /* reserva NUL */
+        size_t remain = PETRUSH_CMDSUBST_MAX_BYTES - len;
+        size_t want = room < remain ? room : remain;
+        if (want == 0) {
+            break;
+        }
+        ssize_t n = read(fds[0], buf + len, want);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        if (n == 0) {
+            break;
+        }
+        len += (size_t)n;
+    }
+
+    /* Drena resto se estourou teto (evita SIGPIPE no filho). */
+    if (len >= PETRUSH_CMDSUBST_MAX_BYTES) {
+        char drain[256];
+        ssize_t dn;
+        while ((dn = read(fds[0], drain, sizeof(drain))) > 0) {
+            (void)dn;
+        }
+    }
+    close(fds[0]);
+
+    int st = 0;
+    (void)waitpid(pid, &st, 0);
+    g_cmdsubst_depth--;
+
+    /* Status do inner ignorado de proposito (nao altera status do pai). */
+    (void)st;
+
+    buf[len] = '\0';
+    return buf;
+}
+
 int dispatch_list(petrush_list_t *list)
 {
+    /* OSH-9: liga hook DIP (idempotente). */
+    petrush_set_cmdsubst_hook(petrush_run_cmdsubst);
+
     if (!list || list->nitems <= 0) {
         return 0;
     }

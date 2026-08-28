@@ -3,6 +3,7 @@
  * + glob * ? (UX-18)
  * + posicionais $0 $1.. $# $@ $* (OSH-1)
  * + shift [n] (OSH-2; sem ${1:-} / arrays)
+ * + cmdsubst $(cmd) via hook DIP (OSH-9; sem backticks)
  */
 
 #ifndef PETRUSH_EXPAND_H
@@ -11,6 +12,15 @@
 #include "petrush/parser.h"
 
 #define PETRUSH_GLOB_MAX 256
+
+/*
+ * OSH-9: hook DIP para $(cmd). Recebe o texto interno (sem delimitadores).
+ * Retorna malloc (stdout capturado) ou NULL (OOM / falha → expand emite "").
+ * Hook NULL → '$' literal (nao consome o '(').
+ * Trailing \\n sao stripados no expand, nao no hook.
+ */
+typedef char *(*petrush_cmdsubst_hook_t)(const char *inner_cmd);
+void petrush_set_cmdsubst_hook(petrush_cmdsubst_hook_t hook);
 
 /*
  * OSH-1: estado de posicionais (struct, nao environ com "1"/"#").

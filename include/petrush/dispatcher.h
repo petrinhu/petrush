@@ -83,6 +83,15 @@ int builtin_return(petrush_cmd_t *cmd);
 /* OSH-8: local name[=value] so em funcao; restaura ao sair; sem flags */
 int builtin_local(petrush_cmd_t *cmd);
 
+/*
+ * OSH-9: runner de $(cmd). pipe+fork; filho parse_list+dispatch_list+_exit.
+ * Teto PETRUSH_CMDSUBST_MAX_DEPTH; captura ate PETRUSH_CMDSUBST_MAX_BYTES.
+ * Status do inner NAO vira status do pai. Retorno malloc (caller free).
+ */
+#define PETRUSH_CMDSUBST_MAX_DEPTH 2
+#define PETRUSH_CMDSUBST_MAX_BYTES (1024 * 1024)
+char *petrush_run_cmdsubst(const char *inner_cmd);
+
 /* Para completion: número de builtins e nome por índice */
 int petrush_builtin_count(void);
 const char *petrush_builtin_name(int index);

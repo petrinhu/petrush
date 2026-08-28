@@ -1,5 +1,6 @@
 /*
  * expand.c — tilde and environment variable expansion + OSH-1/2 posicionais
+ * + OSH-9 cmdsubst via hook DIP
  */
 
 #include "petrush/expand.h"
@@ -19,6 +20,14 @@
 static char *g_pos_arg0;
 static char **g_pos_args;
 static int g_pos_nargs;
+
+/* OSH-9: hook DIP (NULL = '$' literal). */
+static petrush_cmdsubst_hook_t g_cmdsubst_hook;
+
+void petrush_set_cmdsubst_hook(petrush_cmdsubst_hook_t hook)
+{
+    g_cmdsubst_hook = hook;
+}
 
 void petrush_positional_clear(void)
 {
@@ -410,6 +419,53 @@ char *expand_word(const char *word)
                     return NULL;
                 }
                 p = q;
+                continue;
+            }
+            /* OSH-9: $(cmd) via hook; $(( nao e cmdsubst (span==0) */
+            if (p[1] == '(') {
+                size_t sp = petrush_cmdsubst_span(p);
+                if (sp == 0) {
+                    /* $(( ou unclosed: '$' literal */
+                    if (append_char(&out, &o, &cap, *p) != 0) {
+                        free(out);
+                        return NULL;
+                    }
+                    p++;
+                    continue;
+                }
+                if (!g_cmdsubst_hook) {
+                    if (append_char(&out, &o, &cap, *p) != 0) {
+                        free(out);
+                        return NULL;
+                    }
+                    p++;
+                    continue;
+                }
+                size_t inner_len = sp - 3; /* sem "$(", ")" */
+                char *inner = malloc(inner_len + 1);
+                if (!inner) {
+                    free(out);
+                    return NULL;
+                }
+                memcpy(inner, p + 2, inner_len);
+                inner[inner_len] = '\0';
+                char *captured = g_cmdsubst_hook(inner);
+                free(inner);
+                if (!captured) {
+                    p += sp;
+                    continue;
+                }
+                size_t clen = strlen(captured);
+                while (clen > 0 && captured[clen - 1] == '\n') {
+                    captured[--clen] = '\0';
+                }
+                int arc = append_bytes(&out, &o, &cap, captured, clen);
+                free(captured);
+                if (arc != 0) {
+                    free(out);
+                    return NULL;
+                }
+                p += sp;
                 continue;
             }
             if (append_char(&out, &o, &cap, *p) != 0) {

@@ -894,6 +894,41 @@ void test_parse_fn_after_seq(void)
     petrush_list_free(&list);
 }
 
+/* OSH-9: $(...) e um unico word; espaco interno nao quebra token */
+void test_parse_osh9_cmdsubst_one_word(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo $(echo hi)", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(cmd.argv != NULL && cmd.argv[0] != NULL);
+    TEST_CHECK(strcmp(cmd.argv[0], "echo") == 0);
+    TEST_CHECK(cmd.argv[1] != NULL);
+    TEST_CHECK(strcmp(cmd.argv[1], "$(echo hi)") == 0);
+    petrush_cmd_free(&cmd);
+}
+
+/* OSH-9: concat pre$(...)post permanece um word */
+void test_parse_osh9_cmdsubst_concat(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo pre$(echo X)post", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(cmd.argv != NULL && cmd.argv[1] != NULL);
+    TEST_CHECK(strcmp(cmd.argv[1], "pre$(echo X)post") == 0);
+    petrush_cmd_free(&cmd);
+}
+
+/* OSH-9: $(( nao e cmdsubst; lexer nao engole como span */
+void test_parse_osh9_arith_not_cmdsubst_span(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("echo $((1+1))", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 2);
+    TEST_CHECK(cmd.argv != NULL && cmd.argv[1] != NULL);
+    TEST_CHECK(strcmp(cmd.argv[1], "$((1+1))") == 0);
+    petrush_cmd_free(&cmd);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -963,5 +998,8 @@ TEST_LIST = {
     { "parse_fn_keyword_parens", test_parse_fn_keyword_parens },
     { "parse_fn_rbrace_quoted_literal", test_parse_fn_rbrace_quoted_literal },
     { "parse_fn_after_seq", test_parse_fn_after_seq },
+    { "parse_osh9_cmdsubst_one_word", test_parse_osh9_cmdsubst_one_word },
+    { "parse_osh9_cmdsubst_concat", test_parse_osh9_cmdsubst_concat },
+    { "parse_osh9_arith_not_cmdsubst_span", test_parse_osh9_arith_not_cmdsubst_span },
     { NULL, NULL }
 };

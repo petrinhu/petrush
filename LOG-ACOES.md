@@ -2,6 +2,7 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+- OSH-9: cmdsubst `$(cmd)` (sem backticks); lexer span + expand hook DIP (strip \\n finais) + runner pipe+fork depth<=2/1MiB; TDD red→green; smoke osh9 8/8 + osh8 8/8; test_parser 71 + test_expand 36; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
 - OSH-8: builtin `local name[=value]` so em funcao; stack restore por g_fn_depth (inclusive return); bare=unset local; sem flags -*; fora → !=0; TDD red→green; smoke osh8 8/8 + osh7 7/7; test_info osh8; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
 - OSH-7: builtin `return` [n] so em funcao; default n=0 (doc); fora → erro !=0 sem exit; unwind via g_fn_depth em list/if/while/for; TDD red→green; smoke osh7 7/7 + osh6 6/6; test_info osh7; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
 - OSH-6: `name() { list; }` / `function name [()] { list; }` no AST (`PETRUSH_ITEM_FN`); tabela de funcoes no dispatcher; call seta posicionais e restaura; status = ultimo cmd do body; TDD red→green; test_parser 68/68; smoke osh6 6/6; Docker fedora:44 clang PASS; TODO 🔍. Sem local. Sem return. Sem push. Sem 4755.

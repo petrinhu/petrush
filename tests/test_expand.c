@@ -365,6 +365,82 @@ void test_osh2_shift_too_many_intact(void)
     petrush_positional_clear();
 }
 
+/* OSH-9: stub DIP (test_expand NAO liga dispatcher) */
+static int g_osh9_stub_calls;
+static char *osh9_stub_cmdsubst(const char *inner)
+{
+    g_osh9_stub_calls++;
+    if (!inner) {
+        return strdup("");
+    }
+    if (strcmp(inner, "echo hi") == 0) {
+        return strdup("hi\n\n");
+    }
+    if (strcmp(inner, "echo X") == 0) {
+        return strdup("X\n");
+    }
+    if (strcmp(inner, "printf hi") == 0) {
+        return strdup("hi");
+    }
+    return strdup("STUB?");
+}
+
+void test_osh9_cmdsubst_strip_trailing_newlines(void)
+{
+    g_osh9_stub_calls = 0;
+    petrush_set_cmdsubst_hook(osh9_stub_cmdsubst);
+    char *e = expand_word("$(echo hi)");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "hi") == 0);
+    TEST_CHECK(g_osh9_stub_calls == 1);
+    free(e);
+    petrush_set_cmdsubst_hook(NULL);
+}
+
+void test_osh9_cmdsubst_concat(void)
+{
+    g_osh9_stub_calls = 0;
+    petrush_set_cmdsubst_hook(osh9_stub_cmdsubst);
+    char *e = expand_word("pre$(echo X)post");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "preXpost") == 0);
+    free(e);
+    petrush_set_cmdsubst_hook(NULL);
+}
+
+void test_osh9_cmdsubst_hook_null_literal_dollar(void)
+{
+    petrush_set_cmdsubst_hook(NULL);
+    char *e = expand_word("$(echo hi)");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "$(echo hi)") == 0);
+    free(e);
+}
+
+void test_osh9_arith_not_cmdsubst(void)
+{
+    g_osh9_stub_calls = 0;
+    petrush_set_cmdsubst_hook(osh9_stub_cmdsubst);
+    char *e = expand_word("$((1+1))");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "$((1+1))") == 0);
+    TEST_CHECK(g_osh9_stub_calls == 0);
+    free(e);
+    petrush_set_cmdsubst_hook(NULL);
+}
+
+void test_osh9_backticks_not_expanded(void)
+{
+    g_osh9_stub_calls = 0;
+    petrush_set_cmdsubst_hook(osh9_stub_cmdsubst);
+    char *e = expand_word("`echo hi`");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "`echo hi`") == 0);
+    TEST_CHECK(g_osh9_stub_calls == 0);
+    free(e);
+    petrush_set_cmdsubst_hook(NULL);
+}
+
 void test_osh2_shift_all_leaves_empty(void)
 {
     osh1_setup_abc();
@@ -407,5 +483,10 @@ TEST_LIST = {
     { "osh2_shift_zero_noop", test_osh2_shift_zero_noop },
     { "osh2_shift_too_many_intact", test_osh2_shift_too_many_intact },
     { "osh2_shift_all_leaves_empty", test_osh2_shift_all_leaves_empty },
+    { "osh9_cmdsubst_strip_trailing_newlines", test_osh9_cmdsubst_strip_trailing_newlines },
+    { "osh9_cmdsubst_concat", test_osh9_cmdsubst_concat },
+    { "osh9_cmdsubst_hook_null_literal_dollar", test_osh9_cmdsubst_hook_null_literal_dollar },
+    { "osh9_arith_not_cmdsubst", test_osh9_arith_not_cmdsubst },
+    { "osh9_backticks_not_expanded", test_osh9_backticks_not_expanded },
     { NULL, NULL }
 };

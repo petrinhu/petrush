@@ -128,4 +128,11 @@ struct petrush_list_item {
 int petrush_parse_list(const char *input, petrush_list_t *out);
 void petrush_list_free(petrush_list_t *list);
 
+/*
+ * OSH-9: se p aponta para "$(..." (nao "$(("), retorna comprimento do span
+ * incluindo delimitadores; 0 se nao for cmdsubst ou nao fechado.
+ * Nesting de paren; aspas internas protegem '(' / ')'.
+ */
+size_t petrush_cmdsubst_span(const char *p);
+
 #endif /* PETRUSH_PARSER_H */

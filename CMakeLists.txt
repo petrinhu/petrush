@@ -1015,10 +1015,12 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh7-return.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-8 local smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh8-local.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-9 cmdsubst smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh9-cmdsubst.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1/2/3/4/5/6/7/8 + XDG-1)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0/1/2/3/4/5/6/7/8/9 + XDG-1)"
     VERBATIM
 )
 
@@ -1068,6 +1070,13 @@ add_custom_target(osh8_local
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh8-local.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush
     COMMENT "OSH-8 local smoke"
+    VERBATIM
+)
+
+add_custom_target(osh9_cmdsubst
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh9-cmdsubst.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "OSH-9 cmdsubst smoke"
     VERBATIM
 )
 

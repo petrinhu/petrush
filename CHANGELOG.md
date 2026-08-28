@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- **OSH-9:** command subst `$(cmd)` (sem backticks); `petrush_cmdsubst_span` no lexer; expand via hook DIP com strip de newlines finais; runner `petrush_run_cmdsubst` (pipe+fork, depth<=2, max 1MiB); status do inner nao sobe ao pai; smoke `tests/smoke/osh9-cmdsubst.sh` + regressao osh8. Docker fedora:44 clang PASS. Sem 4755.
 - **OSH-8:** builtin `local name[=value]` so dentro de funcao; valor visivel no body; restaura (ou unset) ao sair do frame inclusive apos `return`; `local name` sem `=` faz unset local; sem flags `local -*`; fora de funcao → status != 0; smoke `tests/smoke/osh8-local.sh` + regressao osh7. Docker fedora:44 clang PASS. Sem 4755.
 - **OSH-7:** builtin `return` [n] so dentro de funcao (`g_fn_depth` + flag de unwind em `dispatch_list`/if/while/for); default n=0 (nao usa ultimo cmd; documentado); fora de funcao → status != 0 sem `exit`; return no meio do body nao executa o resto; smoke `tests/smoke/osh7-return.sh` + regressao osh6. Docker fedora:44 clang PASS. Sem 4755.
 - **OSH-6:** `name() { list; }` e `function name [()] { list; }` (`PETRUSH_ITEM_FN`); chamada seta posicionais so durante o body e restaura depois; status = ultimo comando do body; `"}"` quoted nao fecha; sem `local`/`return` nesta onda; smoke `tests/smoke/osh6-fn.sh`. Docker fedora:44 clang PASS. Sem 4755.
