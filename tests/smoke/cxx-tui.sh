@@ -114,29 +114,25 @@ echo "OK: defaults"
 
 echo "=== CXX-TUI: PTY smoke quit with q ==="
 # Allocate a PTY; feed 'q' so TUI exits cleanly. Never touch display :0.
+# Prefer python3 pty.fork: util-linux `script -qefc` hangs in GHA containers
+# (ubuntu/debian/arch) and never returns after 'q' (ctest Timeout 300s).
+# Wait for the TUI banner BEFORE sending q: TCSETSF(RAW) flushes pending input,
+# so an early 'q' is discarded and read_key blocks forever.
 PTY_OK=0
-if command -v script >/dev/null 2>&1; then
-  set +e
-  printf 'q' | script -qefc "$CONFIGSH_BIN" "$WORKDIR/typescript" >"$WORKDIR/pty.out" 2>"$WORKDIR/pty.err"
-  RC=$?
-  set -e
-  if [[ "$RC" -eq 0 ]]; then
-    PTY_OK=1
-  fi
-fi
-if [[ "$PTY_OK" -eq 0 ]] && command -v python3 >/dev/null 2>&1; then
+if command -v python3 >/dev/null 2>&1; then
   set +e
   CONFIGSH_BIN="$CONFIGSH_BIN" python3 - <<'PY' >"$WORKDIR/pty.out" 2>"$WORKDIR/pty.err"
-import os, pty, select, sys, time
+import os, pty, select, signal, sys, time
+
 bin_path = os.environ["CONFIGSH_BIN"]
 pid, fd = pty.fork()
 if pid == 0:
     os.execv(bin_path, [bin_path])
-time.sleep(0.15)
-os.write(fd, b"q")
-deadline = time.time() + 2
+
 out = b""
-while time.time() < deadline:
+ready_deadline = time.time() + 5.0
+ready = False
+while time.time() < ready_deadline:
     r, _, _ = select.select([fd], [], [], 0.2)
     if fd in r:
         try:
@@ -146,21 +142,117 @@ while time.time() < deadline:
         if not chunk:
             break
         out += chunk
-    else:
-        wpid, status = os.waitpid(pid, os.WNOHANG)
-        if wpid == pid:
+        if b"q quit" in out or b"Sections" in out:
+            ready = True
             break
-wpid, status = os.waitpid(pid, 0)
+    wpid, st = os.waitpid(pid, os.WNOHANG)
+    if wpid == pid:
+        sys.stdout.buffer.write(out)
+        sys.stderr.write("PTY TUI exited before ready\n")
+        rc = os.waitstatus_to_exitcode(st) if hasattr(os, "waitstatus_to_exitcode") else (st >> 8)
+        sys.exit(rc if rc else 1)
+
+if not ready:
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except OSError:
+        pass
+    try:
+        os.waitpid(pid, 0)
+    except ChildProcessError:
+        pass
+    sys.stdout.buffer.write(out)
+    sys.stderr.write("PTY TUI banner not seen; killed\n")
+    sys.exit(1)
+
+os.write(fd, b"q")
+
+deadline = time.time() + 5.0
+status = None
+while time.time() < deadline:
+    r, _, _ = select.select([fd], [], [], 0.1)
+    if fd in r:
+        try:
+            chunk = os.read(fd, 4096)
+        except OSError:
+            chunk = b""
+        if chunk:
+            out += chunk
+    wpid, st = os.waitpid(pid, os.WNOHANG)
+    if wpid == pid:
+        status = st
+        break
+
+if status is None:
+    # Child still alive after deadline: never unbounded waitpid.
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        pass
+    time.sleep(0.3)
+    try:
+        wpid, st = os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        wpid, st = 0, 0
+    if wpid != pid:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+        try:
+            wpid, st = os.waitpid(pid, 0)
+        except ChildProcessError:
+            st = 0
+    status = st
+    sys.stdout.buffer.write(out)
+    sys.stderr.write("PTY TUI still alive after q; killed\n")
+    sys.exit(1)
+
 sys.stdout.buffer.write(out)
 rc = os.waitstatus_to_exitcode(status) if hasattr(os, "waitstatus_to_exitcode") else (status >> 8)
 sys.exit(rc)
 PY
   RC=$?
   set -e
-  [[ "$RC" -eq 0 ]] || fail "PTY TUI exit=$RC stderr=$(cat "$WORKDIR/pty.err")"
-  PTY_OK=1
+  if [[ "$RC" -eq 0 ]]; then
+    PTY_OK=1
+  else
+    echo "WARN: python3 PTY exit=$RC stderr=$(cat "$WORKDIR/pty.err" 2>/dev/null || true)" >&2
+  fi
 fi
-[[ "$PTY_OK" -eq 1 ]] || fail "no PTY helper (script/python3)"
+# Fallback: script under a hard timeout (hangs unbounded without it in containers).
+if [[ "$PTY_OK" -eq 0 ]] && command -v script >/dev/null 2>&1; then
+  set +e
+  if command -v timeout >/dev/null 2>&1; then
+    # Delay so TCSETSF(RAW) does not flush 'q'; timeout wraps script (hangs in GHA).
+    (sleep 0.8; printf 'q') | timeout 5 script -qefc "$CONFIGSH_BIN" "$WORKDIR/typescript" \
+      >"$WORKDIR/pty.out" 2>"$WORKDIR/pty.err"
+  else
+    (sleep 0.8; printf 'q') | script -qefc "$CONFIGSH_BIN" "$WORKDIR/typescript" \
+      >"$WORKDIR/pty.out" 2>"$WORKDIR/pty.err" &
+    spid=$!
+    for _ in 1 2 3 4 5; do
+      if ! kill -0 "$spid" 2>/dev/null; then
+        break
+      fi
+      sleep 1
+    done
+    if kill -0 "$spid" 2>/dev/null; then
+      kill -TERM "$spid" 2>/dev/null || true
+      sleep 0.2
+      kill -KILL "$spid" 2>/dev/null || true
+    fi
+    wait "$spid"
+  fi
+  RC=$?
+  set -e
+  if [[ "$RC" -eq 0 ]]; then
+    PTY_OK=1
+  else
+    echo "WARN: script PTY exit=$RC (timeout/hang expected without python3)" >&2
+  fi
+fi
+[[ "$PTY_OK" -eq 1 ]] || fail "no PTY helper succeeded (python3/script); stderr=$(cat "$WORKDIR/pty.err" 2>/dev/null || true)"
 if ! grep -Eaq 'configsh|prompt|history|\[prompt\]' "$WORKDIR/pty.out" 2>/dev/null \
    && ! grep -Eaq 'configsh|prompt|history|\[prompt\]' "$WORKDIR/typescript" 2>/dev/null; then
   # ANSI clear may dominate; accept non-empty PTY capture
