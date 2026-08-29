@@ -537,6 +537,8 @@ int petrush_parse(const char *input, petrush_cmd_t *out)
     return 0;
 }
 
+/* Nested list/if/while/for/fn free is intentional AST walk. */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 void petrush_list_free(petrush_list_t *list)
 {
     if (!list || !list->items) {
@@ -903,6 +905,8 @@ static int take_conn_after(const char *s, size_t *pos,
     return 1;
 }
 
+/* Recursive descent: list <-> if/while/for/fn. Complexity from keyword dispatch. */
+/* NOLINTNEXTLINE(misc-no-recursion, readability-function-cognitive-complexity) */
 static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                             petrush_list_t *out, int require_term)
 {
@@ -1080,6 +1084,7 @@ fail:
 }
 
 /* OSH-4: while <list> do <list> done */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int parse_while(const char *s, size_t *pos, petrush_while_t *out)
 {
     memset(out, 0, sizeof(*out));
@@ -1190,6 +1195,7 @@ static int for_push_word(char ***words, int *nwords, int *cap, char *w)
 }
 
 /* OSH-5: for name in words; do list; done (in obrigatorio; sem for (() ) */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int parse_for(const char *s, size_t *pos, petrush_for_t *out)
 {
     memset(out, 0, sizeof(*out));
@@ -1373,6 +1379,7 @@ static int looks_like_fn_def(const char *s, size_t pos)
  * OSH-6: name() { list; }  ou  function name [()] { list; }
  * from_kw=1 ja viu/consome "function"; from_kw=0 exige ().
  */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int parse_fn(const char *s, size_t *pos, petrush_fn_t *out, int from_kw)
 {
     memset(out, 0, sizeof(*out));
@@ -1424,6 +1431,7 @@ fail:
     return -1;
 }
 
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int parse_if(const char *s, size_t *pos, petrush_if_t *out)
 {
     memset(out, 0, sizeof(*out));
