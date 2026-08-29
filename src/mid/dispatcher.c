@@ -334,6 +334,7 @@ static const petrush_list_t *fn_get(const char *name)
 }
 
 /* Define posicionais da chamada; restaura os anteriores ao sair. */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int call_fn(const char *name, int argc, char **argv,
                    const petrush_list_t *body)
 {
@@ -409,6 +410,7 @@ static int dispatch_fn_def(petrush_fn_t *fn)
     return 0;
 }
 
+/* NOLINTNEXTLINE(misc-no-recursion) */
 int dispatch_command(petrush_cmd_t *cmd)
 {
     if (!cmd || cmd->argc == 0 || !cmd->argv[0]) {
@@ -489,6 +491,7 @@ static char *pipeline_job_label(const petrush_pipeline_t *pl)
 }
 
 /* UX-23: subshell por item bg; não altera execute_external/execute_pipeline. */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int dispatch_pipeline_background(petrush_pipeline_t *pl)
 {
     if (!pl) return 1;
@@ -541,6 +544,7 @@ static int dispatch_pipeline_background(petrush_pipeline_t *pl)
 }
 
 /* OSH-3: status = ultimo comando do corpo tomado; nenhum braço → 0. */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int dispatch_if(petrush_if_t *ifc)
 {
     if (!ifc || ifc->narms <= 0) {
@@ -567,6 +571,7 @@ static int dispatch_if(petrush_if_t *ifc)
  * Condicao = status do ultimo comando da lista cond (==0 continua).
  * Status do while = ultimo body executado; 0 se body nunca rodou (POSIX).
  */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int dispatch_while(petrush_while_t *wh)
 {
     if (!wh) {
@@ -670,6 +675,8 @@ static int clone_pipeline(const petrush_pipeline_t *src, petrush_pipeline_t *dst
     return 0;
 }
 
+/* Nested if/while/for/fn clone is intentional AST walk. */
+/* NOLINTNEXTLINE(misc-no-recursion, readability-function-cognitive-complexity) */
 static int clone_list(const petrush_list_t *src, petrush_list_t *dst)
 {
     memset(dst, 0, sizeof(*dst));
@@ -770,6 +777,7 @@ static int clone_list(const petrush_list_t *src, petrush_list_t *dst)
  * Cada palavra: petrush_setenv(name, word) depois dispatch body clonado.
  * Status = ultimo body; 0 se nwords==0 (body nunca rodou).
  */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int dispatch_for(petrush_for_t *fr)
 {
     if (!fr || !fr->name) {
@@ -926,10 +934,13 @@ char *petrush_run_cmdsubst(const char *inner_cmd)
     /* Status do inner ignorado de proposito (nao altera status do pai). */
     (void)st;
 
+    /* Loop acima mantém cap >= len+1; analyzer nao rastreia o realloc. */
+    /* NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
     buf[len] = '\0';
     return buf;
 }
 
+/* NOLINTNEXTLINE(misc-no-recursion) */
 int dispatch_list(petrush_list_t *list)
 {
     /* OSH-9: liga hook DIP (idempotente). */
@@ -990,6 +1001,7 @@ static int pipeline_child_builtin_hook(petrush_cmd_t *cmd)
     return 0;
 }
 
+/* NOLINTNEXTLINE(misc-no-recursion) */
 int dispatch_pipeline(petrush_pipeline_t *pl)
 {
     if (!pl || pl->ncmds <= 0) {

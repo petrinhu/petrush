@@ -89,7 +89,7 @@ int builtin_local(petrush_cmd_t *cmd);
  * Status do inner NAO vira status do pai. Retorno malloc (caller free).
  */
 #define PETRUSH_CMDSUBST_MAX_DEPTH 2
-#define PETRUSH_CMDSUBST_MAX_BYTES (1024 * 1024)
+#define PETRUSH_CMDSUBST_MAX_BYTES (1024UL * 1024UL)
 char *petrush_run_cmdsubst(const char *inner_cmd);
 
 /* Para completion: número de builtins e nome por índice */
