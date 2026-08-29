@@ -2,6 +2,7 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+- CI-XDG-TRUNC: GHA gcc `-Werror=format-truncation` em `test_xdg_paths.c` L89/L147; destinos PATH_MAX (+PATH_MAX+64 p/ sufixo); expect 1-hop a partir de g_tmp; `-Werror` mantido; host+Docker fedora:44 gcc 9/9; TODO 🔍. Sem push. Sem 4755.
 - CI-NETCOM-UNSHARE: GHA `asm_netcom_eperm` falhava com `unshare: unshare failed: Operation not permitted`; fallback bare petrush; sem EPERM → skip 77; hang 124 FAIL; unshare ok nao relaxado; CMake SKIP_RETURN_CODE 77; probes local PASS; TODO 🔍. Sem push. Sem 4755.
 - CI-DISTROS: ubuntu:rolling→ubuntu:latest; +debian:latest clang/gcc Release (apt); BUILD_TARGETS += test_xdg_paths asm_* configsh (matrix+ASan via env); fedora:44/arch/cachyos intactos; -Werror mantido; TODO 🔍. Sem push. Sem 4755.
 - OSH-9: cmdsubst `$(cmd)` (sem backticks); lexer span + expand hook DIP (strip \\n finais) + runner pipe+fork depth<=2/1MiB; TDD red→green; smoke osh9 8/8 + osh8 8/8; test_parser 71 + test_expand 36; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.

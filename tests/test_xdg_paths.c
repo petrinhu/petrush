@@ -1,5 +1,8 @@
 /*
  * test_xdg_paths.c - XDG-1: rc + history path resolution (TDD)
+ *
+ * Destinos de path: PATH_MAX. Onde snprintf cola sufixo literal sobre
+ * outro buffer PATH_MAX, usa PATH_MAX+64 (CI-XDG-TRUNC / -Werror=format-truncation).
  */
 
 #include "acutest.h"
@@ -7,13 +10,21 @@
 #include "petrush/env.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-static char g_tmp[256];
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
+/* Margem para sufixo literal sobre path PATH_MAX (gcc -Wformat-truncation). */
+enum { PATH_SNPRINTF_BUF = PATH_MAX + 64 };
+
+static char g_tmp[PATH_MAX];
 static int g_have_tmp;
 
 static void mk_tmp_root(void)
@@ -27,7 +38,7 @@ static void mk_tmp_root(void)
 
 static void rm_tree(const char *path)
 {
-    char cmd[512];
+    char cmd[PATH_SNPRINTF_BUF];
     snprintf(cmd, sizeof(cmd), "rm -rf '%s'", path);
     (void)system(cmd);
 }
@@ -67,8 +78,8 @@ static int path_is_dir_mode(const char *path, mode_t want_bits)
 
 void test_rc_default_xdg_when_absent(void)
 {
-    char buf[512];
-    char expect[512];
+    char buf[PATH_MAX];
+    char expect[PATH_SNPRINTF_BUF];
     setup_home();
     TEST_CHECK(petrush_rc_path(buf, sizeof(buf)) == 0);
     snprintf(expect, sizeof(expect), "%s/.config/petrush/rc", g_tmp);
@@ -78,23 +89,24 @@ void test_rc_default_xdg_when_absent(void)
 
 void test_rc_xdg_config_home_override(void)
 {
-    char buf[512];
-    char expect[512];
-    char xdg[512];
+    char buf[PATH_MAX];
+    char expect[PATH_SNPRINTF_BUF];
+    char xdg[PATH_SNPRINTF_BUF];
     setup_home();
     snprintf(xdg, sizeof(xdg), "%s/xdgcfg", g_tmp);
     TEST_ASSERT(mkdir(xdg, 0700) == 0);
     TEST_ASSERT(petrush_setenv("XDG_CONFIG_HOME", xdg, 1) == 0);
     TEST_CHECK(petrush_rc_path(buf, sizeof(buf)) == 0);
-    snprintf(expect, sizeof(expect), "%s/petrush/rc", xdg);
+    /* expect a partir de g_tmp (1 hop); evita -Werror=format-truncation (CI-XDG-TRUNC) */
+    snprintf(expect, sizeof(expect), "%s/xdgcfg/petrush/rc", g_tmp);
     TEST_CHECK(strcmp(buf, expect) == 0);
     teardown();
 }
 
 void test_rc_compat_legacy_when_xdg_missing(void)
 {
-    char buf[512];
-    char legacy[512];
+    char buf[PATH_MAX];
+    char legacy[PATH_SNPRINTF_BUF];
     setup_home();
     snprintf(legacy, sizeof(legacy), "%s/.petrushrc", g_tmp);
     TEST_ASSERT(touch_file(legacy, 0600) == 0);
@@ -105,10 +117,10 @@ void test_rc_compat_legacy_when_xdg_missing(void)
 
 void test_rc_xdg_wins_when_both_exist(void)
 {
-    char buf[512];
-    char xdg_rc[512];
-    char legacy[512];
-    char dir[512];
+    char buf[PATH_MAX];
+    char xdg_rc[PATH_SNPRINTF_BUF];
+    char legacy[PATH_SNPRINTF_BUF];
+    char dir[PATH_SNPRINTF_BUF];
     setup_home();
     snprintf(dir, sizeof(dir), "%s/.config", g_tmp);
     TEST_ASSERT(mkdir(dir, 0700) == 0);
@@ -125,8 +137,8 @@ void test_rc_xdg_wins_when_both_exist(void)
 
 void test_history_default_xdg_when_absent(void)
 {
-    char buf[512];
-    char expect[512];
+    char buf[PATH_MAX];
+    char expect[PATH_SNPRINTF_BUF];
     setup_home();
     TEST_CHECK(petrush_history_path(buf, sizeof(buf)) == 0);
     snprintf(expect, sizeof(expect), "%s/.local/state/petrush/history", g_tmp);
@@ -136,23 +148,24 @@ void test_history_default_xdg_when_absent(void)
 
 void test_history_xdg_state_home_override(void)
 {
-    char buf[512];
-    char expect[512];
-    char xdg[512];
+    char buf[PATH_MAX];
+    char expect[PATH_SNPRINTF_BUF];
+    char xdg[PATH_SNPRINTF_BUF];
     setup_home();
     snprintf(xdg, sizeof(xdg), "%s/xdgstate", g_tmp);
     TEST_ASSERT(mkdir(xdg, 0700) == 0);
     TEST_ASSERT(petrush_setenv("XDG_STATE_HOME", xdg, 1) == 0);
     TEST_CHECK(petrush_history_path(buf, sizeof(buf)) == 0);
-    snprintf(expect, sizeof(expect), "%s/petrush/history", xdg);
+    /* expect a partir de g_tmp (1 hop); evita -Werror=format-truncation (CI-XDG-TRUNC) */
+    snprintf(expect, sizeof(expect), "%s/xdgstate/petrush/history", g_tmp);
     TEST_CHECK(strcmp(buf, expect) == 0);
     teardown();
 }
 
 void test_history_compat_legacy_when_xdg_missing(void)
 {
-    char buf[512];
-    char legacy[512];
+    char buf[PATH_MAX];
+    char legacy[PATH_SNPRINTF_BUF];
     setup_home();
     snprintf(legacy, sizeof(legacy), "%s/.petrush_history", g_tmp);
     TEST_ASSERT(touch_file(legacy, 0600) == 0);
@@ -163,8 +176,8 @@ void test_history_compat_legacy_when_xdg_missing(void)
 
 void test_history_ensure_dir_0700(void)
 {
-    char hist[512];
-    char parent[512];
+    char hist[PATH_SNPRINTF_BUF];
+    char parent[PATH_SNPRINTF_BUF];
     setup_home();
     snprintf(hist, sizeof(hist), "%s/.local/state/petrush/history", g_tmp);
     snprintf(parent, sizeof(parent), "%s/.local/state/petrush", g_tmp);
