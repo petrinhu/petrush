@@ -7,6 +7,7 @@
 #include "acutest.h"
 #include "petrush/plugin_load.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -22,18 +23,65 @@
 #define PLUGIN_TEST_BAD_SO ""
 #endif
 
+enum { PLG_PATH_SNPRINTF_BUF = PETRUSH_PLG_PATH_MAX + 64 };
+
 static char g_tmpdir[PETRUSH_PLG_PATH_MAX];
 static int g_tmpdir_ok;
 
+/* Walk + unlink/rmdir; ENOENT ok. Fallback when system(rm) fails (CI-SYSTEM-RESULT). */
+static void empty_tree_best_effort(const char *dir)
+{
+    DIR *d = opendir(dir);
+    if (!d)
+        return;
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+            continue;
+        char child[PLG_PATH_SNPRINTF_BUF];
+        int n = snprintf(child, sizeof(child), "%s/%s", dir, ent->d_name);
+        if (n < 0 || (size_t)n >= sizeof(child))
+            continue;
+        struct stat st;
+        if (lstat(child, &st) != 0) {
+            if (errno != ENOENT)
+                TEST_CHECK_(0, "lstat(%s): %s", child, strerror(errno));
+            continue;
+        }
+        if (S_ISDIR(st.st_mode)) {
+            empty_tree_best_effort(child);
+            if (rmdir(child) != 0 && errno != ENOENT)
+                TEST_CHECK_(0, "rmdir(%s): %s", child, strerror(errno));
+        } else if (unlink(child) != 0 && errno != ENOENT) {
+            TEST_CHECK_(0, "unlink(%s): %s", child, strerror(errno));
+        }
+    }
+    closedir(d);
+}
+
+/* Primary: system(rm -rf). On failure, walk+rmdir/unlink (CI-SYSTEM-RESULT). */
 static void rm_rf_best_effort(const char *path)
 {
-    char cmd[PETRUSH_PLG_PATH_MAX + 32];
+    char cmd[PLG_PATH_SNPRINTF_BUF];
     if (!path || !path[0]) {
         return;
     }
-    /* path sob /var/tmp/petrush-plg-* controlado pelo teste */
-    (void)snprintf(cmd, sizeof(cmd), "rm -rf -- '%s'", path);
-    (void)system(cmd);
+    /* path sob HOME/.cache/petrush-plg-* controlado pelo teste */
+    int n = snprintf(cmd, sizeof(cmd), "rm -rf -- '%s'", path);
+    if (n < 0 || (size_t)n >= sizeof(cmd)) {
+        empty_tree_best_effort(path);
+        if (rmdir(path) != 0 && errno != ENOENT)
+            TEST_CHECK_(0, "rmdir(%s) path too long for system: %s", path,
+                        strerror(errno));
+        return;
+    }
+    int rc = system(cmd);
+    if (rc == 0)
+        return;
+    empty_tree_best_effort(path);
+    if (rmdir(path) != 0 && errno != ENOENT)
+        TEST_CHECK_(0, "rmdir(%s) after system rc=%d: %s", path, rc,
+                    strerror(errno));
 }
 
 static int path_has_world_writable_prefix(const char *abs)

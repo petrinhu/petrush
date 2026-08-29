@@ -8,6 +8,7 @@
 #include "acutest.h"
 #include "petrush/asm.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,11 +18,56 @@
 
 static char g_overlay[256];
 
+/* Walk + unlink/rmdir; ENOENT ok. Fallback when system(rm) fails (CI-SYSTEM-RESULT). */
+static void empty_tree_best_effort(const char *dir)
+{
+    DIR *d = opendir(dir);
+    if (!d)
+        return;
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+            continue;
+        char child[768];
+        int n = snprintf(child, sizeof(child), "%s/%s", dir, ent->d_name);
+        if (n < 0 || (size_t)n >= sizeof(child))
+            continue;
+        struct stat st;
+        if (lstat(child, &st) != 0) {
+            if (errno != ENOENT)
+                TEST_CHECK_(0, "lstat(%s): %s", child, strerror(errno));
+            continue;
+        }
+        if (S_ISDIR(st.st_mode)) {
+            empty_tree_best_effort(child);
+            if (rmdir(child) != 0 && errno != ENOENT)
+                TEST_CHECK_(0, "rmdir(%s): %s", child, strerror(errno));
+        } else if (unlink(child) != 0 && errno != ENOENT) {
+            TEST_CHECK_(0, "unlink(%s): %s", child, strerror(errno));
+        }
+    }
+    closedir(d);
+}
+
+/* Primary: system(rm -rf). On failure, walk+rmdir/unlink (CI-SYSTEM-RESULT). */
 static void rm_rf(const char *path)
 {
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", path);
-    (void)system(cmd);
+    int n = snprintf(cmd, sizeof(cmd), "rm -rf '%s'", path);
+    if (n < 0 || (size_t)n >= sizeof(cmd)) {
+        empty_tree_best_effort(path);
+        if (rmdir(path) != 0 && errno != ENOENT)
+            TEST_CHECK_(0, "rmdir(%s) path too long for system: %s", path,
+                        strerror(errno));
+        return;
+    }
+    int rc = system(cmd);
+    if (rc == 0)
+        return;
+    empty_tree_best_effort(path);
+    if (rmdir(path) != 0 && errno != ENOENT)
+        TEST_CHECK_(0, "rmdir(%s) after system rc=%d: %s", path, rc,
+                    strerror(errno));
 }
 
 static int write_file(const char *path, const char *data)
