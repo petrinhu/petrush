@@ -1,8 +1,9 @@
 # .github/workflows/ci.yml
 # CI for petrush - runners ubuntu-latest + containers por distro
-# Matrix: Fedora 44 (gcc/clang x Debug/Release), Ubuntu/Arch/CachyOS (Release gcc+clang)
+# Matrix: Fedora 44 (gcc/clang x Debug/Release); Ubuntu/Debian/Arch/CachyOS (Release gcc+clang)
 # Gates duros: check, smoke, ASan+UBSan (halt_on_error), lint so Fedora 44 clang Debug
 # SEC-02: Release instala em /usr/local (sem setuid) e smoke no binario instalado
+# CI-DISTROS: ubuntu:latest (nao rolling); debian:latest; CachyOS != Arch
 
 name: CI
 
@@ -12,15 +13,17 @@ on:
   pull_request:
     branches: [ main ]
 
-# Targets alinhados ao DEPENDS de `check` em CMakeLists.txt (mais petrush/pudod).
-# Atualizar aqui quando add_acutest / add_executable(test_*) mudar.
+# Targets alinhados ao DEPENDS de `check` + asm_* / configsh (ctest os corre;
+# sem --target ficam Not Run). Atualizar quando add_executable / add_test mudar.
 env:
   BUILD_TARGETS: >-
-    petrush pudod
+    petrush pudod configsh
     test_parser test_process test_job test_pudo test_env test_info
     test_alias test_complete test_dirstack test_hist_expand
     test_linenoise_history test_expand test_glob test_prompt
-    test_rc_trust test_highlight test_source test_pipeline_builtin
+    test_rc_trust test_xdg_paths test_highlight test_source test_pipeline_builtin
+    asm_memeq asm_crc32 asm_parse_i64 asm_hash_path asm_job_setpgid
+    asm_utf8 asm_tty asm_wai asm_netcom
 
 jobs:
   distro-matrix:
@@ -55,15 +58,29 @@ jobs:
             build-type: Debug
             lint-hard: "false"
 
-          # --- Ubuntu rolling: Release only (gcc + clang) ---
+          # --- Ubuntu latest: Release only (gcc + clang). NAO usar ubuntu:rolling. ---
           - name: ubuntu-clang-Release
-            image: ubuntu:rolling
+            image: ubuntu:latest
             pkg: apt
             compiler: clang
             build-type: Release
             lint-hard: "false"
           - name: ubuntu-gcc-Release
-            image: ubuntu:rolling
+            image: ubuntu:latest
+            pkg: apt
+            compiler: gcc
+            build-type: Release
+            lint-hard: "false"
+
+          # --- Debian latest: Release only (gcc + clang); mesmo step apt. ---
+          - name: debian-clang-Release
+            image: debian:latest
+            pkg: apt
+            compiler: clang
+            build-type: Release
+            lint-hard: "false"
+          - name: debian-gcc-Release
+            image: debian:latest
             pkg: apt
             compiler: gcc
             build-type: Release
@@ -119,7 +136,7 @@ jobs:
           gcc --version | head -1
           clang --version | head -1
 
-      - name: Install deps (apt / Ubuntu)
+      - name: Install deps (apt / Ubuntu + Debian)
         if: matrix.pkg == 'apt'
         run: |
           export DEBIAN_FRONTEND=noninteractive
