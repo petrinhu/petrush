@@ -9,6 +9,7 @@
 #include "petrush/xdg_paths.h"
 #include "petrush/env.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -36,11 +37,54 @@ static void mk_tmp_root(void)
     g_have_tmp = 1;
 }
 
+/* Walk + unlink/rmdir; ENOENT ok. Fallback when system(rm) fails (CI-XDG-SYSTEM). */
+static void empty_tree_best_effort(const char *dir)
+{
+    DIR *d = opendir(dir);
+    if (!d)
+        return;
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+            continue;
+        char child[PATH_SNPRINTF_BUF];
+        int n = snprintf(child, sizeof(child), "%s/%s", dir, ent->d_name);
+        if (n < 0 || (size_t)n >= sizeof(child))
+            continue;
+        struct stat st;
+        if (lstat(child, &st) != 0) {
+            if (errno != ENOENT)
+                TEST_CHECK_(0, "lstat(%s): %s", child, strerror(errno));
+            continue;
+        }
+        if (S_ISDIR(st.st_mode)) {
+            empty_tree_best_effort(child);
+            if (rmdir(child) != 0 && errno != ENOENT)
+                TEST_CHECK_(0, "rmdir(%s): %s", child, strerror(errno));
+        } else if (unlink(child) != 0 && errno != ENOENT) {
+            TEST_CHECK_(0, "unlink(%s): %s", child, strerror(errno));
+        }
+    }
+    closedir(d);
+}
+
+/* Primary: system(rm -rf). On failure, walk+rmdir/unlink (CI-XDG-SYSTEM). */
 static void rm_tree(const char *path)
 {
     char cmd[PATH_SNPRINTF_BUF];
-    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", path);
-    (void)system(cmd);
+    int n = snprintf(cmd, sizeof(cmd), "rm -rf '%s'", path);
+    if (n < 0 || (size_t)n >= sizeof(cmd)) {
+        empty_tree_best_effort(path);
+        if (rmdir(path) != 0 && errno != ENOENT)
+            TEST_CHECK_(0, "rmdir(%s) path too long for system: %s", path, strerror(errno));
+        return;
+    }
+    int rc = system(cmd);
+    if (rc == 0)
+        return;
+    empty_tree_best_effort(path);
+    if (rmdir(path) != 0 && errno != ENOENT)
+        TEST_CHECK_(0, "rmdir(%s) after system rc=%d: %s", path, rc, strerror(errno));
 }
 
 static void setup_home(void)

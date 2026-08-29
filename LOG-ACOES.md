@@ -2,6 +2,7 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+- CI-XDG-SYSTEM: GHA ubuntu-gcc-Release `(void)system` em `test_xdg_paths.c` → `-Werror=unused-result` sob `-O2`/`_FORTIFY_SOURCE`; `int rc = system`; fallback walk+unlink/rmdir; prova (void) FAIL / rc OK; host 9/9 + Ubuntu Release 9/9; `-Werror` mantido; TODO 🔍. Sem push. Sem 4755.
 - CI-XDG-TRUNC: GHA gcc `-Werror=format-truncation` em `test_xdg_paths.c` L89/L147; destinos PATH_MAX (+PATH_MAX+64 p/ sufixo); expect 1-hop a partir de g_tmp; `-Werror` mantido; host+Docker fedora:44 gcc 9/9; TODO 🔍. Sem push. Sem 4755.
 - CI-NETCOM-UNSHARE: GHA `asm_netcom_eperm` falhava com `unshare: unshare failed: Operation not permitted`; fallback bare petrush; sem EPERM → skip 77; hang 124 FAIL; unshare ok nao relaxado; CMake SKIP_RETURN_CODE 77; probes local PASS; TODO 🔍. Sem push. Sem 4755.
 - CI-DISTROS: ubuntu:rolling→ubuntu:latest; +debian:latest clang/gcc Release (apt); BUILD_TARGETS += test_xdg_paths asm_* configsh (matrix+ASan via env); fedora:44/arch/cachyos intactos; -Werror mantido; TODO 🔍. Sem push. Sem 4755.
