@@ -877,6 +877,7 @@ if(PETRUSH_ASM)
     set_tests_properties(asm_netcom_eperm PROPERTIES
         DEPENDS petrush
         TIMEOUT 15
+        SKIP_RETURN_CODE 77
     )
 endif()
 
