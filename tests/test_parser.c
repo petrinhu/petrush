@@ -1206,6 +1206,53 @@ void test_heredoc_fill_two_last_wins(void)
     petrush_list_free(&list);
 }
 
+/* OSH-15: <<- strip tabs no corpo e na linha do delim */
+void test_heredoc_fill_dash_strip_tabs(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("cat <<-'EOF'", &list) == 0);
+    TEST_CHECK(list.items[0].pl.cmds[0].here_strip == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "\thello") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "\t\tworld") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "\tEOF") == 0);
+    {
+        const petrush_cmd_t *c = &list.items[0].pl.cmds[0];
+        TEST_CHECK(c->here_body != NULL);
+        TEST_CHECK(strcmp(c->here_body, "hello\nworld\n") == 0);
+    }
+    petrush_list_free(&list);
+}
+
+/* OSH-15: << sem dash — tab no delim NAO casa (unterminated) */
+void test_heredoc_fill_no_dash_tab_delim_unmatched(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("cat <<'EOF'", &list) == 0);
+    TEST_CHECK(list.items[0].pl.cmds[0].here_strip == 0);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "\thello") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "\tEOF") == 1); /* nao fecha */
+    TEST_CHECK(petrush_list_heredoc_pending(&list) == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, NULL) == -1);
+    petrush_list_free(&list);
+}
+
+/* OSH-15: espaco a esquerda nao e tab — nao strip; ' EOF' nao fecha */
+void test_heredoc_fill_dash_space_not_stripped(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("cat <<-'EOF'", &list) == 0);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, " hello") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, " EOF") == 1); /* espaco: nao fecha */
+    TEST_CHECK(petrush_list_heredoc_pending(&list) == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "EOF") == 0);
+    {
+        const petrush_cmd_t *c = &list.items[0].pl.cmds[0];
+        TEST_CHECK(c->here_body != NULL);
+        TEST_CHECK(strcmp(c->here_body, " hello\n EOF\n") == 0);
+    }
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -1293,5 +1340,8 @@ TEST_LIST = {
     { "heredoc_fill_quoted_body", test_heredoc_fill_quoted_body },
     { "heredoc_fill_unterminated_eof", test_heredoc_fill_unterminated_eof },
     { "heredoc_fill_two_last_wins", test_heredoc_fill_two_last_wins },
+    { "heredoc_fill_dash_strip_tabs", test_heredoc_fill_dash_strip_tabs },
+    { "heredoc_fill_no_dash_tab_delim_unmatched", test_heredoc_fill_no_dash_tab_delim_unmatched },
+    { "heredoc_fill_dash_space_not_stripped", test_heredoc_fill_dash_space_not_stripped },
     { NULL, NULL }
 };

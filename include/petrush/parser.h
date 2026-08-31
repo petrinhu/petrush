@@ -36,7 +36,7 @@ typedef struct {
     char *here_delim;       /* quote-removal feito; NULL = sem here-doc */
     char *here_body;        /* corpo sem linha delim; NULL = pendente */
     int here_quoted;        /* 1 se delim nasceu quoted (<<'EOF'/<<"EOF") */
-    int here_strip;         /* 1 se <<- (strip = OSH-15) */
+    int here_strip;         /* 1 se <<- (OSH-15: strip tabs a esquerda) */
     char **here_skip_delims; /* << anteriores na mesma linha (consumir e descartar) */
     int here_skip_n;
     int here_feed_i;        /* cursor de fill: 0..skip_n-1 skips, skip_n = main */

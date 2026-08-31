@@ -2,6 +2,7 @@
 
 Regra: bullets em tempo real. Orquestrador só despacha/julga. C-level = grok-4.6. Workers = grok-4.5, teto 2. Escrita só neste cwd.
 
+- OSH-15: `<<-` strip tabs (espaco nao) no corpo+delim; TDD red (`heredoc_fill_dash_strip_tabs` + smoke 3 FAIL) → green fill; smoke osh15 8/8 + osh13 8/8 + osh14 8/8; ctest test_parser; Docker fedora:44 clang PASS; TODO 🔍. Sem push. Sem 4755.
 - OSH-13: `<<'DELIM'` quoted e2e; TOK_DLESS/DLESSDASH; AST here_* + fill; `petrush_apply_redirs`+memfd; runner `run_file_lines`; TDD red (compile here_delim) → green; smoke osh13 8/8 + osh0 9/9; ctest parser+process; tidy parser/source/dispatcher/process limpo; Docker fedora:44 clang PASS; TODO 🔍. Sem expand/strip/PS2. Sem push. Sem 4755.
 - OSH-10: `case`/`esac` no AST (`PETRUSH_ITEM_CASE`); `;;` barreira no list connector; glob `*` `?` + `|`; TDD red (compile PETRUSH_ITEM_CASE) → green; test_parser 74; smoke osh10 6/6 + osh3/osh5; tidy parser/dispatcher; Docker fedora:44 clang PASS; TODO 🔍. Sem `;&`. Sem push. Sem 4755.
 - CI-XDG-SYSTEM: GHA ubuntu-gcc-Release `(void)system` em `test_xdg_paths.c` → `-Werror=unused-result` sob `-O2`/`_FORTIFY_SOURCE`; `int rc = system`; fallback walk+unlink/rmdir; prova (void) FAIL / rc OK; host 9/9 + Ubuntu Release 9/9; `-Werror` mantido; TODO 🔍. Sem push. Sem 4755.

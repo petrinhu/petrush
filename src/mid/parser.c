@@ -2229,8 +2229,16 @@ static int cmd_heredoc_feed(petrush_cmd_t *cmd, const char *line, int *ate)
         return -1;
     }
     *ate = 1;
-    /* OSH-13: sem strip (OSH-15). Match exacto da linha ao delim. */
-    if (strcmp(line, delim) == 0) {
+    /* OSH-15: <<- tira so tabs a esquerda (espaco nao). << = match exacto. */
+    const char *cmp = line;
+    const char *body_line = line;
+    if (cmd->here_strip) {
+        while (*cmp == '\t') {
+            cmp++;
+        }
+        body_line = cmp;
+    }
+    if (strcmp(cmp, delim) == 0) {
         int filling_main = (cmd->here_feed_i == cmd->here_skip_n);
         if (!filling_main) {
             /* skip: descarta corpo acumulado */
@@ -2247,7 +2255,7 @@ static int cmd_heredoc_feed(petrush_cmd_t *cmd, const char *line, int *ate)
         cmd->here_feed_i++;
         return cmd_heredoc_pending(cmd) ? 1 : 0;
     }
-    if (here_body_append(cmd, line) != 0) {
+    if (here_body_append(cmd, body_line) != 0) {
         return -1;
     }
     return 1;
