@@ -480,6 +480,133 @@ void test_osh9_backticks_not_expanded(void)
     petrush_set_cmdsubst_hook(NULL);
 }
 
+/* OSH-14: helper unquoted here-doc — $VAR, sem tilde, quoted path via expand_cmd */
+static void osh14_free_cmd(petrush_cmd_t *cmd)
+{
+    if (!cmd) {
+        return;
+    }
+    if (cmd->argv) {
+        for (int i = 0; i < cmd->argc; i++) {
+            free(cmd->argv[i]);
+        }
+        free(cmd->argv);
+    }
+    free(cmd->argv_quoted);
+    free(cmd->redir_in);
+    free(cmd->redir_out);
+    free(cmd->redir_err);
+    free(cmd->here_delim);
+    free(cmd->here_body);
+    memset(cmd, 0, sizeof(*cmd));
+}
+
+static int osh14_make_cat_cmd(petrush_cmd_t *cmd, const char *body, int quoted)
+{
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->argv = malloc(sizeof(char *) * 2);
+    if (!cmd->argv) {
+        return -1;
+    }
+    cmd->argv[0] = strdup("cat");
+    cmd->argv[1] = NULL;
+    cmd->argc = 1;
+    if (!cmd->argv[0]) {
+        return -1;
+    }
+    cmd->here_delim = strdup("EOF");
+    cmd->here_body = strdup(body);
+    cmd->here_quoted = quoted;
+    if (!cmd->here_delim || !cmd->here_body) {
+        return -1;
+    }
+    return 0;
+}
+
+void test_osh14_heredoc_body_var(void)
+{
+    petrush_setenv("OSH14_FOO", "bar", 1);
+    char *e = expand_heredoc_body("$OSH14_FOO\n");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "bar\n") == 0);
+    free(e);
+}
+
+void test_osh14_heredoc_body_no_tilde(void)
+{
+    petrush_setenv("HOME", "/home/tester", 1);
+    char *e = expand_heredoc_body("~/x\n");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "~/x\n") == 0);
+    free(e);
+    /* regressao: expand_word ainda faz tilde */
+    char *w = expand_word("~/x");
+    TEST_CHECK(w != NULL);
+    TEST_CHECK(strcmp(w, "/home/tester/x") == 0);
+    free(w);
+}
+
+void test_osh14_heredoc_body_arith(void)
+{
+    petrush_set_cmdsubst_hook(NULL);
+    char *e = expand_heredoc_body("$((1+1))\n");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "2\n") == 0);
+    free(e);
+}
+
+void test_osh14_heredoc_body_cmdsubst(void)
+{
+    g_osh9_stub_calls = 0;
+    petrush_set_cmdsubst_hook(osh9_stub_cmdsubst);
+    char *e = expand_heredoc_body("$(echo X)\n");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "X\n") == 0);
+    TEST_CHECK(g_osh9_stub_calls == 1);
+    free(e);
+    petrush_set_cmdsubst_hook(NULL);
+}
+
+void test_osh14_heredoc_body_backslash_dollar(void)
+{
+    petrush_setenv("OSH14_FOO", "bar", 1);
+    char *e = expand_heredoc_body("\\$OSH14_FOO\n");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "$OSH14_FOO\n") == 0);
+    free(e);
+}
+
+void test_osh14_heredoc_body_quotes_not_special(void)
+{
+    petrush_setenv("OSH14_FOO", "bar", 1);
+    char *e = expand_heredoc_body("\"$OSH14_FOO\"\n");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "\"bar\"\n") == 0);
+    free(e);
+}
+
+void test_osh14_expand_cmd_unquoted(void)
+{
+    petrush_setenv("OSH14_FOO", "bar", 1);
+    petrush_cmd_t cmd;
+    TEST_CHECK(osh14_make_cat_cmd(&cmd, "$OSH14_FOO\n", 0) == 0);
+    expand_cmd_argv(&cmd);
+    TEST_CHECK(cmd.here_body != NULL);
+    TEST_CHECK(strcmp(cmd.here_body, "bar\n") == 0);
+    osh14_free_cmd(&cmd);
+}
+
+void test_osh14_expand_cmd_quoted_literal(void)
+{
+    petrush_setenv("OSH14_FOO", "bar", 1);
+    petrush_cmd_t cmd;
+    TEST_CHECK(osh14_make_cat_cmd(&cmd, "$OSH14_FOO\n", 1) == 0);
+    expand_cmd_argv(&cmd);
+    TEST_CHECK(cmd.here_body != NULL);
+    TEST_CHECK(strcmp(cmd.here_body, "$OSH14_FOO\n") == 0);
+    osh14_free_cmd(&cmd);
+}
+
 void test_osh2_shift_all_leaves_empty(void)
 {
     osh1_setup_abc();
@@ -531,5 +658,13 @@ TEST_LIST = {
     { "osh11_arith_unary_parens", test_osh11_arith_unary_parens },
     { "osh11_arith_var", test_osh11_arith_var },
     { "osh9_backticks_not_expanded", test_osh9_backticks_not_expanded },
+    { "osh14_heredoc_body_var", test_osh14_heredoc_body_var },
+    { "osh14_heredoc_body_no_tilde", test_osh14_heredoc_body_no_tilde },
+    { "osh14_heredoc_body_arith", test_osh14_heredoc_body_arith },
+    { "osh14_heredoc_body_cmdsubst", test_osh14_heredoc_body_cmdsubst },
+    { "osh14_heredoc_body_backslash_dollar", test_osh14_heredoc_body_backslash_dollar },
+    { "osh14_heredoc_body_quotes_not_special", test_osh14_heredoc_body_quotes_not_special },
+    { "osh14_expand_cmd_unquoted", test_osh14_expand_cmd_unquoted },
+    { "osh14_expand_cmd_quoted_literal", test_osh14_expand_cmd_quoted_literal },
     { NULL, NULL }
 };

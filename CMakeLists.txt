@@ -1026,10 +1026,12 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh12-dbracket.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-13 heredoc smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh13-heredoc.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-14 heredoc expand smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh14-heredoc-expand.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0..13 + XDG-1)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0..14 + XDG-1)"
     VERBATIM
 )
 
@@ -1114,6 +1116,13 @@ add_custom_target(osh13_heredoc
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh13-heredoc.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush
     COMMENT "OSH-13 <<'DELIM' quoted heredoc smoke"
+    VERBATIM
+)
+
+add_custom_target(osh14_heredoc_expand
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh14-heredoc-expand.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "OSH-14 <<DELIM unquoted heredoc expand smoke"
     VERBATIM
 )
 

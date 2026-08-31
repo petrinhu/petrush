@@ -52,6 +52,13 @@ int petrush_positional_shift(unsigned n);
 char *expand_word(const char *word);
 
 /*
+ * OSH-14: expand $ / $( ) / $(( )) no corpo here-doc unquoted.
+ * Sem tilde, sem field split, sem pathname. \ escapa $, `, \ e newline.
+ * " nao e especial no corpo. malloc; NULL so se body==NULL ou OOM.
+ */
+char *expand_heredoc_body(const char *body);
+
+/*
  * Pathname expansion de uma palavra.
  * 0 matches: 1 elemento = cópia do padrão.
  * N matches: N paths ordenados (qsort/strcmp).

@@ -2,6 +2,7 @@
  * expand.c — tilde and environment variable expansion + OSH-1/2 posicionais
  * + OSH-9 cmdsubst via hook DIP
  * + OSH-11 $((expr)) arith (sem arith.c; regra de 3)
+ * + OSH-14 here-doc unquoted body expand (sem tilde/glob/split)
  */
 
 #include "petrush/expand.h"
@@ -596,39 +597,63 @@ static int expand_brace(const char **pp, char **out, size_t *o, size_t *cap)
     return 1;
 }
 
-char *expand_word(const char *word)
+/*
+ * UX-13 + FEAT-PARAM + OSH-1/9/11: $VAR / ${} / $n / $( ) / $(( )).
+ * heredoc_escapes=1 (OSH-14): \ escapa $, `, \ e newline; sem tilde (caller).
+ */
+static char *expand_params_inner(const char *word, int heredoc_escapes)
 {
-    if (!word) return NULL;
-
-    /* UX-12: ~ and ~/ */
-    if (word[0] == '~' && (word[1] == '\0' || word[1] == '/')) {
-        const char *home = petrush_getenv("HOME");
-        if (!home) home = "";
-        size_t need = strlen(home) + strlen(word); /* home + rest without ~ */
-        char *out = malloc(need + 1);
-        if (!out) return NULL;
-        if (word[1] == '\0') {
-            snprintf(out, need + 1, "%s", home);
-        } else {
-            snprintf(out, need + 1, "%s%s", home, word + 1);
-        }
-        return out;
-    }
-
-    /* UX-13 + FEAT-PARAM: $VAR / ${VAR} / ${VAR:-} / ${VAR:+} / ${#VAR} */
     size_t cap = strlen(word) * 4 + 64;
-    if (cap < 256) cap = 256;
+    if (cap < 256) {
+        cap = 256;
+    }
     char *out = malloc(cap);
-    if (!out) return NULL;
+    if (!out) {
+        return NULL;
+    }
     size_t o = 0;
     const char *p = word;
 
     while (*p) {
+        if (heredoc_escapes && *p == '\\') {
+            char nxt = p[1];
+            if (nxt == '$' || nxt == '`' || nxt == '\\') {
+                if (append_char(&out, &o, &cap, nxt) != 0) {
+                    free(out);
+                    return NULL;
+                }
+                p += 2;
+                continue;
+            }
+            if (nxt == '\n') {
+                p += 2; /* line continuation */
+                continue;
+            }
+            /* outros \X: literais (backslash + char) */
+            if (append_char(&out, &o, &cap, '\\') != 0) {
+                free(out);
+                return NULL;
+            }
+            if (nxt) {
+                if (append_char(&out, &o, &cap, nxt) != 0) {
+                    free(out);
+                    return NULL;
+                }
+                p += 2;
+            } else {
+                p++;
+            }
+            continue;
+        }
+
         if (*p == '$' && p[1]) {
             if (p[1] == '{') {
                 const char *brace = p + 1;
                 int br = expand_brace(&brace, &out, &o, &cap);
-                if (br == -1) { free(out); return NULL; }
+                if (br == -1) {
+                    free(out);
+                    return NULL;
+                }
                 if (br == 0) {
                     p = brace;
                     continue;
@@ -686,14 +711,20 @@ char *expand_word(const char *word)
             if (is_name_char(p[1])) {
                 const char *name = p + 1;
                 const char *q = name;
-                while (is_name_char(*q)) q++;
+                while (is_name_char(*q)) {
+                    q++;
+                }
                 size_t nlen = (size_t)(q - name);
                 char nbuf[256];
-                if (nlen >= sizeof(nbuf)) nlen = sizeof(nbuf) - 1;
+                if (nlen >= sizeof(nbuf)) {
+                    nlen = sizeof(nbuf) - 1;
+                }
                 memcpy(nbuf, name, nlen);
                 nbuf[nlen] = '\0';
                 const char *val = petrush_getenv(nbuf);
-                if (!val) val = "";
+                if (!val) {
+                    val = "";
+                }
                 if (append_bytes(&out, &o, &cap, val, strlen(val)) != 0) {
                     free(out);
                     return NULL;
@@ -786,6 +817,43 @@ char *expand_word(const char *word)
     }
     out[o] = '\0';
     return out;
+}
+
+/* OSH-14: corpo here-doc unquoted — $ / $( ) / $(( )); sem tilde/glob/split. */
+char *expand_heredoc_body(const char *body)
+{
+    if (!body) {
+        return NULL;
+    }
+    return expand_params_inner(body, 1);
+}
+
+char *expand_word(const char *word)
+{
+    if (!word) {
+        return NULL;
+    }
+
+    /* UX-12: ~ and ~/ */
+    if (word[0] == '~' && (word[1] == '\0' || word[1] == '/')) {
+        const char *home = petrush_getenv("HOME");
+        if (!home) {
+            home = "";
+        }
+        size_t need = strlen(home) + strlen(word); /* home + rest without ~ */
+        char *out = malloc(need + 1);
+        if (!out) {
+            return NULL;
+        }
+        if (word[1] == '\0') {
+            snprintf(out, need + 1, "%s", home);
+        } else {
+            snprintf(out, need + 1, "%s%s", home, word + 1);
+        }
+        return out;
+    }
+
+    return expand_params_inner(word, 0);
 }
 
 /* UX-18 / ASM-GLOB: * = sequência, ? = um byte; [ literal (sem classes []). */
@@ -1169,5 +1237,15 @@ void expand_cmd_argv(petrush_cmd_t *cmd)
     if (cmd->redir_err) {
         char *e = expand_word(cmd->redir_err);
         if (e) { free(cmd->redir_err); cmd->redir_err = e; }
+    }
+
+    /* OSH-14: here-doc unquoted — expand no dispatch (ambiente do momento).
+     * Quoted permanece literal. Clone do AST fica cru; mutamos a copia de trabalho. */
+    if (cmd->here_body && !cmd->here_quoted) {
+        char *e = expand_heredoc_body(cmd->here_body);
+        if (e) {
+            free(cmd->here_body);
+            cmd->here_body = e;
+        }
     }
 }
