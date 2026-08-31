@@ -258,6 +258,8 @@ static int arith_value_from_text(const char *s, size_t len, int64_t *out)
     return 0;
 }
 
+/* Recursive descent: primary may call expr for parentheses. */
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int arith_parse_primary(arith_ctx_t *c, int64_t *out)
 {
     arith_skip_ws(c);
@@ -334,6 +336,7 @@ static int arith_parse_primary(arith_ctx_t *c, int64_t *out)
     return -1;
 }
 
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int arith_parse_unary(arith_ctx_t *c, int64_t *out)
 {
     arith_skip_ws(c);
@@ -358,6 +361,7 @@ static int arith_parse_unary(arith_ctx_t *c, int64_t *out)
     return arith_parse_primary(c, out);
 }
 
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int arith_parse_term(arith_ctx_t *c, int64_t *out)
 {
     int64_t left = 0;
@@ -394,6 +398,7 @@ static int arith_parse_term(arith_ctx_t *c, int64_t *out)
     return 0;
 }
 
+/* NOLINTNEXTLINE(misc-no-recursion) */
 static int arith_parse_expr(arith_ctx_t *c, int64_t *out)
 {
     int64_t left = 0;
