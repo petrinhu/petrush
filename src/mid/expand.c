@@ -3,6 +3,7 @@
  * + OSH-9 cmdsubst via hook DIP
  * + OSH-11 $((expr)) arith (sem arith.c; regra de 3)
  * + OSH-14 here-doc unquoted body expand (sem tilde/glob/split)
+ * + OSH-16 $? / $- / shellopt e|u|x (sem set.c)
  */
 
 #include "petrush/expand.h"
@@ -31,6 +32,13 @@ static petrush_cmdsubst_hook_t g_cmdsubst_hook;
 /* OSH-11: div0 na ultima expansao arith. */
 static int g_arith_error;
 
+/* OSH-16: set -e/-u/-x bits + $?; C (noclobber) always-on em $-. */
+static int g_opt_e;
+static int g_opt_u;
+static int g_opt_x;
+static int g_last_status;
+static char g_flags_buf[8];
+
 void petrush_set_cmdsubst_hook(petrush_cmdsubst_hook_t hook)
 {
     g_cmdsubst_hook = hook;
@@ -41,6 +49,74 @@ int petrush_take_arith_error(void)
     int e = g_arith_error;
     g_arith_error = 0;
     return e;
+}
+
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
+int petrush_shellopt_set(char flag, int on)
+{
+    int v = on ? 1 : 0;
+    switch (flag) {
+    case 'e':
+        g_opt_e = v;
+        return 0;
+    case 'u':
+        g_opt_u = v;
+        return 0;
+    case 'x':
+        g_opt_x = v;
+        return 0;
+    default:
+        return -1;
+    }
+}
+
+int petrush_shellopt_get(char flag)
+{
+    switch (flag) {
+    case 'e':
+        return g_opt_e;
+    case 'u':
+        return g_opt_u;
+    case 'x':
+        return g_opt_x;
+    default:
+        return 0;
+    }
+}
+
+const char *petrush_shellopt_flags(void)
+{
+    size_t i = 0;
+    g_flags_buf[i++] = 'C';
+    if (g_opt_e) {
+        g_flags_buf[i++] = 'e';
+    }
+    if (g_opt_u) {
+        g_flags_buf[i++] = 'u';
+    }
+    if (g_opt_x) {
+        g_flags_buf[i++] = 'x';
+    }
+    g_flags_buf[i] = '\0';
+    return g_flags_buf;
+}
+
+void petrush_last_status_set(int status)
+{
+    g_last_status = status;
+}
+
+int petrush_last_status(void)
+{
+    return g_last_status;
+}
+
+void petrush_shellopt_reset_for_tests(void)
+{
+    g_opt_e = 0;
+    g_opt_u = 0;
+    g_opt_x = 0;
+    g_last_status = 0;
 }
 
 void petrush_positional_clear(void)
@@ -184,6 +260,7 @@ static char *positional_join(void)
 }
 
 /* expand_brace chama expand_word no word de :- / :+ */
+/* NOLINTNEXTLINE(readability-redundant-declaration) */
 char *expand_word(const char *word);
 
 /* ---- OSH-11 arith eval (int64; + - * / % ( ) unary; sem bitwise) ---- */
@@ -209,19 +286,19 @@ static int parse_i64_local(const char *s, size_t len, int64_t *out)
         return -1;
     }
     uint64_t acc = 0;
-    const uint64_t lim = (uint64_t)INT64_MAX + (neg ? 1u : 0u);
+    const uint64_t lim = (uint64_t)INT64_MAX + (neg ? 1U : 0U);
     for (; i < len; i++) {
         if (!isdigit((unsigned char)s[i])) {
             return -1;
         }
         unsigned d = (unsigned)(s[i] - '0');
-        if (acc > (lim - d) / 10u) {
+        if (acc > (lim - d) / 10U) {
             return -1;
         }
-        acc = acc * 10u + d;
+        acc = (acc * 10U) + d;
     }
     if (neg) {
-        *out = (acc == (uint64_t)INT64_MAX + 1u)
+        *out = (acc == (uint64_t)INT64_MAX + 1U)
                    ? INT64_MIN
                    : -(int64_t)acc;
     } else {
@@ -486,6 +563,7 @@ static int append_char(char **out, size_t *o, size_t *cap, char c)
  * Sem nameref/${!}/replace/# % strip. Forma nao suportada = literal.
  * Retorna 0 e avanca *pp apos '}'. -1 = OOM. 1 = tratar '$' como literal.
  */
+/* NOLINTNEXTLINE(readability-function-cognitive-complexity, misc-no-recursion) */
 static int expand_brace(const char **pp, char **out, size_t *o, size_t *cap)
 {
     const char *p = *pp; /* aponta para '{' */
@@ -601,9 +679,10 @@ static int expand_brace(const char **pp, char **out, size_t *o, size_t *cap)
  * UX-13 + FEAT-PARAM + OSH-1/9/11: $VAR / ${} / $n / $( ) / $(( )).
  * heredoc_escapes=1 (OSH-14): \ escapa $, `, \ e newline; sem tilde (caller).
  */
+/* NOLINTNEXTLINE(readability-function-cognitive-complexity, misc-no-recursion) */
 static char *expand_params_inner(const char *word, int heredoc_escapes)
 {
-    size_t cap = strlen(word) * 4 + 64;
+    size_t cap = (strlen(word) * 4) + 64;
     if (cap < 256) {
         cap = 256;
     }
@@ -667,12 +746,34 @@ static char *expand_params_inner(const char *word, int heredoc_escapes)
                 continue;
             }
             /* OSH-1: $# $@ $* $0-$9 (um digito; $10 = $1 + "0") */
+            /* OSH-16: $? $- */
             if (p[1] == '#') {
                 char nbuf[32];
                 int nw = snprintf(nbuf, sizeof(nbuf), "%u",
                                   petrush_positional_count());
                 if (nw < 0 ||
                     append_bytes(&out, &o, &cap, nbuf, (size_t)nw) != 0) {
+                    free(out);
+                    return NULL;
+                }
+                p += 2;
+                continue;
+            }
+            if (p[1] == '?') {
+                char nbuf[32];
+                int nw = snprintf(nbuf, sizeof(nbuf), "%d",
+                                  petrush_last_status());
+                if (nw < 0 ||
+                    append_bytes(&out, &o, &cap, nbuf, (size_t)nw) != 0) {
+                    free(out);
+                    return NULL;
+                }
+                p += 2;
+                continue;
+            }
+            if (p[1] == '-') {
+                const char *fl = petrush_shellopt_flags();
+                if (append_bytes(&out, &o, &cap, fl, strlen(fl)) != 0) {
                     free(out);
                     return NULL;
                 }
@@ -828,6 +929,7 @@ char *expand_heredoc_body(const char *body)
     return expand_params_inner(body, 1);
 }
 
+/* NOLINTNEXTLINE(misc-no-recursion) */
 char *expand_word(const char *word)
 {
     if (!word) {
@@ -857,6 +959,7 @@ char *expand_word(const char *word)
 }
 
 /* UX-18 / ASM-GLOB: * = sequência, ? = um byte; [ literal (sem classes []). */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 static int match_pat(const char *pat, const char *str)
 {
 #ifdef PETRUSH_HAVE_ASM
@@ -899,6 +1002,7 @@ static int pattern_has_meta(const char *s)
     return 0;
 }
 
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 static int cmp_strptr(const void *a, const void *b)
 {
     const char *sa = *(const char *const *)a;
@@ -930,6 +1034,7 @@ static void free_matches(char **m, int n)
     free(m);
 }
 
+/* NOLINTNEXTLINE(readability-function-cognitive-complexity) */
 char **glob_word(const char *pattern, int *n)
 {
     if (!pattern || !n) return NULL;
@@ -1109,6 +1214,8 @@ static int expand_positional_token(petrush_cmd_t *cmd, int *pi)
     if ((int)n != 1) {
         memmove(&cmd->argv[i + (int)n], &cmd->argv[i + 1],
                 sizeof(char *) * (size_t)(old_argc - i - 1));
+        /* new_argc ja redimensionou argv_quoted; analyzer nao rastreia. */
+        /* NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
         memmove(&cmd->argv_quoted[i + (int)n], &cmd->argv_quoted[i + 1],
                 sizeof(int) * (size_t)(old_argc - i - 1));
     }

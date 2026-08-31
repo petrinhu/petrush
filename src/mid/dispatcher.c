@@ -30,6 +30,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+extern char **environ;
+
 /* ASM-PGID: wrapper setpgid; fallback libc se PETRUSH_ASM=OFF. */
 static int dispatcher_setpgid(pid_t pid, pid_t pgid)
 {
@@ -74,6 +76,7 @@ static const builtin_entry_t builtins[] = {
     { "shift",   builtin_shift   }, /* OSH-2: shift [n] */
     { "return",  builtin_return  }, /* OSH-7: return [n] so em funcao */
     { "local",   builtin_local   }, /* OSH-8: local name[=value] so em fn */
+    { "set",     builtin_set     }, /* OSH-16: set / -- / -x / $? / $- */
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -191,6 +194,45 @@ static petrush_fn_entry_t g_fns[PETRUSH_FN_MAX];
 static int g_fn_depth;
 static int g_returning;
 static int g_return_status;
+
+/* OSH-16: special-builtin / expansion abort do runner de script. */
+static int g_shell_abort;
+
+int petrush_take_shell_abort(void)
+{
+    int a = g_shell_abort;
+    g_shell_abort = 0;
+    return a;
+}
+
+void petrush_shell_abort_clear(void)
+{
+    g_shell_abort = 0;
+}
+
+static void shell_abort_raise(void)
+{
+    g_shell_abort = 1;
+}
+
+/* OSH-16: PS4 fixo "+ " (espaco); argv ja expandido. */
+static void xtrace_print_cmd(const petrush_cmd_t *cmd)
+{
+    if (!petrush_shellopt_get('x')) {
+        return;
+    }
+    if (!cmd || cmd->argc <= 0 || !cmd->argv) {
+        return;
+    }
+    fputs("+ ", stderr);
+    for (int i = 0; i < cmd->argc; i++) {
+        if (i > 0) {
+            fputc(' ', stderr);
+        }
+        fputs(cmd->argv[i] ? cmd->argv[i] : "", stderr);
+    }
+    fputc('\n', stderr);
+}
 
 /* OSH-8: stack de valores salvos por `local` (LIFO; tag = g_fn_depth). */
 #define PETRUSH_LOCAL_STACK_MAX 256
@@ -395,6 +437,9 @@ int dispatch_command(petrush_cmd_t *cmd)
     if (petrush_take_arith_error()) {
         return 1;
     }
+
+    /* OSH-16: xtrace apos expand, antes de executar (set -x nao se auto-traca). */
+    xtrace_print_cmd(cmd);
 
     /* OSH-6: funcao antes de builtin/PATH (bash-like). */
     const petrush_list_t *fbody = fn_get(cmd->argv[0]);
@@ -888,6 +933,7 @@ static int dispatch_for(petrush_for_t *fr)
 }
 
 /* OSH-10: glob * ? nos padroes (mesmo contrato de expand/ASM-GLOB). */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 static int case_pat_match(const char *pat, const char *str)
 {
 #ifdef PETRUSH_HAVE_ASM
@@ -1158,8 +1204,14 @@ int dispatch_list(petrush_list_t *list)
         } else {
             status = dispatch_pipeline(&it->pl);
         }
+        /* OSH-16: $? = status do item mais recente (pipeline/compound/[[/fn). */
+        petrush_last_status_set(status);
         if (g_returning) {
             return g_return_status;
+        }
+        /* OSH-16: special builtin error → para a lista (script aborta no runner). */
+        if (g_shell_abort) {
+            break;
         }
     }
     return status;
@@ -1201,6 +1253,11 @@ int dispatch_pipeline(petrush_pipeline_t *pl)
     if (pl->ncmds == 1) {
         /* expand já feito; dispatch_command expandiria de novo (idempotente) */
         return dispatch_command(&pl->cmds[0]);
+    }
+
+    /* OSH-16: um "+ " por estágio do pipeline (pai; filho nao re-traca). */
+    for (int i = 0; i < pl->ncmds; i++) {
+        xtrace_print_cmd(&pl->cmds[i]);
     }
 
     /*
@@ -1333,6 +1390,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  shift [n]    - Desloca posicionais (default 1; n>$# erro)\n");
     printf("  return [n]   - Sai da funcao com status n (default 0; so em fn)\n");
     printf("  local NAME[=VALUE] - Var local na funcao (restaura ao sair; sem flags)\n");
+    printf("  set [--] [args] / set [-+]x / set [-+]o xtrace - Opcoes e posicionais\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -1729,6 +1787,141 @@ static int dispatch_dbracket(petrush_dbracket_t *db)
     return status;
 }
 
+/*
+ * OSH-16: set — special builtin.
+ * sem args: dump environ "%s=%s\n"; -- / args: posicionais ($0 intacto);
+ * -x/+x/-o xtrace; -C no-op; +C erro; -e/-u ainda invalid nesta fatia.
+ */
+static int set_apply_letter(char letter, int on)
+{
+    switch (letter) {
+    case 'x':
+        (void)petrush_shellopt_set('x', on);
+        return 0;
+    case 'C':
+        if (!on) {
+            fprintf(stderr, "petrush: set: +C: invalid option\n");
+            return -1;
+        }
+        return 0; /* noclobber always-on */
+    default:
+        /* Inclui -e/-u (OSH-17/18) e letras desconhecidas. */
+        fprintf(stderr, "petrush: set: %c%c: invalid option\n",
+                on ? '-' : '+', letter);
+        return -1;
+    }
+}
+
+static int set_apply_o_name(const char *name, int on)
+{
+    if (!name) {
+        fprintf(stderr, "petrush: set: %so: option argument expected\n",
+                on ? "-" : "+");
+        return -1;
+    }
+    if (strcmp(name, "xtrace") == 0) {
+        (void)petrush_shellopt_set('x', on);
+        return 0;
+    }
+    if (strcmp(name, "noclobber") == 0) {
+        if (!on) {
+            fprintf(stderr, "petrush: set: noclobber: invalid option\n");
+            return -1;
+        }
+        return 0;
+    }
+    /* errexit/nounset = -e/-u: ainda unknown em OSH-16. */
+    fprintf(stderr, "petrush: set: %s: invalid option\n", name);
+    return -1;
+}
+
+static int set_rewrite_positionals(int argc, char **argv)
+{
+    const char *arg0 = petrush_positional_get(0);
+    if (!arg0) {
+        arg0 = "petrush";
+    }
+    /* strdup $0 antes do clear interno de positional_set. */
+    char *saved0 = strdup(arg0);
+    if (!saved0) {
+        return 1;
+    }
+    int rc = petrush_positional_set(saved0, argc, argv);
+    free(saved0);
+    return (rc == 0) ? 0 : 1;
+}
+
+int builtin_set(petrush_cmd_t *cmd)
+{
+    if (!cmd) {
+        return 1;
+    }
+
+    if (cmd->argc <= 1) {
+        for (char **ep = environ; ep && *ep; ep++) {
+            const char *e = *ep;
+            const char *eq = strchr(e, '=');
+            if (eq) {
+                printf("%.*s=%s\n", (int)(eq - e), e, eq + 1);
+            } else {
+                printf("%s=\n", e);
+            }
+        }
+        return 0;
+    }
+
+    int i = 1;
+    int rewrite_pos = 0;
+    while (i < cmd->argc) {
+        const char *arg = cmd->argv[i];
+        if (!arg) {
+            i++;
+            continue;
+        }
+        if (strcmp(arg, "--") == 0) {
+            i++;
+            rewrite_pos = 1;
+            break;
+        }
+        if ((arg[0] == '-' || arg[0] == '+') && arg[1] != '\0') {
+            int on = (arg[0] == '-');
+            if (arg[1] == 'o' && arg[2] == '\0') {
+                if (i + 1 >= cmd->argc) {
+                    fprintf(stderr, "petrush: set: %so: option argument expected\n",
+                            on ? "-" : "+");
+                    shell_abort_raise();
+                    return 1;
+                }
+                if (set_apply_o_name(cmd->argv[i + 1], on) != 0) {
+                    shell_abort_raise();
+                    return 1;
+                }
+                i += 2;
+                continue;
+            }
+            for (const char *p = arg + 1; *p; p++) {
+                if (set_apply_letter(*p, on) != 0) {
+                    shell_abort_raise();
+                    return 1;
+                }
+            }
+            i++;
+            continue;
+        }
+        rewrite_pos = 1; /* args que nao sao opcao → posicionais */
+        break;
+    }
+
+    if (rewrite_pos) {
+        if (set_rewrite_positionals(cmd->argc - i, cmd->argv + i) != 0) {
+            shell_abort_raise();
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* OSH-2: shift [n]; default 1; n>$# → 1 e intactos; shift 0 no-op. */
 int builtin_shift(petrush_cmd_t *cmd)
 {
@@ -1884,8 +2077,6 @@ int builtin_env(petrush_cmd_t *cmd)
 {
     (void)cmd;
 
-    extern char **environ;
-
     for (char **env = environ; *env != NULL; env++) {
         printf("%s\n", *env);
     }
@@ -2000,8 +2191,8 @@ int builtin_info(petrush_cmd_t *cmd)
     printf("petrush %s\n", PETRUSH_VERSION);
     printf("C23 REPL shell\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("Features: history, rc, signals, pudo, pipes, redir (noclobber), alias, PS1, complete, hints, &&/||/;/&, glob, source/., jobs.\n");
-    printf("Anti-OE: sem fg/bg/Ctrl-Z/%%n, sem []/**, sem $1/return em source, sem set -C\n");
+    printf("Features: history, rc, signals, pudo, pipes, redir (noclobber), alias, PS1, complete, hints, &&/||/;/&, glob, source/., jobs, set/-x.\n");
+    printf("Anti-OE: noclobber always-on; sem trap/arrays/pipefail/fg\n");
     return 0;
 }
 

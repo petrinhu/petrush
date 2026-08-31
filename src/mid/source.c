@@ -65,6 +65,9 @@ static int run_file_lines(FILE *f, const char *path)
     int lineno = 0;
     int status = 0;
 
+    /* OSH-16: special-builtin abort nao deve vazar de chamada anterior. */
+    petrush_shell_abort_clear();
+
     while (fgets(linebuf, sizeof(linebuf), f)) {
         lineno++;
 
@@ -100,6 +103,10 @@ static int run_file_lines(FILE *f, const char *path)
             }
             petrush_list_free(&list);
             free(expanded);
+            /* OSH-16: set invalid etc. → para o runner (2.8.1). */
+            if (petrush_take_shell_abort()) {
+                break;
+            }
             if (fill_rc == 2) {
                 break; /* EOF ja consumido no fill */
             }

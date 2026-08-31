@@ -1030,10 +1030,12 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh14-heredoc-expand.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-15 heredoc dash strip smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh15-heredoc-dash.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-16 set/-x smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh16-set-x.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0..15 + XDG-1)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0..16 + XDG-1)"
     VERBATIM
 )
 
@@ -1132,6 +1134,13 @@ add_custom_target(osh15_heredoc_dash
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh15-heredoc-dash.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush
     COMMENT "OSH-15 <<- strip tabs heredoc smoke"
+    VERBATIM
+)
+
+add_custom_target(osh16_set_x
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh16-set-x.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "OSH-16 set/-x/\$?/\$- smoke"
     VERBATIM
 )
 

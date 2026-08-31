@@ -83,6 +83,16 @@ int builtin_return(petrush_cmd_t *cmd);
 /* OSH-8: local name[=value] so em funcao; restaura ao sair; sem flags */
 int builtin_local(petrush_cmd_t *cmd);
 
+/* OSH-16: set [--] [args] | set [-+][euxC] | set [-+]o name; special builtin */
+int builtin_set(petrush_cmd_t *cmd);
+
+/*
+ * OSH-16: abort do runner (special builtin / expansion error).
+ * take consome; clear no inicio de run_file_lines.
+ */
+int petrush_take_shell_abort(void);
+void petrush_shell_abort_clear(void);
+
 /*
  * OSH-9: runner de $(cmd). pipe+fork; filho parse_list+dispatch_list+_exit.
  * Teto PETRUSH_CMDSUBST_MAX_DEPTH; captura ate PETRUSH_CMDSUBST_MAX_BYTES.

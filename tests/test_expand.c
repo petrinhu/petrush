@@ -617,6 +617,80 @@ void test_osh2_shift_all_leaves_empty(void)
     petrush_positional_clear();
 }
 
+/* OSH-16: $? / $- / shellopt (x); C always-on em $-. */
+void test_osh16_dollar_question_default_zero(void)
+{
+    petrush_shellopt_reset_for_tests();
+    char *e = expand_word("$?");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "0") == 0);
+    free(e);
+}
+
+void test_osh16_dollar_question_after_set(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_last_status_set(7);
+    char *e = expand_word("$?");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "7") == 0);
+    free(e);
+    petrush_last_status_set(0);
+    e = expand_word("$?");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "0") == 0);
+    free(e);
+}
+
+void test_osh16_dollar_minus_has_C(void)
+{
+    petrush_shellopt_reset_for_tests();
+    char *e = expand_word("$-");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strchr(e, 'C') != NULL);
+    TEST_CHECK(strchr(e, 'x') == NULL);
+    free(e);
+}
+
+void test_osh16_dollar_minus_x_when_on(void)
+{
+    petrush_shellopt_reset_for_tests();
+    TEST_CHECK(petrush_shellopt_set('x', 1) == 0);
+    TEST_CHECK(petrush_shellopt_get('x') == 1);
+    char *e = expand_word("$-");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strchr(e, 'C') != NULL);
+    TEST_CHECK(strchr(e, 'x') != NULL);
+    free(e);
+    TEST_CHECK(petrush_shellopt_set('x', 0) == 0);
+    TEST_CHECK(petrush_shellopt_get('x') == 0);
+    e = expand_word("$-");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strchr(e, 'x') == NULL);
+    free(e);
+}
+
+void test_osh16_shellopt_rejects_unknown_flag(void)
+{
+    petrush_shellopt_reset_for_tests();
+    TEST_CHECK(petrush_shellopt_set('z', 1) != 0);
+    TEST_CHECK(petrush_shellopt_get('z') == 0);
+}
+
+void test_osh16_heredoc_body_status_and_flags(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_last_status_set(3);
+    TEST_CHECK(petrush_shellopt_set('x', 1) == 0);
+    char *e = expand_heredoc_body("st=$? fl=$-\n");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strstr(e, "st=3") != NULL);
+    TEST_CHECK(strstr(e, "fl=") != NULL);
+    TEST_CHECK(strchr(e, 'C') != NULL);
+    TEST_CHECK(strchr(e, 'x') != NULL);
+    free(e);
+}
+
 TEST_LIST = {
     { "tilde_alone", test_tilde_alone },
     { "tilde_slash", test_tilde_slash },
@@ -666,5 +740,11 @@ TEST_LIST = {
     { "osh14_heredoc_body_quotes_not_special", test_osh14_heredoc_body_quotes_not_special },
     { "osh14_expand_cmd_unquoted", test_osh14_expand_cmd_unquoted },
     { "osh14_expand_cmd_quoted_literal", test_osh14_expand_cmd_quoted_literal },
+    { "osh16_dollar_question_default_zero", test_osh16_dollar_question_default_zero },
+    { "osh16_dollar_question_after_set", test_osh16_dollar_question_after_set },
+    { "osh16_dollar_minus_has_C", test_osh16_dollar_minus_has_C },
+    { "osh16_dollar_minus_x_when_on", test_osh16_dollar_minus_x_when_on },
+    { "osh16_shellopt_rejects_unknown_flag", test_osh16_shellopt_rejects_unknown_flag },
+    { "osh16_heredoc_body_status_and_flags", test_osh16_heredoc_body_status_and_flags },
     { NULL, NULL }
 };

@@ -997,6 +997,275 @@ void test_help_mentions_local(void)
     TEST_CHECK(strstr(buf, "local") != NULL);
 }
 
+/* OSH-16: set / set -- / $? / $- / -x (capture stdout+stderr de dispatch_list). */
+static void osh16_reset(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_shell_abort_clear();
+}
+
+static int capture_list_stdio(const char *line, char *out, size_t outsz,
+                              char *err, size_t errsz, int *status_out)
+{
+    petrush_list_t list = {0};
+    if (petrush_parse_list(line, &list) != 0) {
+        petrush_list_free(&list);
+        return -1;
+    }
+
+    int outfds[2] = {-1, -1};
+    int errfds[2] = {-1, -1};
+    if (pipe(outfds) != 0 || pipe(errfds) != 0) {
+        if (outfds[0] >= 0) {
+            close(outfds[0]);
+            close(outfds[1]);
+        }
+        petrush_list_free(&list);
+        return -1;
+    }
+    int saved_out = dup(STDOUT_FILENO);
+    int saved_err = dup(STDERR_FILENO);
+    if (saved_out < 0 || saved_err < 0) {
+        if (saved_out >= 0) {
+            close(saved_out);
+        }
+        if (saved_err >= 0) {
+            close(saved_err);
+        }
+        close(outfds[0]);
+        close(outfds[1]);
+        close(errfds[0]);
+        close(errfds[1]);
+        petrush_list_free(&list);
+        return -1;
+    }
+    fflush(stdout);
+    fflush(stderr);
+    if (dup2(outfds[1], STDOUT_FILENO) < 0 ||
+        dup2(errfds[1], STDERR_FILENO) < 0) {
+        dup2(saved_out, STDOUT_FILENO);
+        dup2(saved_err, STDERR_FILENO);
+        close(saved_out);
+        close(saved_err);
+        close(outfds[0]);
+        close(outfds[1]);
+        close(errfds[0]);
+        close(errfds[1]);
+        petrush_list_free(&list);
+        return -1;
+    }
+    close(outfds[1]);
+    close(errfds[1]);
+
+    int st = dispatch_list(&list);
+    fflush(stdout);
+    fflush(stderr);
+    dup2(saved_out, STDOUT_FILENO);
+    dup2(saved_err, STDERR_FILENO);
+    close(saved_out);
+    close(saved_err);
+
+    if (status_out) {
+        *status_out = st;
+    }
+
+    if (out && outsz > 0) {
+        ssize_t n = read(outfds[0], out, outsz - 1);
+        if (n < 0) {
+            n = 0;
+        }
+        out[n] = '\0';
+    }
+    if (err && errsz > 0) {
+        ssize_t n = read(errfds[0], err, errsz - 1);
+        if (n < 0) {
+            n = 0;
+        }
+        err[n] = '\0';
+    }
+    close(outfds[0]);
+    close(errfds[0]);
+    petrush_list_free(&list);
+    return 0;
+}
+
+void test_osh16_set_in_table(void)
+{
+    TEST_CHECK(builtin_table_has("set"));
+}
+
+void test_osh16_set_double_dash_positionals(void)
+{
+    osh16_reset();
+    char *oldargs[] = {"old"};
+    TEST_CHECK(petrush_positional_set("sh", 1, oldargs) == 0);
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("set -- a b", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(strcmp(petrush_positional_get(0), "sh") == 0);
+    TEST_CHECK(petrush_positional_count() == 2);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "a") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(2), "b") == 0);
+
+    TEST_CHECK(petrush_parse_list("set --", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(strcmp(petrush_positional_get(0), "sh") == 0);
+    TEST_CHECK(petrush_positional_count() == 0);
+    petrush_positional_clear();
+}
+
+void test_osh16_set_args_without_dash(void)
+{
+    osh16_reset();
+    TEST_CHECK(petrush_positional_set("prog", 0, NULL) == 0);
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("set foo bar", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(strcmp(petrush_positional_get(0), "prog") == 0);
+    TEST_CHECK(petrush_positional_count() == 2);
+    TEST_CHECK(strcmp(petrush_positional_get(1), "foo") == 0);
+    TEST_CHECK(strcmp(petrush_positional_get(2), "bar") == 0);
+    petrush_positional_clear();
+}
+
+void test_osh16_last_status_false_true(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("false; echo $?", out, sizeof(out), err,
+                                  sizeof(err), &st) == 0);
+    TEST_CHECK(strstr(out, "1") != NULL);
+
+    memset(out, 0, sizeof(out));
+    TEST_CHECK(capture_list_stdio("true; echo $?", out, sizeof(out), err,
+                                  sizeof(err), &st) == 0);
+    TEST_CHECK(strstr(out, "0") != NULL);
+}
+
+void test_osh16_xtrace_traces_echo(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[512] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("set -x; echo hi", out, sizeof(out), err,
+                                  sizeof(err), &st) == 0);
+    TEST_CHECK(strstr(out, "hi") != NULL);
+    TEST_CHECK(strstr(err, "+ echo hi") != NULL);
+}
+
+void test_osh16_xtrace_set_x_not_self(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[512] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("set -x; echo hi", out, sizeof(out), err,
+                                  sizeof(err), &st) == 0);
+    TEST_CHECK(strstr(err, "+ set -x") == NULL);
+}
+
+void test_osh16_xtrace_plus_x_is_traced(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[512] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("set -x; set +x; echo done", out, sizeof(out),
+                                  err, sizeof(err), &st) == 0);
+    TEST_CHECK(strstr(err, "+ set +x") != NULL);
+}
+
+void test_osh16_dollar_minus_via_echo(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("set -x; echo $-", out, sizeof(out), err,
+                                  sizeof(err), &st) == 0);
+    TEST_CHECK(strchr(out, 'C') != NULL);
+    TEST_CHECK(strchr(out, 'x') != NULL);
+}
+
+void test_osh16_set_plus_C_fails(void)
+{
+    osh16_reset();
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("set +C", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) != 0);
+    petrush_list_free(&list);
+}
+
+void test_osh16_set_minus_C_ok(void)
+{
+    osh16_reset();
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("set -C", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+}
+
+void test_osh16_set_unknown_z(void)
+{
+    osh16_reset();
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("set -z", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) != 0);
+    petrush_list_free(&list);
+}
+
+void test_osh16_set_e_unknown_until_osh18(void)
+{
+    osh16_reset();
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("set -e", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) != 0);
+    petrush_list_free(&list);
+    osh16_reset();
+    TEST_CHECK(petrush_parse_list("set -u", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) != 0);
+    petrush_list_free(&list);
+}
+
+void test_osh16_set_o_xtrace(void)
+{
+    osh16_reset();
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("set -o xtrace", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('x') == 1);
+    TEST_CHECK(petrush_parse_list("set +o xtrace", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('x') == 0);
+}
+
+void test_help_mentions_set(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("help", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    /* Evitar casar dentro de "unset". */
+    TEST_CHECK(strstr(buf, "  set ") != NULL || strstr(buf, "set [--]") != NULL);
+}
+
+void test_info_anti_oe_noclobber_always(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("info", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "noclobber always-on") != NULL);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -1061,5 +1330,20 @@ TEST_LIST = {
     { "osh8_local_rejects_flags", test_osh8_local_rejects_flags },
     { "osh8_local_restore_on_return", test_osh8_local_restore_on_return },
     { "help_mentions_local", test_help_mentions_local },
+    { "osh16_set_in_table", test_osh16_set_in_table },
+    { "osh16_set_double_dash_positionals", test_osh16_set_double_dash_positionals },
+    { "osh16_set_args_without_dash", test_osh16_set_args_without_dash },
+    { "osh16_last_status_false_true", test_osh16_last_status_false_true },
+    { "osh16_xtrace_traces_echo", test_osh16_xtrace_traces_echo },
+    { "osh16_xtrace_set_x_not_self", test_osh16_xtrace_set_x_not_self },
+    { "osh16_xtrace_plus_x_is_traced", test_osh16_xtrace_plus_x_is_traced },
+    { "osh16_dollar_minus_via_echo", test_osh16_dollar_minus_via_echo },
+    { "osh16_set_plus_C_fails", test_osh16_set_plus_C_fails },
+    { "osh16_set_minus_C_ok", test_osh16_set_minus_C_ok },
+    { "osh16_set_unknown_z", test_osh16_set_unknown_z },
+    { "osh16_set_e_unknown_until_osh18", test_osh16_set_e_unknown_until_osh18 },
+    { "osh16_set_o_xtrace", test_osh16_set_o_xtrace },
+    { "help_mentions_set", test_help_mentions_set },
+    { "info_anti_oe_noclobber_always", test_info_anti_oe_noclobber_always },
     { NULL, NULL }
 };

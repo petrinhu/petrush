@@ -5,6 +5,7 @@
  * + shift [n] (OSH-2; sem ${1:-} / arrays)
  * + cmdsubst $(cmd) via hook DIP (OSH-9; sem backticks)
  * + arith $((expr)) int64 (OSH-11; + - * / % ( ) unary)
+ * + $? / $- / shellopt e|u|x (OSH-16; -e/-u honrados depois)
  */
 
 #ifndef PETRUSH_EXPAND_H
@@ -28,6 +29,18 @@ void petrush_set_cmdsubst_hook(petrush_cmdsubst_hook_t hook);
  * Consome e limpa o flag (take). Dispatcher usa para status != 0.
  */
 int petrush_take_arith_error(void);
+
+/*
+ * OSH-16: flags de set (-e/-u/-x). C (noclobber) always-on em $-; nao e bit.
+ * set/get: so 'e'|'u'|'x'; outro → !=0. flags(): static "C" + eux ligados.
+ */
+int petrush_shellopt_set(char flag, int on);
+int petrush_shellopt_get(char flag);
+const char *petrush_shellopt_flags(void);
+void petrush_last_status_set(int status);
+int petrush_last_status(void);
+/* Zera e/u/x e $?; nao desliga noclobber (C). */
+void petrush_shellopt_reset_for_tests(void);
 
 /*
  * OSH-1: estado de posicionais (struct, nao environ com "1"/"#").
