@@ -829,7 +829,7 @@ static char *expand_params_inner(const char *word, int heredoc_escapes)
                     /* $0 nunca NULL; $1..$9 unset → -u erro (exceto $@ $*) */
                     if (g_opt_u && idx >= 1) {
                         char pbuf[4];
-                        (void)snprintf(pbuf, sizeof(pbuf), "$%u", idx);
+                        (void)snprintf(pbuf, sizeof(pbuf), "$%c", p[1]);
                         nounset_fail(pbuf);
                     }
                     val = "";
