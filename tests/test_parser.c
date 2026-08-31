@@ -929,6 +929,71 @@ void test_parse_osh9_arith_not_cmdsubst_span(void)
     petrush_cmd_free(&cmd);
 }
 
+/* OSH-10: case word in pat) list ;; esac */
+void test_parse_case_simple(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("case x in y) echo a ;; esac", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_CASE)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].cs.word != NULL);
+    TEST_CHECK(strcmp(list.items[0].cs.word, "x") == 0);
+    TEST_CHECK(list.items[0].cs.narms == 1);
+    TEST_CHECK(list.items[0].cs.arms[0].npatterns == 1);
+    TEST_CHECK(strcmp(list.items[0].cs.arms[0].patterns[0], "y") == 0);
+    TEST_CHECK(list.items[0].cs.arms[0].body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].cs.arms[0].body.items[0].pl.cmds[0].argv[0],
+                       "echo") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-10: "esac" quoted nao fecha; palavra esac como argv */
+void test_parse_case_esac_quoted_literal(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("case x in y) echo \"esac\" ;; esac",
+                                  &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_CASE)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].cs.narms == 1);
+    TEST_CHECK(list.items[0].cs.arms[0].body.nitems == 1);
+    TEST_CHECK(strcmp(list.items[0].cs.arms[0].body.items[0].pl.cmds[0].argv[1],
+                       "esac") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-10: alternacao pat1|pat2 */
+void test_parse_case_or_patterns(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("case x in a|b) echo m ;; esac", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_CASE)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].cs.narms == 1);
+    TEST_CHECK(list.items[0].cs.arms[0].npatterns == 2);
+    TEST_CHECK(strcmp(list.items[0].cs.arms[0].patterns[0], "a") == 0);
+    TEST_CHECK(strcmp(list.items[0].cs.arms[0].patterns[1], "b") == 0);
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -1001,5 +1066,8 @@ TEST_LIST = {
     { "parse_osh9_cmdsubst_one_word", test_parse_osh9_cmdsubst_one_word },
     { "parse_osh9_cmdsubst_concat", test_parse_osh9_cmdsubst_concat },
     { "parse_osh9_arith_not_cmdsubst_span", test_parse_osh9_arith_not_cmdsubst_span },
+    { "parse_case_simple", test_parse_case_simple },
+    { "parse_case_esac_quoted_literal", test_parse_case_esac_quoted_literal },
+    { "parse_case_or_patterns", test_parse_case_or_patterns },
     { NULL, NULL }
 };

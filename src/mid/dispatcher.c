@@ -675,7 +675,7 @@ static int clone_pipeline(const petrush_pipeline_t *src, petrush_pipeline_t *dst
     return 0;
 }
 
-/* Nested if/while/for/fn clone is intentional AST walk. */
+/* Nested if/while/for/fn/case clone is intentional AST walk. */
 /* NOLINTNEXTLINE(misc-no-recursion, readability-function-cognitive-complexity) */
 static int clone_list(const petrush_list_t *src, petrush_list_t *dst)
 {
@@ -762,6 +762,49 @@ static int clone_list(const petrush_list_t *src, petrush_list_t *dst)
                 petrush_list_free(dst);
                 return -1;
             }
+        } else if (si->kind == PETRUSH_ITEM_CASE) {
+            if (si->cs.word) {
+                di->cs.word = strdup(si->cs.word);
+                if (!di->cs.word) {
+                    petrush_list_free(dst);
+                    return -1;
+                }
+            }
+            if (si->cs.narms > 0) {
+                di->cs.arms =
+                    calloc((size_t)si->cs.narms, sizeof(petrush_case_arm_t));
+                if (!di->cs.arms) {
+                    petrush_list_free(dst);
+                    return -1;
+                }
+                di->cs.narms = si->cs.narms;
+                for (int a = 0; a < si->cs.narms; a++) {
+                    const petrush_case_arm_t *sa = &si->cs.arms[a];
+                    petrush_case_arm_t *da = &di->cs.arms[a];
+                    if (sa->npatterns > 0) {
+                        da->patterns =
+                            calloc((size_t)sa->npatterns, sizeof(char *));
+                        if (!da->patterns) {
+                            petrush_list_free(dst);
+                            return -1;
+                        }
+                        da->npatterns = sa->npatterns;
+                        for (int p = 0; p < sa->npatterns; p++) {
+                            if (sa->patterns[p]) {
+                                da->patterns[p] = strdup(sa->patterns[p]);
+                                if (!da->patterns[p]) {
+                                    petrush_list_free(dst);
+                                    return -1;
+                                }
+                            }
+                        }
+                    }
+                    if (clone_list(&sa->body, &da->body) != 0) {
+                        petrush_list_free(dst);
+                        return -1;
+                    }
+                }
+            }
         } else {
             if (clone_pipeline(&si->pl, &di->pl) != 0) {
                 petrush_list_free(dst);
@@ -800,6 +843,93 @@ static int dispatch_for(petrush_for_t *fr)
         }
     }
     return status;
+}
+
+/* OSH-10: glob * ? nos padroes (mesmo contrato de expand/ASM-GLOB). */
+static int case_pat_match(const char *pat, const char *str)
+{
+#ifdef PETRUSH_HAVE_ASM
+    return petrush_glob_match(pat, str);
+#else
+    const char *p = pat;
+    const char *s = str;
+    const char *star_p = NULL;
+    const char *star_s = NULL;
+    if (!p) {
+        p = "";
+    }
+    if (!s) {
+        s = "";
+    }
+    while (*s) {
+        if (*p == '*') {
+            star_p = ++p;
+            star_s = s;
+            continue;
+        }
+        if (*p == '?' || *p == *s) {
+            p++;
+            s++;
+            continue;
+        }
+        if (star_p) {
+            p = star_p;
+            s = ++star_s;
+            continue;
+        }
+        return 0;
+    }
+    while (*p == '*') {
+        p++;
+    }
+    return *p == '\0';
+#endif
+}
+
+/*
+ * OSH-10: case word in arms... esac
+ * Word expandida uma vez. Primeiro padrao que casa (glob * ?) ganha.
+ * Status = ultimo cmd do braco; 0 se nenhum casou ou narms==0.
+ */
+/* NOLINTNEXTLINE(misc-no-recursion) */
+static int dispatch_case(petrush_case_t *cs)
+{
+    if (!cs || !cs->word) {
+        return 0;
+    }
+    char *word = expand_word(cs->word);
+    if (!word) {
+        return 1;
+    }
+    int status = 0;
+    for (int a = 0; a < cs->narms; a++) {
+        petrush_case_arm_t *arm = &cs->arms[a];
+        int matched = 0;
+        for (int p = 0; p < arm->npatterns; p++) {
+            const char *pat = arm->patterns[p] ? arm->patterns[p] : "";
+            if (case_pat_match(pat, word)) {
+                matched = 1;
+                break;
+            }
+        }
+        if (!matched) {
+            continue;
+        }
+        petrush_list_t body_copy = {0};
+        if (clone_list(&arm->body, &body_copy) != 0) {
+            free(word);
+            return 1;
+        }
+        status = dispatch_list(&body_copy);
+        petrush_list_free(&body_copy);
+        free(word);
+        if (g_returning) {
+            return g_return_status;
+        }
+        return status;
+    }
+    free(word);
+    return 0;
 }
 
 /* OSH-9: profundidade de cmdsubst (herdada via fork). */
@@ -969,6 +1099,9 @@ int dispatch_list(petrush_list_t *list)
         } else if (it->kind == PETRUSH_ITEM_FOR) {
             /* background em for fica fora desta onda; ignora flag */
             status = dispatch_for(&it->fr);
+        } else if (it->kind == PETRUSH_ITEM_CASE) {
+            /* background em case fica fora desta onda; ignora flag */
+            status = dispatch_case(&it->cs);
         } else if (it->kind == PETRUSH_ITEM_FN) {
             /* definicao: registra body; chamada e via dispatch_command */
             status = dispatch_fn_def(&it->fn);

@@ -537,7 +537,35 @@ int petrush_parse(const char *input, petrush_cmd_t *out)
     return 0;
 }
 
-/* Nested list/if/while/for/fn free is intentional AST walk. */
+/* Nested case body free walks lists that may contain case (AST). */
+/* NOLINTNEXTLINE(misc-no-recursion) */
+static void free_case_contents(petrush_case_t *cs)
+{
+    if (!cs) {
+        return;
+    }
+    free(cs->word);
+    cs->word = NULL;
+    if (cs->arms) {
+        for (int a = 0; a < cs->narms; a++) {
+            petrush_case_arm_t *arm = &cs->arms[a];
+            if (arm->patterns) {
+                for (int p = 0; p < arm->npatterns; p++) {
+                    free(arm->patterns[p]);
+                }
+                free(arm->patterns);
+            }
+            arm->patterns = NULL;
+            arm->npatterns = 0;
+            petrush_list_free(&arm->body);
+        }
+        free(cs->arms);
+    }
+    cs->arms = NULL;
+    cs->narms = 0;
+}
+
+/* Nested list/if/while/for/fn/case free is intentional AST walk. */
 /* NOLINTNEXTLINE(misc-no-recursion) */
 void petrush_list_free(petrush_list_t *list)
 {
@@ -577,6 +605,8 @@ void petrush_list_free(petrush_list_t *list)
             free(it->fn.name);
             it->fn.name = NULL;
             petrush_list_free(&it->fn.body);
+        } else if (it->kind == PETRUSH_ITEM_CASE) {
+            free_case_contents(&it->cs);
         } else {
             petrush_pipeline_free(&it->pl);
         }
@@ -627,6 +657,16 @@ static int find_list_connector(const char *s, size_t from, size_t *out_pos,
             return 1;
         }
         if (c == ';') {
+            /* OSH-10: `;;` barra o segmento (fim do braco); nao consome (clen=0) */
+            if (s[i + 1] == ';') {
+                *out_pos = i;
+                *out_cond = PETRUSH_COND_ALWAYS;
+                *out_len = 0;
+                if (out_bg) {
+                    *out_bg = 0;
+                }
+                return 1;
+            }
             *out_pos = i;
             *out_cond = PETRUSH_COND_ALWAYS;
             *out_len = 1;
@@ -651,7 +691,7 @@ static int find_list_connector(const char *s, size_t from, size_t *out_pos,
     return 0;
 }
 
-/* OSH-3/4/5/6: reserved words só em posição de comando (unquoted). */
+/* OSH-3/4/5/6/10: reserved words só em posição de comando (unquoted). */
 enum {
     KW_IF     = 1,
     KW_THEN   = 2,
@@ -662,7 +702,9 @@ enum {
     KW_DO     = 64,
     KW_DONE   = 128,
     KW_FOR    = 256,
-    KW_RBRACE = 512
+    KW_RBRACE = 512,
+    KW_ESAC   = 1024,
+    KW_DSEMI  = 2048  /* `;;` terminador de braco case */
 };
 
 static void skip_ws_pos(const char *s, size_t *pos)
@@ -724,6 +766,22 @@ static int match_rbrace_at(const char *s, size_t pos, size_t *end_out)
     return 1;
 }
 
+/* OSH-10: `;;` (espacos a frente ok; nao e keyword textual). */
+static int match_dsemi_at(const char *s, size_t pos, size_t *end_out)
+{
+    size_t i = pos;
+    while (s[i] && isspace((unsigned char)s[i])) {
+        i++;
+    }
+    if (s[i] != ';' || s[i + 1] != ';') {
+        return 0;
+    }
+    if (end_out) {
+        *end_out = i + 2;
+    }
+    return 1;
+}
+
 static int peek_kw_mask(const char *s, size_t pos, int mask, size_t *end_out)
 {
     size_t end = 0;
@@ -764,6 +822,14 @@ static int peek_kw_mask(const char *s, size_t pos, int mask, size_t *end_out)
     if ((mask & KW_RBRACE) && match_rbrace_at(s, pos, &end)) {
         if (end_out) *end_out = end;
         return KW_RBRACE;
+    }
+    if ((mask & KW_ESAC) && match_kw_at(s, pos, "esac", &end)) {
+        if (end_out) *end_out = end;
+        return KW_ESAC;
+    }
+    if ((mask & KW_DSEMI) && match_dsemi_at(s, pos, &end)) {
+        if (end_out) *end_out = end;
+        return KW_DSEMI;
     }
     return 0;
 }
@@ -807,6 +873,7 @@ static int if_push_arm(petrush_if_arm_t **arms, int *narms, int *cap,
 static int parse_if(const char *s, size_t *pos, petrush_if_t *out);
 static int parse_while(const char *s, size_t *pos, petrush_while_t *out);
 static int parse_for(const char *s, size_t *pos, petrush_for_t *out);
+static int parse_case(const char *s, size_t *pos, petrush_case_t *out);
 static int parse_fn(const char *s, size_t *pos, petrush_fn_t *out, int from_kw);
 static int looks_like_fn_def(const char *s, size_t pos);
 static int parse_list_until(const char *s, size_t *pos, int stop_mask,
@@ -905,7 +972,7 @@ static int take_conn_after(const char *s, size_t *pos,
     return 1;
 }
 
-/* Recursive descent: list <-> if/while/for/fn. Complexity from keyword dispatch. */
+/* Recursive descent: list <-> if/while/for/fn/case. Complexity from keyword dispatch. */
 /* NOLINTNEXTLINE(misc-no-recursion, readability-function-cognitive-complexity) */
 static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                             petrush_list_t *out, int require_term)
@@ -982,6 +1049,18 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                     item.background = 1;
                 }
             }
+        } else if (match_kw_at(s, *pos, "case", &kw_end)) {
+            item.kind = PETRUSH_ITEM_CASE;
+            if (parse_case(s, pos, &item.cs) != 0) {
+                goto fail;
+            }
+            int bg = 0;
+            if (take_conn_after(s, pos, &next_cond, &bg)) {
+                had_conn = 1;
+                if (bg) {
+                    item.background = 1;
+                }
+            }
         } else if (match_kw_at(s, *pos, "function", &kw_end)) {
             item.kind = PETRUSH_ITEM_FN;
             if (parse_fn(s, pos, &item.fn, 1) != 0) {
@@ -1047,6 +1126,8 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
             } else if (item.kind == PETRUSH_ITEM_FN) {
                 free(item.fn.name);
                 petrush_list_free(&item.fn.body);
+            } else if (item.kind == PETRUSH_ITEM_CASE) {
+                free_case_contents(&item.cs);
             } else {
                 petrush_pipeline_free(&item.pl);
             }
@@ -1306,6 +1387,232 @@ fail:
     out->words = NULL;
     out->nwords = 0;
     petrush_list_free(&out->body);
+    memset(out, 0, sizeof(*out));
+    return -1;
+}
+
+/*
+ * OSH-10: padrao de case — como scan_for_word, mas para em `|` / `)` unquoted.
+ */
+static char *scan_case_pattern(const char **pp, int *quoted_out)
+{
+    const char *p = *pp;
+    char quote = 0;
+    int quoted = 0;
+    if (*p == '\'' || *p == '"') {
+        quote = *p;
+        quoted = 1;
+        p++;
+    }
+    const char *start = p;
+    while (*p) {
+        if (quote) {
+            if (*p == quote) {
+                p++;
+                break;
+            }
+            p++;
+            continue;
+        }
+        if (isspace((unsigned char)*p)) {
+            break;
+        }
+        if (*p == '|' || *p == ')' || *p == ';' || *p == '&' || *p == '<' ||
+            *p == '>') {
+            break;
+        }
+        if (*p == '$') {
+            size_t sp = petrush_cmdsubst_span(p);
+            if (sp > 0) {
+                p += sp;
+                continue;
+            }
+        }
+        p++;
+    }
+    size_t token_len = (size_t)(p - start);
+    if (quote && token_len > 0 && start[token_len - 1] == quote) {
+        token_len--;
+    }
+    char *text = malloc(token_len + 1);
+    if (!text) {
+        *pp = p;
+        *quoted_out = quoted;
+        return NULL;
+    }
+    memcpy(text, start, token_len);
+    text[token_len] = '\0';
+    *pp = p;
+    *quoted_out = quoted;
+    return text;
+}
+
+static int case_push_arm(petrush_case_arm_t **arms, int *narms, int *cap,
+                         petrush_case_arm_t *arm)
+{
+    if (*narms >= *cap) {
+        int ncap = *cap ? *cap * 2 : 4;
+        petrush_case_arm_t *p =
+            realloc(*arms, (size_t)ncap * sizeof(*p));
+        if (!p) {
+            return -1;
+        }
+        *arms = p;
+        *cap = ncap;
+    }
+    (*arms)[*narms] = *arm;
+    (*narms)++;
+    return 0;
+}
+
+/* OSH-10: case word in [ [(] pat[|pat]...) list ;; ]... esac */
+/* NOLINTNEXTLINE(misc-no-recursion, readability-function-cognitive-complexity) */
+static int parse_case(const char *s, size_t *pos, petrush_case_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    size_t end = 0;
+    if (!match_kw_at(s, *pos, "case", &end)) {
+        return -1;
+    }
+    *pos = end;
+    skip_ws_pos(s, pos);
+
+    const char *p = s + *pos;
+    int quoted = 0;
+    char *word = scan_for_word(&p, &quoted);
+    *pos = (size_t)(p - s);
+    if (!word || word[0] == '\0') {
+        free(word);
+        goto fail;
+    }
+    out->word = word;
+
+    skip_ws_pos(s, pos);
+    if (!match_kw_at(s, *pos, "in", &end)) {
+        goto fail;
+    }
+    *pos = end;
+
+    petrush_case_arm_t *arms = NULL;
+    int narms = 0;
+    int acap = 0;
+
+    for (;;) {
+        skip_ws_pos(s, pos);
+        if (match_kw_at(s, *pos, "esac", &end)) {
+            *pos = end;
+            break;
+        }
+        if (s[*pos] == '\0') {
+            goto fail_arms;
+        }
+
+        /* `(` opcional no inicio do braco */
+        if (s[*pos] == '(') {
+            (*pos)++;
+        }
+
+        char **pats = NULL;
+        int npats = 0;
+        int pcap = 0;
+        for (;;) {
+            skip_ws_pos(s, pos);
+            if (s[*pos] == '\0') {
+                for (int i = 0; i < npats; i++) {
+                    free(pats[i]);
+                }
+                free(pats);
+                goto fail_arms;
+            }
+            p = s + *pos;
+            quoted = 0;
+            char *pat = scan_case_pattern(&p, &quoted);
+            *pos = (size_t)(p - s);
+            if (!pat) {
+                for (int i = 0; i < npats; i++) {
+                    free(pats[i]);
+                }
+                free(pats);
+                goto fail_arms;
+            }
+            if (pat[0] == '\0') {
+                free(pat);
+                for (int i = 0; i < npats; i++) {
+                    free(pats[i]);
+                }
+                free(pats);
+                goto fail_arms;
+            }
+            if (for_push_word(&pats, &npats, &pcap, pat) != 0) {
+                free(pat);
+                for (int i = 0; i < npats; i++) {
+                    free(pats[i]);
+                }
+                free(pats);
+                goto fail_arms;
+            }
+            skip_ws_pos(s, pos);
+            if (s[*pos] == '|') {
+                (*pos)++;
+                continue;
+            }
+            if (s[*pos] == ')') {
+                (*pos)++;
+                break;
+            }
+            for (int i = 0; i < npats; i++) {
+                free(pats[i]);
+            }
+            free(pats);
+            goto fail_arms;
+        }
+
+        petrush_case_arm_t arm;
+        memset(&arm, 0, sizeof(arm));
+        arm.patterns = pats;
+        arm.npatterns = npats;
+        if (parse_list_until(s, pos, KW_DSEMI | KW_ESAC, &arm.body, 1) != 0) {
+            for (int i = 0; i < npats; i++) {
+                free(pats[i]);
+            }
+            free(pats);
+            goto fail_arms;
+        }
+
+        skip_ws_pos(s, pos);
+        if (match_dsemi_at(s, *pos, &end)) {
+            *pos = end;
+        } else if (!match_kw_at(s, *pos, "esac", NULL)) {
+            petrush_list_free(&arm.body);
+            for (int i = 0; i < npats; i++) {
+                free(pats[i]);
+            }
+            free(pats);
+            goto fail_arms;
+        }
+        /* sem `;;` antes de esac: aceito (braco final) */
+
+        if (case_push_arm(&arms, &narms, &acap, &arm) != 0) {
+            petrush_list_free(&arm.body);
+            for (int i = 0; i < npats; i++) {
+                free(pats[i]);
+            }
+            free(pats);
+            goto fail_arms;
+        }
+    }
+
+    out->arms = arms;
+    out->narms = narms;
+    return 0;
+
+fail_arms:
+    {
+        petrush_case_t tmp = {.word = NULL, .arms = arms, .narms = narms};
+        free_case_contents(&tmp);
+    }
+fail:
+    free_case_contents(out);
     memset(out, 0, sizeof(*out));
     return -1;
 }
