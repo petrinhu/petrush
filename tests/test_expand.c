@@ -691,6 +691,126 @@ void test_osh16_heredoc_body_status_and_flags(void)
     free(e);
 }
 
+/* OSH-17: set -u nounset */
+void test_osh17_nounset_bare_var_errors(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_unsetenv("OSH17_NOPE");
+    (void)petrush_take_nounset_error();
+    TEST_CHECK(petrush_shellopt_set('u', 1) == 0);
+    char *e = expand_word("$OSH17_NOPE");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(petrush_take_nounset_error() == 1);
+    TEST_CHECK(petrush_take_nounset_error() == 0); /* take consome */
+    free(e);
+}
+
+void test_osh17_without_u_unset_is_empty(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_unsetenv("OSH17_NOPE");
+    (void)petrush_take_nounset_error();
+    char *e = expand_word("$OSH17_NOPE");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "") == 0);
+    TEST_CHECK(petrush_take_nounset_error() == 0);
+    free(e);
+}
+
+void test_osh17_default_op_skips_nounset(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_unsetenv("OSH17_NOPE");
+    (void)petrush_take_nounset_error();
+    TEST_CHECK(petrush_shellopt_set('u', 1) == 0);
+    char *e = expand_word("${OSH17_NOPE:-x}");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "x") == 0);
+    TEST_CHECK(petrush_take_nounset_error() == 0);
+    free(e);
+}
+
+void test_osh17_brace_unset_errors(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_unsetenv("OSH17_NOPE");
+    (void)petrush_take_nounset_error();
+    TEST_CHECK(petrush_shellopt_set('u', 1) == 0);
+    char *e = expand_word("${OSH17_NOPE}");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(petrush_take_nounset_error() == 1);
+    free(e);
+}
+
+void test_osh17_set_empty_does_not_error(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_setenv("OSH17_NOPE", "", 1);
+    (void)petrush_take_nounset_error();
+    TEST_CHECK(petrush_shellopt_set('u', 1) == 0);
+    char *e = expand_word("$OSH17_NOPE");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "") == 0);
+    TEST_CHECK(petrush_take_nounset_error() == 0);
+    free(e);
+    petrush_unsetenv("OSH17_NOPE");
+}
+
+void test_osh17_positional_unset_errors(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_positional_clear();
+    TEST_CHECK(petrush_positional_set("script", 0, NULL) == 0);
+    (void)petrush_take_nounset_error();
+    TEST_CHECK(petrush_shellopt_set('u', 1) == 0);
+    char *e = expand_word("$1");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(petrush_take_nounset_error() == 1);
+    free(e);
+    petrush_positional_clear();
+}
+
+void test_osh17_at_star_empty_ok(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_positional_clear();
+    TEST_CHECK(petrush_positional_set("script", 0, NULL) == 0);
+    (void)petrush_take_nounset_error();
+    TEST_CHECK(petrush_shellopt_set('u', 1) == 0);
+    char *e = expand_word("$@");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(petrush_take_nounset_error() == 0);
+    free(e);
+    e = expand_word("$*");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(petrush_take_nounset_error() == 0);
+    free(e);
+    petrush_positional_clear();
+}
+
+void test_osh17_dollar_minus_has_u(void)
+{
+    petrush_shellopt_reset_for_tests();
+    TEST_CHECK(petrush_shellopt_set('u', 1) == 0);
+    char *e = expand_word("$-");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strchr(e, 'C') != NULL);
+    TEST_CHECK(strchr(e, 'u') != NULL);
+    free(e);
+}
+
+void test_osh17_heredoc_body_honors_u(void)
+{
+    petrush_shellopt_reset_for_tests();
+    petrush_unsetenv("OSH17_NOPE");
+    (void)petrush_take_nounset_error();
+    TEST_CHECK(petrush_shellopt_set('u', 1) == 0);
+    char *e = expand_heredoc_body("x=$OSH17_NOPE\n");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(petrush_take_nounset_error() == 1);
+    free(e);
+}
+
 TEST_LIST = {
     { "tilde_alone", test_tilde_alone },
     { "tilde_slash", test_tilde_slash },
@@ -746,5 +866,14 @@ TEST_LIST = {
     { "osh16_dollar_minus_x_when_on", test_osh16_dollar_minus_x_when_on },
     { "osh16_shellopt_rejects_unknown_flag", test_osh16_shellopt_rejects_unknown_flag },
     { "osh16_heredoc_body_status_and_flags", test_osh16_heredoc_body_status_and_flags },
+    { "osh17_nounset_bare_var_errors", test_osh17_nounset_bare_var_errors },
+    { "osh17_without_u_unset_is_empty", test_osh17_without_u_unset_is_empty },
+    { "osh17_default_op_skips_nounset", test_osh17_default_op_skips_nounset },
+    { "osh17_brace_unset_errors", test_osh17_brace_unset_errors },
+    { "osh17_set_empty_does_not_error", test_osh17_set_empty_does_not_error },
+    { "osh17_positional_unset_errors", test_osh17_positional_unset_errors },
+    { "osh17_at_star_empty_ok", test_osh17_at_star_empty_ok },
+    { "osh17_dollar_minus_has_u", test_osh17_dollar_minus_has_u },
+    { "osh17_heredoc_body_honors_u", test_osh17_heredoc_body_honors_u },
     { NULL, NULL }
 };

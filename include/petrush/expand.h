@@ -5,7 +5,7 @@
  * + shift [n] (OSH-2; sem ${1:-} / arrays)
  * + cmdsubst $(cmd) via hook DIP (OSH-9; sem backticks)
  * + arith $((expr)) int64 (OSH-11; + - * / % ( ) unary)
- * + $? / $- / shellopt e|u|x (OSH-16; -e/-u honrados depois)
+ * + $? / $- / shellopt e|u|x (OSH-16/17; -e honrado em OSH-18)
  */
 
 #ifndef PETRUSH_EXPAND_H
@@ -31,6 +31,12 @@ void petrush_set_cmdsubst_hook(petrush_cmdsubst_hook_t hook);
 int petrush_take_arith_error(void);
 
 /*
+ * OSH-17: 1 se a ultima expansao falhou por set -u (parametro unset).
+ * Consome e limpa o flag (take). Dispatcher: status != 0 + abort script.
+ */
+int petrush_take_nounset_error(void);
+
+/*
  * OSH-16: flags de set (-e/-u/-x). C (noclobber) always-on em $-; nao e bit.
  * set/get: so 'e'|'u'|'x'; outro → !=0. flags(): static "C" + eux ligados.
  */
@@ -39,7 +45,7 @@ int petrush_shellopt_get(char flag);
 const char *petrush_shellopt_flags(void);
 void petrush_last_status_set(int status);
 int petrush_last_status(void);
-/* Zera e/u/x e $?; nao desliga noclobber (C). */
+/* Zera e/u/x, $? e flag nounset; nao desliga noclobber (C). */
 void petrush_shellopt_reset_for_tests(void);
 
 /*

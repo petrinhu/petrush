@@ -4,6 +4,7 @@
  * + OSH-11 $((expr)) arith (sem arith.c; regra de 3)
  * + OSH-14 here-doc unquoted body expand (sem tilde/glob/split)
  * + OSH-16 $? / $- / shellopt e|u|x (sem set.c)
+ * + OSH-17 set -u nounset (take + stderr)
  */
 
 #include "petrush/expand.h"
@@ -32,6 +33,9 @@ static petrush_cmdsubst_hook_t g_cmdsubst_hook;
 /* OSH-11: div0 na ultima expansao arith. */
 static int g_arith_error;
 
+/* OSH-17: expansao de parametro unset com set -u. */
+static int g_nounset_error;
+
 /* OSH-16: set -e/-u/-x bits + $?; C (noclobber) always-on em $-. */
 static int g_opt_e;
 static int g_opt_u;
@@ -49,6 +53,19 @@ int petrush_take_arith_error(void)
     int e = g_arith_error;
     g_arith_error = 0;
     return e;
+}
+
+int petrush_take_nounset_error(void)
+{
+    int e = g_nounset_error;
+    g_nounset_error = 0;
+    return e;
+}
+
+static void nounset_fail(const char *name)
+{
+    fprintf(stderr, "petrush: %s: parameter not set\n", name ? name : "");
+    g_nounset_error = 1;
 }
 
 /* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
@@ -117,6 +134,7 @@ void petrush_shellopt_reset_for_tests(void)
     g_opt_u = 0;
     g_opt_x = 0;
     g_last_status = 0;
+    g_nounset_error = 0;
 }
 
 void petrush_positional_clear(void)
@@ -590,6 +608,9 @@ static int expand_brace(const char **pp, char **out, size_t *o, size_t *cap)
         nbuf[nlen] = '\0';
 
         const char *val = petrush_getenv(nbuf);
+        if (g_opt_u && !val) {
+            nounset_fail(nbuf);
+        }
         size_t vlen = val ? strlen(val) : 0;
         char lenbuf[32];
         int nw = snprintf(lenbuf, sizeof(lenbuf), "%zu", vlen);
@@ -614,14 +635,19 @@ static int expand_brace(const char **pp, char **out, size_t *o, size_t *cap)
     int null_or_unset = (val == NULL || val[0] == '\0');
 
     if (cur == end) {
-        /* ${VAR} */
-        if (!val) val = "";
+        /* ${VAR} — OSH-17: unset + -u → erro; set-vazia ok */
+        if (!val) {
+            if (g_opt_u) {
+                nounset_fail(nbuf);
+            }
+            val = "";
+        }
         if (append_bytes(out, o, cap, val, strlen(val)) != 0) return -1;
         *pp = after;
         return 0;
     }
 
-    /* ${VAR:-word} / ${VAR:+word} */
+    /* ${VAR:-word} / ${VAR:+word} — operadores isentam -u */
     if (cur[0] == ':' && (cur[1] == '-' || cur[1] == '+') &&
         cur + 2 <= end) {
         char op = cur[1];
@@ -800,6 +826,12 @@ static char *expand_params_inner(const char *word, int heredoc_escapes)
                 unsigned idx = (unsigned)(p[1] - '0');
                 const char *val = petrush_positional_get(idx);
                 if (!val) {
+                    /* $0 nunca NULL; $1..$9 unset → -u erro (exceto $@ $*) */
+                    if (g_opt_u && idx >= 1) {
+                        char pbuf[4];
+                        (void)snprintf(pbuf, sizeof(pbuf), "$%u", idx);
+                        nounset_fail(pbuf);
+                    }
                     val = "";
                 }
                 if (append_bytes(&out, &o, &cap, val, strlen(val)) != 0) {
@@ -824,6 +856,9 @@ static char *expand_params_inner(const char *word, int heredoc_escapes)
                 nbuf[nlen] = '\0';
                 const char *val = petrush_getenv(nbuf);
                 if (!val) {
+                    if (g_opt_u) {
+                        nounset_fail(nbuf);
+                    }
                     val = "";
                 }
                 if (append_bytes(&out, &o, &cap, val, strlen(val)) != 0) {

@@ -1032,6 +1032,8 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh15-heredoc-dash.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-16 set/-x smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh16-set-x.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-17 set -u smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh17-set-u.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
@@ -1141,6 +1143,13 @@ add_custom_target(osh16_set_x
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh16-set-x.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush
     COMMENT "OSH-16 set/-x/\$?/\$- smoke"
+    VERBATIM
+)
+
+add_custom_target(osh17_set_u
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh17-set-u.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "OSH-17 set -u nounset smoke"
     VERBATIM
 )
 

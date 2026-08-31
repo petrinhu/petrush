@@ -215,6 +215,20 @@ static void shell_abort_raise(void)
     g_shell_abort = 1;
 }
 
+/* OSH-11 arith + OSH-17 nounset: nounset aborta script (2.8.1). */
+static int take_expand_errors(void)
+{
+    int bad = 0;
+    if (petrush_take_arith_error()) {
+        bad = 1;
+    }
+    if (petrush_take_nounset_error()) {
+        shell_abort_raise();
+        bad = 1;
+    }
+    return bad;
+}
+
 /* OSH-16: PS4 fixo "+ " (espaco); argv ja expandido. */
 static void xtrace_print_cmd(const petrush_cmd_t *cmd)
 {
@@ -433,8 +447,8 @@ int dispatch_command(petrush_cmd_t *cmd)
 
     /* UX-12/13: ~ e $VAR em argv e redirs antes do dispatch */
     expand_cmd_argv(cmd);
-    /* OSH-11: div0 → palavra "0" ja emitida; status do comando != 0 */
-    if (petrush_take_arith_error()) {
+    /* OSH-11 div0 / OSH-17 nounset → nao executa; nounset aborta script */
+    if (take_expand_errors()) {
         return 1;
     }
 
@@ -989,7 +1003,7 @@ static int dispatch_case(petrush_case_t *cs)
     if (!word) {
         return 1;
     }
-    if (petrush_take_arith_error()) {
+    if (take_expand_errors()) {
         free(word);
         return 1;
     }
@@ -1245,7 +1259,7 @@ int dispatch_pipeline(petrush_pipeline_t *pl)
     for (int i = 0; i < pl->ncmds; i++) {
         expand_cmd_argv(&pl->cmds[i]);
     }
-    if (petrush_take_arith_error()) {
+    if (take_expand_errors()) {
         return 1;
     }
 
@@ -1769,7 +1783,7 @@ static int dispatch_dbracket(petrush_dbracket_t *db)
         argv[i] = e;
         quoted[i] = (db->argv_quoted && db->argv_quoted[i]) ? 1 : 0;
     }
-    if (petrush_take_arith_error()) {
+    if (take_expand_errors()) {
         for (int i = 0; i < db->argc; i++) {
             free(argv[i]);
         }
@@ -1788,15 +1802,18 @@ static int dispatch_dbracket(petrush_dbracket_t *db)
 }
 
 /*
- * OSH-16: set — special builtin.
+ * OSH-16/17: set — special builtin.
  * sem args: dump environ "%s=%s\n"; -- / args: posicionais ($0 intacto);
- * -x/+x/-o xtrace; -C no-op; +C erro; -e/-u ainda invalid nesta fatia.
+ * -x/+x/-o xtrace; -u/+u/-o nounset; -C no-op; +C erro; -e ainda invalid (OSH-18).
  */
 static int set_apply_letter(char letter, int on)
 {
     switch (letter) {
     case 'x':
         (void)petrush_shellopt_set('x', on);
+        return 0;
+    case 'u':
+        (void)petrush_shellopt_set('u', on);
         return 0;
     case 'C':
         if (!on) {
@@ -1805,7 +1822,7 @@ static int set_apply_letter(char letter, int on)
         }
         return 0; /* noclobber always-on */
     default:
-        /* Inclui -e/-u (OSH-17/18) e letras desconhecidas. */
+        /* Inclui -e (OSH-18) e letras desconhecidas. */
         fprintf(stderr, "petrush: set: %c%c: invalid option\n",
                 on ? '-' : '+', letter);
         return -1;
@@ -1823,6 +1840,10 @@ static int set_apply_o_name(const char *name, int on)
         (void)petrush_shellopt_set('x', on);
         return 0;
     }
+    if (strcmp(name, "nounset") == 0) {
+        (void)petrush_shellopt_set('u', on);
+        return 0;
+    }
     if (strcmp(name, "noclobber") == 0) {
         if (!on) {
             fprintf(stderr, "petrush: set: noclobber: invalid option\n");
@@ -1830,7 +1851,7 @@ static int set_apply_o_name(const char *name, int on)
         }
         return 0;
     }
-    /* errexit/nounset = -e/-u: ainda unknown em OSH-16. */
+    /* errexit = -e: ainda unknown ate OSH-18. */
     fprintf(stderr, "petrush: set: %s: invalid option\n", name);
     return -1;
 }

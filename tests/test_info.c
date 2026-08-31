@@ -1227,10 +1227,45 @@ void test_osh16_set_e_unknown_until_osh18(void)
     TEST_CHECK(petrush_parse_list("set -e", &list) == 0);
     TEST_CHECK(dispatch_list(&list) != 0);
     petrush_list_free(&list);
+}
+
+/* OSH-17: set -u / -o nounset passam a ser validos; $- ganha u. */
+void test_osh17_set_u_ok(void)
+{
     osh16_reset();
+    petrush_list_t list = {0};
     TEST_CHECK(petrush_parse_list("set -u", &list) == 0);
-    TEST_CHECK(dispatch_list(&list) != 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
     petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('u') == 1);
+    TEST_CHECK(strchr(petrush_shellopt_flags(), 'u') != NULL);
+
+    TEST_CHECK(petrush_parse_list("set +u", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('u') == 0);
+
+    TEST_CHECK(petrush_parse_list("set -o nounset", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('u') == 1);
+    TEST_CHECK(petrush_parse_list("set +o nounset", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('u') == 0);
+}
+
+void test_osh17_unset_aborts_list(void)
+{
+    osh16_reset();
+    petrush_unsetenv("OSH17_NOPE");
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("set -u; echo $OSH17_NOPE; echo should-not",
+                                  &list) == 0);
+    int st = dispatch_list(&list);
+    petrush_list_free(&list);
+    TEST_CHECK(st != 0);
+    TEST_CHECK(petrush_take_shell_abort() == 1);
 }
 
 void test_osh16_set_o_xtrace(void)
@@ -1342,6 +1377,8 @@ TEST_LIST = {
     { "osh16_set_minus_C_ok", test_osh16_set_minus_C_ok },
     { "osh16_set_unknown_z", test_osh16_set_unknown_z },
     { "osh16_set_e_unknown_until_osh18", test_osh16_set_e_unknown_until_osh18 },
+    { "osh17_set_u_ok", test_osh17_set_u_ok },
+    { "osh17_unset_aborts_list", test_osh17_unset_aborts_list },
     { "osh16_set_o_xtrace", test_osh16_set_o_xtrace },
     { "help_mentions_set", test_help_mentions_set },
     { "info_anti_oe_noclobber_always", test_info_anti_oe_noclobber_always },
