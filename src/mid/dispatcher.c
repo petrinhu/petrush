@@ -679,7 +679,9 @@ static int clone_pipeline(const petrush_pipeline_t *src, petrush_pipeline_t *dst
     return 0;
 }
 
-/* Nested if/while/for/fn/case clone is intentional AST walk. */
+static int dispatch_dbracket(petrush_dbracket_t *db);
+
+/* Nested if/while/for/fn/case/[[ clone is intentional AST walk. */
 /* NOLINTNEXTLINE(misc-no-recursion, readability-function-cognitive-complexity) */
 static int clone_list(const petrush_list_t *src, petrush_list_t *dst)
 {
@@ -807,6 +809,35 @@ static int clone_list(const petrush_list_t *src, petrush_list_t *dst)
                         petrush_list_free(dst);
                         return -1;
                     }
+                }
+            }
+        } else if (si->kind == PETRUSH_ITEM_DBRACKET) {
+            if (si->db.argc > 0) {
+                di->db.argv =
+                    calloc((size_t)si->db.argc, sizeof(char *));
+                if (!di->db.argv) {
+                    petrush_list_free(dst);
+                    return -1;
+                }
+                di->db.argc = si->db.argc;
+                for (int a = 0; a < si->db.argc; a++) {
+                    if (si->db.argv[a]) {
+                        di->db.argv[a] = strdup(si->db.argv[a]);
+                        if (!di->db.argv[a]) {
+                            petrush_list_free(dst);
+                            return -1;
+                        }
+                    }
+                }
+                if (si->db.argv_quoted) {
+                    di->db.argv_quoted =
+                        malloc(sizeof(int) * (size_t)si->db.argc);
+                    if (!di->db.argv_quoted) {
+                        petrush_list_free(dst);
+                        return -1;
+                    }
+                    memcpy(di->db.argv_quoted, si->db.argv_quoted,
+                           sizeof(int) * (size_t)si->db.argc);
                 }
             }
         } else {
@@ -1110,6 +1141,8 @@ int dispatch_list(petrush_list_t *list)
         } else if (it->kind == PETRUSH_ITEM_CASE) {
             /* background em case fica fora desta onda; ignora flag */
             status = dispatch_case(&it->cs);
+        } else if (it->kind == PETRUSH_ITEM_DBRACKET) {
+            status = dispatch_dbracket(&it->db);
         } else if (it->kind == PETRUSH_ITEM_FN) {
             /* definicao: registra body; chamada e via dispatch_command */
             status = dispatch_fn_def(&it->fn);
@@ -1490,6 +1523,203 @@ int builtin_test(petrush_cmd_t *cmd)
 
     fprintf(stderr, "%s: too many arguments\n", prog);
     return 2;
+}
+
+/* OSH-12 helpers: primaries FEAT-TEST + == glob; && || ! short-circuit. */
+static int dbr_is_unary(const char *op)
+{
+    return op && (strcmp(op, "-f") == 0 || strcmp(op, "-d") == 0 ||
+                  strcmp(op, "-e") == 0 || strcmp(op, "-z") == 0 ||
+                  strcmp(op, "-n") == 0);
+}
+
+static int dbr_is_binop(const char *op)
+{
+    return op && (strcmp(op, "=") == 0 || strcmp(op, "==") == 0 ||
+                  strcmp(op, "!=") == 0 || strcmp(op, "-eq") == 0 ||
+                  strcmp(op, "-ne") == 0 || strcmp(op, "-lt") == 0 ||
+                  strcmp(op, "-gt") == 0);
+}
+
+static int dbr_str_cmp(const char *lhs, const char *op, const char *rhs,
+                       int rhs_quoted)
+{
+    int eq;
+    if (!rhs_quoted) {
+        eq = case_pat_match(rhs, lhs) ? 1 : 0;
+    } else {
+        eq = (strcmp(lhs, rhs) == 0) ? 1 : 0;
+    }
+    if (strcmp(op, "!=") == 0) {
+        return eq ? 1 : 0;
+    }
+    return eq ? 0 : 1;
+}
+
+static int dbr_skip_term(char **argv, int argc, int *idx)
+{
+    while (*idx < argc && strcmp(argv[*idx], "!") == 0) {
+        (*idx)++;
+    }
+    if (*idx >= argc) {
+        return 2;
+    }
+    if (*idx + 1 < argc && dbr_is_unary(argv[*idx])) {
+        *idx += 2;
+        return 0;
+    }
+    if (*idx + 2 < argc && dbr_is_binop(argv[*idx + 1])) {
+        *idx += 3;
+        return 0;
+    }
+    (*idx)++;
+    return 0;
+}
+
+static int dbr_eval_primary(char **argv, const int *quoted, int argc, int *idx)
+{
+    if (*idx >= argc) {
+        return 2;
+    }
+    if (*idx + 1 < argc && dbr_is_unary(argv[*idx])) {
+        int st = feat_test_unary((feat_test_unary_args){
+            .unary_op = argv[*idx],
+            .operand = argv[*idx + 1] ? argv[*idx + 1] : "",
+        });
+        *idx += 2;
+        return st;
+    }
+    if (*idx + 2 < argc && dbr_is_binop(argv[*idx + 1])) {
+        const char *lhs = argv[*idx] ? argv[*idx] : "";
+        const char *op = argv[*idx + 1];
+        const char *rhs = argv[*idx + 2] ? argv[*idx + 2] : "";
+        int rq = (quoted && quoted[*idx + 2]) ? 1 : 0;
+        int st;
+        if (strcmp(op, "=") == 0 || strcmp(op, "==") == 0 ||
+            strcmp(op, "!=") == 0) {
+            st = dbr_str_cmp(lhs, op, rhs, rq);
+        } else {
+            st = feat_test_binary(lhs, op, rhs);
+        }
+        *idx += 3;
+        return st;
+    }
+    /* string nao-vazia → true (como test ARG) */
+    const char *s = argv[*idx] ? argv[*idx] : "";
+    (*idx)++;
+    return (s[0] != '\0') ? 0 : 1;
+}
+
+static int dbr_eval_term(char **argv, const int *quoted, int argc, int *idx)
+{
+    int neg = 0;
+    while (*idx < argc && strcmp(argv[*idx], "!") == 0) {
+        neg ^= 1;
+        (*idx)++;
+    }
+    int st = dbr_eval_primary(argv, quoted, argc, idx);
+    if (st == 2) {
+        return 2;
+    }
+    if (neg) {
+        return (st == 0) ? 1 : 0;
+    }
+    return st;
+}
+
+static int dbr_eval_expr(char **argv, const int *quoted, int argc)
+{
+    if (argc <= 0) {
+        return 1;
+    }
+    int idx = 0;
+    int status = dbr_eval_term(argv, quoted, argc, &idx);
+    while (idx < argc) {
+        const char *op = argv[idx];
+        if (strcmp(op, "&&") == 0) {
+            idx++;
+            if (status == 2) {
+                return 2;
+            }
+            if (status == 0) {
+                int r = dbr_eval_term(argv, quoted, argc, &idx);
+                if (r == 2) {
+                    return 2;
+                }
+                status = r;
+            } else if (dbr_skip_term(argv, argc, &idx) != 0) {
+                return 2;
+            }
+        } else if (strcmp(op, "||") == 0) {
+            idx++;
+            if (status == 2) {
+                return 2;
+            }
+            if (status != 0) {
+                int r = dbr_eval_term(argv, quoted, argc, &idx);
+                if (r == 2) {
+                    return 2;
+                }
+                status = r;
+            } else if (dbr_skip_term(argv, argc, &idx) != 0) {
+                return 2;
+            }
+        } else {
+            fprintf(stderr, "[[: %s: operator expected\n", op);
+            return 2;
+        }
+    }
+    return status;
+}
+
+/* OSH-12: [[ ... ]] — expand_word por token; RHS unquoted de =/==/!= → glob. */
+static int dispatch_dbracket(petrush_dbracket_t *db)
+{
+    if (!db) {
+        return 2;
+    }
+    if (db->argc <= 0) {
+        return 1;
+    }
+
+    char **argv = calloc((size_t)db->argc, sizeof(char *));
+    int *quoted = calloc((size_t)db->argc, sizeof(int));
+    if (!argv || !quoted) {
+        free(argv);
+        free(quoted);
+        return 2;
+    }
+
+    for (int i = 0; i < db->argc; i++) {
+        const char *raw = db->argv[i] ? db->argv[i] : "";
+        char *e = expand_word(raw);
+        if (!e) {
+            for (int j = 0; j < i; j++) {
+                free(argv[j]);
+            }
+            free(argv);
+            free(quoted);
+            return 2;
+        }
+        argv[i] = e;
+        quoted[i] = (db->argv_quoted && db->argv_quoted[i]) ? 1 : 0;
+    }
+    if (petrush_take_arith_error()) {
+        for (int i = 0; i < db->argc; i++) {
+            free(argv[i]);
+        }
+        free(argv);
+        free(quoted);
+        return 1;
+    }
+
+    int status = dbr_eval_expr(argv, quoted, db->argc);
+    for (int i = 0; i < db->argc; i++) {
+        free(argv[i]);
+    }
+    free(argv);
+    free(quoted);
+    return status;
 }
 
 /* OSH-2: shift [n]; default 1; n>$# → 1 e intactos; shift 0 no-op. */

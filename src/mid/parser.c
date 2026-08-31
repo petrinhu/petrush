@@ -590,6 +590,8 @@ int petrush_parse(const char *input, petrush_cmd_t *out)
     return 0;
 }
 
+static void free_dbracket_contents(petrush_dbracket_t *db);
+
 /* Nested case body free walks lists that may contain case (AST). */
 /* NOLINTNEXTLINE(misc-no-recursion) */
 static void free_case_contents(petrush_case_t *cs)
@@ -660,6 +662,8 @@ void petrush_list_free(petrush_list_t *list)
             petrush_list_free(&it->fn.body);
         } else if (it->kind == PETRUSH_ITEM_CASE) {
             free_case_contents(&it->cs);
+        } else if (it->kind == PETRUSH_ITEM_DBRACKET) {
+            free_dbracket_contents(&it->db);
         } else {
             petrush_pipeline_free(&it->pl);
         }
@@ -927,6 +931,7 @@ static int parse_if(const char *s, size_t *pos, petrush_if_t *out);
 static int parse_while(const char *s, size_t *pos, petrush_while_t *out);
 static int parse_for(const char *s, size_t *pos, petrush_for_t *out);
 static int parse_case(const char *s, size_t *pos, petrush_case_t *out);
+static int parse_dbracket(const char *s, size_t *pos, petrush_dbracket_t *out);
 static int parse_fn(const char *s, size_t *pos, petrush_fn_t *out, int from_kw);
 static int looks_like_fn_def(const char *s, size_t pos);
 static int parse_list_until(const char *s, size_t *pos, int stop_mask,
@@ -1114,6 +1119,18 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                     item.background = 1;
                 }
             }
+        } else if (match_kw_at(s, *pos, "[[", &kw_end)) {
+            item.kind = PETRUSH_ITEM_DBRACKET;
+            if (parse_dbracket(s, pos, &item.db) != 0) {
+                goto fail;
+            }
+            int bg = 0;
+            if (take_conn_after(s, pos, &next_cond, &bg)) {
+                had_conn = 1;
+                if (bg) {
+                    item.background = 1;
+                }
+            }
         } else if (match_kw_at(s, *pos, "function", &kw_end)) {
             item.kind = PETRUSH_ITEM_FN;
             if (parse_fn(s, pos, &item.fn, 1) != 0) {
@@ -1181,6 +1198,8 @@ static int parse_list_until(const char *s, size_t *pos, int stop_mask,
                 petrush_list_free(&item.fn.body);
             } else if (item.kind == PETRUSH_ITEM_CASE) {
                 free_case_contents(&item.cs);
+            } else if (item.kind == PETRUSH_ITEM_DBRACKET) {
+                free_dbracket_contents(&item.db);
             } else {
                 petrush_pipeline_free(&item.pl);
             }
@@ -1666,6 +1685,121 @@ fail_arms:
     }
 fail:
     free_case_contents(out);
+    memset(out, 0, sizeof(*out));
+    return -1;
+}
+
+static void free_dbracket_contents(petrush_dbracket_t *db)
+{
+    if (!db) {
+        return;
+    }
+    if (db->argv) {
+        for (int i = 0; i < db->argc; i++) {
+            free(db->argv[i]);
+        }
+        free(db->argv);
+    }
+    free(db->argv_quoted);
+    db->argv = NULL;
+    db->argv_quoted = NULL;
+    db->argc = 0;
+}
+
+static int db_push_tok(petrush_dbracket_t *db, char *word, int quoted, int *cap)
+{
+    if (db->argc >= *cap) {
+        int ncap = *cap ? *cap * 2 : 4;
+        char **na = realloc(db->argv, (size_t)ncap * sizeof(*na));
+        if (!na) {
+            return -1;
+        }
+        db->argv = na;
+        int *nq = realloc(db->argv_quoted, (size_t)ncap * sizeof(*nq));
+        if (!nq) {
+            return -1;
+        }
+        db->argv_quoted = nq;
+        *cap = ncap;
+    }
+    db->argv[db->argc] = word;
+    db->argv_quoted[db->argc] = quoted ? 1 : 0;
+    db->argc++;
+    return 0;
+}
+
+/* OSH-12: [[ tokens... ]]; && || ! internos nao sao conectores de lista. */
+/* NOLINTNEXTLINE(readability-function-cognitive-complexity) */
+static int parse_dbracket(const char *s, size_t *pos, petrush_dbracket_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    size_t end = 0;
+    if (!match_kw_at(s, *pos, "[[", &end)) {
+        return -1;
+    }
+    *pos = end;
+
+    int cap = 0;
+    for (;;) {
+        skip_ws_pos(s, pos);
+        if (s[*pos] == '\0') {
+            goto fail;
+        }
+        /* ]] unquoted fecha; "]]" quoted cai em scan_for_word */
+        if (match_kw_at(s, *pos, "]]", &end)) {
+            *pos = end;
+            break;
+        }
+        if (s[*pos] == '&' && s[*pos + 1] == '&') {
+            char *w = strdup("&&");
+            if (!w || db_push_tok(out, w, 0, &cap) != 0) {
+                free(w);
+                goto fail;
+            }
+            *pos += 2;
+            continue;
+        }
+        if (s[*pos] == '|' && s[*pos + 1] == '|') {
+            char *w = strdup("||");
+            if (!w || db_push_tok(out, w, 0, &cap) != 0) {
+                free(w);
+                goto fail;
+            }
+            *pos += 2;
+            continue;
+        }
+        if (s[*pos] == '!' &&
+            (s[*pos + 1] == '\0' || isspace((unsigned char)s[*pos + 1]) ||
+             s[*pos + 1] == '&' || s[*pos + 1] == '|')) {
+            char *w = strdup("!");
+            if (!w || db_push_tok(out, w, 0, &cap) != 0) {
+                free(w);
+                goto fail;
+            }
+            (*pos)++;
+            continue;
+        }
+
+        const char *p = s + *pos;
+        int quoted = 0;
+        char *word = scan_for_word(&p, &quoted);
+        *pos = (size_t)(p - s);
+        if (!word) {
+            goto fail;
+        }
+        if (word[0] == '\0') {
+            free(word);
+            goto fail;
+        }
+        if (db_push_tok(out, word, quoted, &cap) != 0) {
+            free(word);
+            goto fail;
+        }
+    }
+    return 0;
+
+fail:
+    free_dbracket_contents(out);
     memset(out, 0, sizeof(*out));
     return -1;
 }

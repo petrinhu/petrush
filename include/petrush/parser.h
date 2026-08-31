@@ -12,7 +12,8 @@
  * OSH-5: `for name in words; do list; done` (in obrigatorio; sem for (() ).
  * OSH-6: `name() { list; }` / `function name { list; }` (return/local = OSH-7/8).
  * OSH-10: `case word in pat) list ;; esac` (só `;;`; `|` nos padrões; sem `;&`).
- * NÃO: `2>&N` genérico, `[]`/`**`, `[[`, fg/bg/Ctrl-Z/%n.
+ * OSH-12: `[[ ... ]]` (FEAT-TEST + `&&` `||` `!` + `==` glob; sem `=~`).
+ * NÃO: `2>&N` genérico, `[]`/`**`, fg/bg/Ctrl-Z/%n.
  */
 
 #ifndef PETRUSH_PARSER_H
@@ -67,14 +68,15 @@ typedef enum {
     PETRUSH_COND_OR          /* run if previous status != 0 */
 } petrush_run_cond_t;
 
-/* OSH-3/4/5/6/10: item de lista = pipeline, compound if/while/for/fn/case */
+/* OSH-3/4/5/6/10/12: item de lista = pipeline, compound if/while/for/fn/case/[[ */
 typedef enum {
     PETRUSH_ITEM_PIPELINE = 0,
     PETRUSH_ITEM_IF,
     PETRUSH_ITEM_WHILE,
     PETRUSH_ITEM_FOR,
     PETRUSH_ITEM_FN,
-    PETRUSH_ITEM_CASE
+    PETRUSH_ITEM_CASE,
+    PETRUSH_ITEM_DBRACKET
 } petrush_item_kind_t;
 
 typedef struct petrush_list_item petrush_list_item_t;
@@ -130,6 +132,13 @@ typedef struct {
     int narms;           /* 0 = nenhum braço → status 0 */
 } petrush_case_t;
 
+/* OSH-12: [[ tokens... ]] — argv sem [[ / ]]; quoted paralelo (]] quoted nao fecha) */
+typedef struct {
+    char **argv;         /* owned strings */
+    int argc;
+    int *argv_quoted;    /* paralelo; NULL = todos unquoted */
+} petrush_dbracket_t;
+
 struct petrush_list_item {
     petrush_item_kind_t kind;
     petrush_pipeline_t pl;   /* kind == PIPELINE */
@@ -138,6 +147,7 @@ struct petrush_list_item {
     petrush_for_t fr;        /* kind == FOR */
     petrush_fn_t fn;         /* kind == FN */
     petrush_case_t cs;       /* kind == CASE */
+    petrush_dbracket_t db;   /* kind == DBRACKET */
     petrush_run_cond_t cond;
     int background; /* UX-23: 1 se o item terminou com `&` */
 };

@@ -1005,6 +1005,94 @@ void test_parse_case_or_patterns(void)
     petrush_list_free(&list);
 }
 
+/* OSH-12: [[ -f x ]] → DBRACKET (nao pipeline / builtin [) */
+void test_parse_dbracket_simple(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("[[ -f x ]]", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_DBRACKET)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].db.argc == 2);
+    TEST_CHECK(strcmp(list.items[0].db.argv[0], "-f") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[1], "x") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-12: && dentro de [[ nao parte a lista */
+void test_parse_dbracket_and_one_item(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("[[ a == b && c == d ]]", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_DBRACKET)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].db.argc == 7);
+    TEST_CHECK(strcmp(list.items[0].db.argv[0], "a") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[1], "==") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[2], "b") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[3], "&&") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[4], "c") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[5], "==") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[6], "d") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-12: [[ -f f && $x == pat* ]] kind + tokens */
+void test_parse_dbracket_file_and_glob(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("[[ -f f && $x == pat* ]]", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_DBRACKET)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].db.argc == 6);
+    TEST_CHECK(strcmp(list.items[0].db.argv[0], "-f") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[1], "f") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[2], "&&") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[3], "$x") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[4], "==") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[5], "pat*") == 0);
+    petrush_list_free(&list);
+}
+
+/* OSH-12: "]]" quoted nao fecha o compound */
+void test_parse_dbracket_quoted_close_literal(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("[[ \"]]\" == x ]]", &list) == 0);
+    if (!TEST_CHECK(list.nitems == 1)) {
+        petrush_list_free(&list);
+        return;
+    }
+    if (!TEST_CHECK(list.items[0].kind == PETRUSH_ITEM_DBRACKET)) {
+        petrush_list_free(&list);
+        return;
+    }
+    TEST_CHECK(list.items[0].db.argc == 3);
+    TEST_CHECK(strcmp(list.items[0].db.argv[0], "]]") == 0);
+    TEST_CHECK(list.items[0].db.argv_quoted != NULL);
+    TEST_CHECK(list.items[0].db.argv_quoted[0] == 1);
+    TEST_CHECK(strcmp(list.items[0].db.argv[1], "==") == 0);
+    TEST_CHECK(strcmp(list.items[0].db.argv[2], "x") == 0);
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -1081,5 +1169,9 @@ TEST_LIST = {
     { "parse_case_simple", test_parse_case_simple },
     { "parse_case_esac_quoted_literal", test_parse_case_esac_quoted_literal },
     { "parse_case_or_patterns", test_parse_case_or_patterns },
+    { "parse_dbracket_simple", test_parse_dbracket_simple },
+    { "parse_dbracket_and_one_item", test_parse_dbracket_and_one_item },
+    { "parse_dbracket_file_and_glob", test_parse_dbracket_file_and_glob },
+    { "parse_dbracket_quoted_close_literal", test_parse_dbracket_quoted_close_literal },
     { NULL, NULL }
 };
