@@ -58,6 +58,59 @@ size_t petrush_cmdsubst_span(const char *p)
     return (size_t)(s - p);
 }
 
+/*
+ * OSH-11: span de $((...)) a partir de '$'. Depth inicia em 2 (os dois
+ * '(' de '(('). Aspas protegem. 0 se nao casa ou unclosed.
+ */
+size_t petrush_arith_span(const char *p)
+{
+    if (!p || p[0] != '$' || p[1] != '(' || p[2] != '(') {
+        return 0;
+    }
+    const char *s = p + 3;
+    int depth = 2;
+    char quote = 0;
+    while (*s && depth > 0) {
+        if (quote) {
+            if (*s == quote) {
+                quote = 0;
+            }
+            s++;
+            continue;
+        }
+        if (*s == '\'' || *s == '"') {
+            quote = *s;
+            s++;
+            continue;
+        }
+        if (*s == '(') {
+            depth++;
+            s++;
+            continue;
+        }
+        if (*s == ')') {
+            depth--;
+            s++;
+            continue;
+        }
+        s++;
+    }
+    if (depth != 0) {
+        return 0;
+    }
+    return (size_t)(s - p);
+}
+
+/* $(...) ou $((...)): nao quebrar palavra/conector no interior. */
+static size_t dollar_group_span(const char *p)
+{
+    size_t a = petrush_arith_span(p);
+    if (a > 0) {
+        return a;
+    }
+    return petrush_cmdsubst_span(p);
+}
+
 /* Operadores unquoted: | < > >> 2> 2>> 2>&1 &> */
 typedef enum {
     TOK_WORD = 0,
@@ -229,9 +282,9 @@ static char *scan_word(const char **pp, int *quoted_out)
         if (*p == '&' && p[1] == '>') {
             break;
         }
-        /* OSH-9: nao quebrar em espaco/ops dentro de $(...) */
+        /* OSH-9/11: nao quebrar em espaco/ops dentro de $(...) / $((...)) */
         if (*p == '$') {
-            size_t sp = petrush_cmdsubst_span(p);
+            size_t sp = dollar_group_span(p);
             if (sp > 0) {
                 p += sp;
                 continue;
@@ -636,9 +689,9 @@ static int find_list_connector(const char *s, size_t from, size_t *out_pos,
             quote = c;
             continue;
         }
-        /* OSH-9: ; & && || dentro de $(...) nao sao conectores de lista */
+        /* OSH-9/11: ; & && || dentro de $(...) / $((...)) nao sao conectores */
         if (c == '$') {
-            size_t sp = petrush_cmdsubst_span(s + i);
+            size_t sp = dollar_group_span(s + i);
             if (sp > 0) {
                 i += sp - 1; /* for ++ */
                 continue;
@@ -1232,9 +1285,9 @@ static char *scan_for_word(const char **pp, int *quoted_out)
             *p == '>') {
             break;
         }
-        /* OSH-9: nao quebrar dentro de $(...) */
+        /* OSH-9/11: nao quebrar dentro de $(...) / $((...)) */
         if (*p == '$') {
-            size_t sp = petrush_cmdsubst_span(p);
+            size_t sp = dollar_group_span(p);
             if (sp > 0) {
                 p += sp;
                 continue;
@@ -1422,7 +1475,7 @@ static char *scan_case_pattern(const char **pp, int *quoted_out)
             break;
         }
         if (*p == '$') {
-            size_t sp = petrush_cmdsubst_span(p);
+            size_t sp = dollar_group_span(p);
             if (sp > 0) {
                 p += sp;
                 continue;

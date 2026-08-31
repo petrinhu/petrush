@@ -1,6 +1,7 @@
 /*
  * expand.c — tilde and environment variable expansion + OSH-1/2 posicionais
  * + OSH-9 cmdsubst via hook DIP
+ * + OSH-11 $((expr)) arith (sem arith.c; regra de 3)
  */
 
 #include "petrush/expand.h"
@@ -14,6 +15,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <limits.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <dirent.h>
 
 /* OSH-1: posicionais em struct (nao environ). */
@@ -24,9 +27,19 @@ static int g_pos_nargs;
 /* OSH-9: hook DIP (NULL = '$' literal). */
 static petrush_cmdsubst_hook_t g_cmdsubst_hook;
 
+/* OSH-11: div0 na ultima expansao arith. */
+static int g_arith_error;
+
 void petrush_set_cmdsubst_hook(petrush_cmdsubst_hook_t hook)
 {
     g_cmdsubst_hook = hook;
+}
+
+int petrush_take_arith_error(void)
+{
+    int e = g_arith_error;
+    g_arith_error = 0;
+    return e;
 }
 
 void petrush_positional_clear(void)
@@ -171,6 +184,268 @@ static char *positional_join(void)
 
 /* expand_brace chama expand_word no word de :- / :+ */
 char *expand_word(const char *word);
+
+/* ---- OSH-11 arith eval (int64; + - * / % ( ) unary; sem bitwise) ---- */
+
+static int parse_i64_local(const char *s, size_t len, int64_t *out)
+{
+#ifdef PETRUSH_HAVE_ASM
+    return petrush_parse_i64(s, len, out);
+#else
+    if (!s || !out || len == 0) {
+        return -1;
+    }
+    size_t i = 0;
+    int neg = 0;
+    if (s[i] == '+' || s[i] == '-') {
+        neg = (s[i] == '-');
+        i++;
+        if (i >= len) {
+            return -1;
+        }
+    }
+    if (i >= len || !isdigit((unsigned char)s[i])) {
+        return -1;
+    }
+    uint64_t acc = 0;
+    const uint64_t lim = (uint64_t)INT64_MAX + (neg ? 1u : 0u);
+    for (; i < len; i++) {
+        if (!isdigit((unsigned char)s[i])) {
+            return -1;
+        }
+        unsigned d = (unsigned)(s[i] - '0');
+        if (acc > (lim - d) / 10u) {
+            return -1;
+        }
+        acc = acc * 10u + d;
+    }
+    if (neg) {
+        *out = (acc == (uint64_t)INT64_MAX + 1u)
+                   ? INT64_MIN
+                   : -(int64_t)acc;
+    } else {
+        *out = (int64_t)acc;
+    }
+    return 0;
+#endif
+}
+
+typedef struct {
+    const char *p;
+    const char *end;
+    int err; /* 0 ok; 1 div0; 2 syntax */
+} arith_ctx_t;
+
+static void arith_skip_ws(arith_ctx_t *c)
+{
+    while (c->p < c->end &&
+           (*c->p == ' ' || *c->p == '\t' || *c->p == '\n' || *c->p == '\r')) {
+        c->p++;
+    }
+}
+
+static int arith_parse_expr(arith_ctx_t *c, int64_t *out);
+
+static int arith_value_from_text(const char *s, size_t len, int64_t *out)
+{
+    if (!s || len == 0) {
+        *out = 0;
+        return 0;
+    }
+    if (parse_i64_local(s, len, out) != 0) {
+        *out = 0;
+    }
+    return 0;
+}
+
+static int arith_parse_primary(arith_ctx_t *c, int64_t *out)
+{
+    arith_skip_ws(c);
+    if (c->p >= c->end) {
+        c->err = 2;
+        *out = 0;
+        return -1;
+    }
+    if (*c->p == '(') {
+        c->p++;
+        if (arith_parse_expr(c, out) != 0) {
+            return -1;
+        }
+        arith_skip_ws(c);
+        if (c->p >= c->end || *c->p != ')') {
+            c->err = 2;
+            return -1;
+        }
+        c->p++;
+        return 0;
+    }
+    if (*c->p == '$') {
+        c->p++;
+        if (c->p < c->end && isdigit((unsigned char)*c->p)) {
+            unsigned idx = (unsigned)(*c->p - '0');
+            c->p++;
+            const char *val = petrush_positional_get(idx);
+            return arith_value_from_text(val, val ? strlen(val) : 0, out);
+        }
+        if (c->p < c->end && is_name_char(*c->p) &&
+            !isdigit((unsigned char)*c->p)) {
+            const char *name = c->p;
+            while (c->p < c->end && is_name_char(*c->p)) {
+                c->p++;
+            }
+            size_t nlen = (size_t)(c->p - name);
+            char nbuf[256];
+            if (nlen >= sizeof(nbuf)) {
+                nlen = sizeof(nbuf) - 1;
+            }
+            memcpy(nbuf, name, nlen);
+            nbuf[nlen] = '\0';
+            const char *val = petrush_getenv(nbuf);
+            return arith_value_from_text(val, val ? strlen(val) : 0, out);
+        }
+        c->err = 2;
+        *out = 0;
+        return -1;
+    }
+    if (is_name_char(*c->p) && !isdigit((unsigned char)*c->p)) {
+        const char *name = c->p;
+        while (c->p < c->end && is_name_char(*c->p)) {
+            c->p++;
+        }
+        size_t nlen = (size_t)(c->p - name);
+        char nbuf[256];
+        if (nlen >= sizeof(nbuf)) {
+            nlen = sizeof(nbuf) - 1;
+        }
+        memcpy(nbuf, name, nlen);
+        nbuf[nlen] = '\0';
+        const char *val = petrush_getenv(nbuf);
+        return arith_value_from_text(val, val ? strlen(val) : 0, out);
+    }
+    if (isdigit((unsigned char)*c->p)) {
+        const char *start = c->p;
+        while (c->p < c->end && isdigit((unsigned char)*c->p)) {
+            c->p++;
+        }
+        return arith_value_from_text(start, (size_t)(c->p - start), out);
+    }
+    c->err = 2;
+    *out = 0;
+    return -1;
+}
+
+static int arith_parse_unary(arith_ctx_t *c, int64_t *out)
+{
+    arith_skip_ws(c);
+    if (c->p < c->end && (*c->p == '+' || *c->p == '-')) {
+        char op = *c->p;
+        c->p++;
+        int64_t v = 0;
+        if (arith_parse_unary(c, &v) != 0) {
+            return -1;
+        }
+        if (op == '-') {
+            if (v == INT64_MIN) {
+                *out = INT64_MIN;
+            } else {
+                *out = -v;
+            }
+        } else {
+            *out = v;
+        }
+        return 0;
+    }
+    return arith_parse_primary(c, out);
+}
+
+static int arith_parse_term(arith_ctx_t *c, int64_t *out)
+{
+    int64_t left = 0;
+    if (arith_parse_unary(c, &left) != 0) {
+        return -1;
+    }
+    for (;;) {
+        arith_skip_ws(c);
+        if (c->p >= c->end) {
+            break;
+        }
+        char op = *c->p;
+        if (op != '*' && op != '/' && op != '%') {
+            break;
+        }
+        c->p++;
+        int64_t right = 0;
+        if (arith_parse_unary(c, &right) != 0) {
+            return -1;
+        }
+        if (op == '*') {
+            left *= right;
+        } else if (right == 0) {
+            c->err = 1;
+            *out = 0;
+            return -1;
+        } else if (op == '/') {
+            left /= right;
+        } else {
+            left %= right;
+        }
+    }
+    *out = left;
+    return 0;
+}
+
+static int arith_parse_expr(arith_ctx_t *c, int64_t *out)
+{
+    int64_t left = 0;
+    if (arith_parse_term(c, &left) != 0) {
+        return -1;
+    }
+    for (;;) {
+        arith_skip_ws(c);
+        if (c->p >= c->end) {
+            break;
+        }
+        char op = *c->p;
+        if (op != '+' && op != '-') {
+            break;
+        }
+        c->p++;
+        int64_t right = 0;
+        if (arith_parse_term(c, &right) != 0) {
+            return -1;
+        }
+        if (op == '+') {
+            left += right;
+        } else {
+            left -= right;
+        }
+    }
+    *out = left;
+    return 0;
+}
+
+/* 0 ok; 1 div0; 2 syntax. *out sempre escrito. */
+static int eval_arith(const char *inner, size_t len, int64_t *out)
+{
+    *out = 0;
+    if (!inner) {
+        return 2;
+    }
+    arith_ctx_t c = { .p = inner, .end = inner + len, .err = 0 };
+    arith_skip_ws(&c);
+    if (c.p >= c.end) {
+        return 0; /* $(()) -> 0 */
+    }
+    if (arith_parse_expr(&c, out) != 0) {
+        return c.err ? c.err : 2;
+    }
+    arith_skip_ws(&c);
+    if (c.p < c.end) {
+        *out = 0;
+        return 2;
+    }
+    return 0;
+}
 
 static int ensure_cap(char **out, size_t *cap, size_t need)
 {
@@ -421,11 +696,33 @@ char *expand_word(const char *word)
                 p = q;
                 continue;
             }
-            /* OSH-9: $(cmd) via hook; $(( nao e cmdsubst (span==0) */
+            /* OSH-11: $((expr)); OSH-9: $(cmd) via hook */
             if (p[1] == '(') {
+                size_t asp = petrush_arith_span(p);
+                if (asp > 0) {
+                    size_t inner_len = asp >= 5 ? asp - 5 : 0;
+                    int64_t val = 0;
+                    int ar = eval_arith(p + 3, inner_len, &val);
+                    if (ar == 1) {
+                        fprintf(stderr, "petrush: arithmetic: division by 0\n");
+                        g_arith_error = 1;
+                        val = 0;
+                    } else if (ar != 0) {
+                        val = 0;
+                    }
+                    char nbuf[32];
+                    int nw = snprintf(nbuf, sizeof(nbuf), "%" PRId64, val);
+                    if (nw < 0 ||
+                        append_bytes(&out, &o, &cap, nbuf, (size_t)nw) != 0) {
+                        free(out);
+                        return NULL;
+                    }
+                    p += asp;
+                    continue;
+                }
                 size_t sp = petrush_cmdsubst_span(p);
                 if (sp == 0) {
-                    /* $(( ou unclosed: '$' literal */
+                    /* unclosed $(...: '$' literal */
                     if (append_char(&out, &o, &cap, *p) != 0) {
                         free(out);
                         return NULL;

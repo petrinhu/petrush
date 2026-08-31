@@ -152,4 +152,11 @@ void petrush_list_free(petrush_list_t *list);
  */
 size_t petrush_cmdsubst_span(const char *p);
 
+/*
+ * OSH-11: se p aponta para "$((...", retorna comprimento do span incluindo
+ * $(( e )); 0 se nao for arith ou nao fechado. Nesting de paren; aspas
+ * protegem. $(( $(( )) )) aninhado fora desta fatia.
+ */
+size_t petrush_arith_span(const char *p);
+
 #endif /* PETRUSH_PARSER_H */

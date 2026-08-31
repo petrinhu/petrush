@@ -1020,10 +1020,12 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh9-cmdsubst.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-10 case smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh10-case.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-11 arith smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh11-arith.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0..10 + XDG-1)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0..11 + XDG-1)"
     VERBATIM
 )
 
@@ -1087,6 +1089,13 @@ add_custom_target(osh10_case
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh10-case.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush
     COMMENT "OSH-10 case/esac smoke"
+    VERBATIM
+)
+
+add_custom_target(osh11_arith
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh11-arith.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "OSH-11 $((expr)) arith smoke"
     VERBATIM
 )
 

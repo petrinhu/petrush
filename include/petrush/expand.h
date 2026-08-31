@@ -4,6 +4,7 @@
  * + posicionais $0 $1.. $# $@ $* (OSH-1)
  * + shift [n] (OSH-2; sem ${1:-} / arrays)
  * + cmdsubst $(cmd) via hook DIP (OSH-9; sem backticks)
+ * + arith $((expr)) int64 (OSH-11; + - * / % ( ) unary)
  */
 
 #ifndef PETRUSH_EXPAND_H
@@ -21,6 +22,12 @@
  */
 typedef char *(*petrush_cmdsubst_hook_t)(const char *inner_cmd);
 void petrush_set_cmdsubst_hook(petrush_cmdsubst_hook_t hook);
+
+/*
+ * OSH-11: 1 se a ultima expansao aritmetica teve div/mod por zero.
+ * Consome e limpa o flag (take). Dispatcher usa para status != 0.
+ */
+int petrush_take_arith_error(void);
 
 /*
  * OSH-1: estado de posicionais (struct, nao environ com "1"/"#").

@@ -419,6 +419,10 @@ int dispatch_command(petrush_cmd_t *cmd)
 
     /* UX-12/13: ~ e $VAR em argv e redirs antes do dispatch */
     expand_cmd_argv(cmd);
+    /* OSH-11: div0 → palavra "0" ja emitida; status do comando != 0 */
+    if (petrush_take_arith_error()) {
+        return 1;
+    }
 
     /* OSH-6: funcao antes de builtin/PATH (bash-like). */
     const petrush_list_t *fbody = fn_get(cmd->argv[0]);
@@ -901,6 +905,10 @@ static int dispatch_case(petrush_case_t *cs)
     if (!word) {
         return 1;
     }
+    if (petrush_take_arith_error()) {
+        free(word);
+        return 1;
+    }
     int status = 0;
     for (int a = 0; a < cs->narms; a++) {
         petrush_case_arm_t *arm = &cs->arms[a];
@@ -1144,6 +1152,9 @@ int dispatch_pipeline(petrush_pipeline_t *pl)
     /* Expandir todas as etapas cedo (UX-12/13) */
     for (int i = 0; i < pl->ncmds; i++) {
         expand_cmd_argv(&pl->cmds[i]);
+    }
+    if (petrush_take_arith_error()) {
+        return 1;
     }
 
     /* Um estágio: caminho normal (builtin ou externo + redirs) */

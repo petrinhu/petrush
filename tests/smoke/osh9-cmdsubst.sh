@@ -77,11 +77,11 @@ else
     fail "backticks-literal" "out=[$out6]"
 fi
 
-# --- 7) $(( NAO e cmdsubst (aspas simples no teste: bash nao aritmetiza) ---
+# --- 7) $(( NAO e cmdsubst: OSH-11 avalia para 2 (sem hook $( )) ---
 script7="$TMPROOT/arith.sh"
 printf '%s\n' 'echo $((1+1))' > "$script7"
 out7=$("$PETRUSH" "$script7" 2>&1) || true
-if [ "$out7" = '$((1+1))' ]; then
+if [ "$out7" = '2' ]; then
     pass "arith-not-cmdsubst"
 else
     fail "arith-not-cmdsubst" "out=[$out7]"

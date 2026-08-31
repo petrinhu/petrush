@@ -926,7 +926,18 @@ void test_parse_osh9_arith_not_cmdsubst_span(void)
     TEST_CHECK(cmd.argc == 2);
     TEST_CHECK(cmd.argv != NULL && cmd.argv[1] != NULL);
     TEST_CHECK(strcmp(cmd.argv[1], "$((1+1))") == 0);
+    TEST_CHECK(petrush_cmdsubst_span("$((1+1))") == 0);
     petrush_cmd_free(&cmd);
+}
+
+/* OSH-11: petrush_arith_span irmao de cmdsubst */
+void test_parse_osh11_arith_span(void)
+{
+    TEST_CHECK(petrush_arith_span("$((1+1))") == strlen("$((1+1))"));
+    TEST_CHECK(petrush_arith_span("$(( (1+2) ))") == strlen("$(( (1+2) ))"));
+    TEST_CHECK(petrush_arith_span("$(echo x)") == 0);
+    TEST_CHECK(petrush_arith_span("$((1+1)") == 0);
+    TEST_CHECK(petrush_cmdsubst_span("$((1+1))") == 0);
 }
 
 /* OSH-10: case word in pat) list ;; esac */
@@ -1066,6 +1077,7 @@ TEST_LIST = {
     { "parse_osh9_cmdsubst_one_word", test_parse_osh9_cmdsubst_one_word },
     { "parse_osh9_cmdsubst_concat", test_parse_osh9_cmdsubst_concat },
     { "parse_osh9_arith_not_cmdsubst_span", test_parse_osh9_arith_not_cmdsubst_span },
+    { "parse_osh11_arith_span", test_parse_osh11_arith_span },
     { "parse_case_simple", test_parse_case_simple },
     { "parse_case_esac_quoted_literal", test_parse_case_esac_quoted_literal },
     { "parse_case_or_patterns", test_parse_case_or_patterns },

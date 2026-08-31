@@ -417,16 +417,55 @@ void test_osh9_cmdsubst_hook_null_literal_dollar(void)
     free(e);
 }
 
+/* OSH-11: $(( )) avalia; nao passa pelo hook de cmdsubst. */
 void test_osh9_arith_not_cmdsubst(void)
 {
     g_osh9_stub_calls = 0;
     petrush_set_cmdsubst_hook(osh9_stub_cmdsubst);
     char *e = expand_word("$((1+1))");
     TEST_CHECK(e != NULL);
-    TEST_CHECK(strcmp(e, "$((1+1))") == 0);
+    TEST_CHECK(strcmp(e, "2") == 0);
     TEST_CHECK(g_osh9_stub_calls == 0);
     free(e);
     petrush_set_cmdsubst_hook(NULL);
+}
+
+/* OSH-11 TDD: hook NULL prova que nao e caminho $( ). */
+void test_osh11_arith_one_plus_one(void)
+{
+    petrush_set_cmdsubst_hook(NULL);
+    char *e = expand_word("$((1+1))");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "2") == 0);
+    free(e);
+}
+
+void test_osh11_arith_concat(void)
+{
+    petrush_set_cmdsubst_hook(NULL);
+    char *e = expand_word("pre$((1))post");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "pre1post") == 0);
+    free(e);
+}
+
+void test_osh11_arith_unary_parens(void)
+{
+    petrush_set_cmdsubst_hook(NULL);
+    char *e = expand_word("$((-(2+3)*4))");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "-20") == 0);
+    free(e);
+}
+
+void test_osh11_arith_var(void)
+{
+    petrush_setenv("OSH11_N", "7", 1);
+    petrush_set_cmdsubst_hook(NULL);
+    char *e = expand_word("$((OSH11_N+1))");
+    TEST_CHECK(e != NULL);
+    TEST_CHECK(strcmp(e, "8") == 0);
+    free(e);
 }
 
 void test_osh9_backticks_not_expanded(void)
@@ -487,6 +526,10 @@ TEST_LIST = {
     { "osh9_cmdsubst_concat", test_osh9_cmdsubst_concat },
     { "osh9_cmdsubst_hook_null_literal_dollar", test_osh9_cmdsubst_hook_null_literal_dollar },
     { "osh9_arith_not_cmdsubst", test_osh9_arith_not_cmdsubst },
+    { "osh11_arith_one_plus_one", test_osh11_arith_one_plus_one },
+    { "osh11_arith_concat", test_osh11_arith_concat },
+    { "osh11_arith_unary_parens", test_osh11_arith_unary_parens },
+    { "osh11_arith_var", test_osh11_arith_var },
     { "osh9_backticks_not_expanded", test_osh9_backticks_not_expanded },
     { NULL, NULL }
 };
