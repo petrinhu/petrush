@@ -1220,13 +1220,115 @@ void test_osh16_set_unknown_z(void)
     petrush_list_free(&list);
 }
 
-void test_osh16_set_e_unknown_until_osh18(void)
+/* OSH-18: set -e / -o errexit validos; $- ganha e; abort com isencoes. */
+void test_osh18_set_e_ok(void)
 {
     osh16_reset();
     petrush_list_t list = {0};
     TEST_CHECK(petrush_parse_list("set -e", &list) == 0);
-    TEST_CHECK(dispatch_list(&list) != 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
     petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('e') == 1);
+    TEST_CHECK(strchr(petrush_shellopt_flags(), 'e') != NULL);
+
+    TEST_CHECK(petrush_parse_list("set +e", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('e') == 0);
+
+    TEST_CHECK(petrush_parse_list("set -o errexit", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('e') == 1);
+    TEST_CHECK(petrush_parse_list("set +o errexit", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('e') == 0);
+}
+
+void test_osh18_false_aborts_list(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("set -e; false; echo x", out, sizeof(out),
+                                  err, sizeof(err), &st) == 0);
+    TEST_CHECK(st != 0);
+    TEST_CHECK(strstr(out, "x") == NULL);
+    TEST_CHECK(petrush_take_shell_abort() == 1);
+}
+
+void test_osh18_without_e_continues(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("false; echo x", out, sizeof(out),
+                                  err, sizeof(err), &st) == 0);
+    TEST_CHECK(strstr(out, "x") != NULL);
+    TEST_CHECK(petrush_take_shell_abort() == 0);
+}
+
+void test_osh18_if_cond_exempt(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("set -e; if false; then echo x; fi; echo y",
+                                  out, sizeof(out), err, sizeof(err),
+                                  &st) == 0);
+    TEST_CHECK(st == 0);
+    TEST_CHECK(strstr(out, "y") != NULL);
+    TEST_CHECK(strstr(out, "x") == NULL);
+    TEST_CHECK(petrush_take_shell_abort() == 0);
+}
+
+void test_osh18_and_or_last_aborts(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("set -e; true && false; echo y",
+                                  out, sizeof(out), err, sizeof(err),
+                                  &st) == 0);
+    TEST_CHECK(st != 0);
+    TEST_CHECK(strstr(out, "y") == NULL);
+    TEST_CHECK(petrush_take_shell_abort() == 1);
+}
+
+void test_osh18_and_or_non_last_ok(void)
+{
+    osh16_reset();
+    char out[256] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("set -e; false && echo x; echo y",
+                                  out, sizeof(out), err, sizeof(err),
+                                  &st) == 0);
+    TEST_CHECK(st == 0);
+    TEST_CHECK(strstr(out, "y") != NULL);
+    TEST_CHECK(petrush_take_shell_abort() == 0);
+}
+
+void test_osh18_set_eux_ok(void)
+{
+    osh16_reset();
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("set -eux", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_shellopt_get('e') == 1);
+    TEST_CHECK(petrush_shellopt_get('u') == 1);
+    TEST_CHECK(petrush_shellopt_get('x') == 1);
+    const char *fl = petrush_shellopt_flags();
+    TEST_CHECK(strchr(fl, 'e') != NULL);
+    TEST_CHECK(strchr(fl, 'u') != NULL);
+    TEST_CHECK(strchr(fl, 'x') != NULL);
+    TEST_CHECK(strchr(fl, 'C') != NULL);
 }
 
 /* OSH-17: set -u / -o nounset passam a ser validos; $- ganha u. */
@@ -1376,7 +1478,13 @@ TEST_LIST = {
     { "osh16_set_plus_C_fails", test_osh16_set_plus_C_fails },
     { "osh16_set_minus_C_ok", test_osh16_set_minus_C_ok },
     { "osh16_set_unknown_z", test_osh16_set_unknown_z },
-    { "osh16_set_e_unknown_until_osh18", test_osh16_set_e_unknown_until_osh18 },
+    { "osh18_set_e_ok", test_osh18_set_e_ok },
+    { "osh18_false_aborts_list", test_osh18_false_aborts_list },
+    { "osh18_without_e_continues", test_osh18_without_e_continues },
+    { "osh18_if_cond_exempt", test_osh18_if_cond_exempt },
+    { "osh18_and_or_last_aborts", test_osh18_and_or_last_aborts },
+    { "osh18_and_or_non_last_ok", test_osh18_and_or_non_last_ok },
+    { "osh18_set_eux_ok", test_osh18_set_eux_ok },
     { "osh17_set_u_ok", test_osh17_set_u_ok },
     { "osh17_unset_aborts_list", test_osh17_unset_aborts_list },
     { "osh16_set_o_xtrace", test_osh16_set_o_xtrace },

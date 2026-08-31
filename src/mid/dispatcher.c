@@ -198,6 +198,9 @@ static int g_return_status;
 /* OSH-16: special-builtin / expansion abort do runner de script. */
 static int g_shell_abort;
 
+/* OSH-18: contador — condicao de if/elif/while ignora errexit. */
+static int g_no_errexit;
+
 int petrush_take_shell_abort(void)
 {
     int a = g_shell_abort;
@@ -213,6 +216,34 @@ void petrush_shell_abort_clear(void)
 static void shell_abort_raise(void)
 {
     g_shell_abort = 1;
+}
+
+/* OSH-18: AND-OR non-last = proximo item tem cond AND/OR. */
+static int andor_not_last(const petrush_list_t *list, int i)
+{
+    if (!list || i + 1 >= list->nitems) {
+        return 0;
+    }
+    petrush_run_cond_t nc = list->items[i + 1].cond;
+    return (nc == PETRUSH_COND_AND || nc == PETRUSH_COND_OR) ? 1 : 0;
+}
+
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
+static void maybe_errexit(const petrush_list_t *list, int i, int status)
+{
+    if (status == 0) {
+        return;
+    }
+    if (!petrush_shellopt_get('e')) {
+        return;
+    }
+    if (g_no_errexit > 0) {
+        return;
+    }
+    if (andor_not_last(list, i)) {
+        return;
+    }
+    shell_abort_raise();
 }
 
 /* OSH-11 arith + OSH-17 nounset: nounset aborta script (2.8.1). */
@@ -591,12 +622,22 @@ static int dispatch_if(petrush_if_t *ifc)
         if (arm->is_else) {
             return dispatch_list(&arm->body);
         }
+        /* OSH-18: condicao isenta de errexit. */
+        g_no_errexit++;
         int st = dispatch_list(&arm->cond);
+        g_no_errexit--;
         if (g_returning) {
             return g_return_status;
         }
+        if (g_shell_abort) {
+            return st;
+        }
         if (st == 0) {
-            return dispatch_list(&arm->body);
+            int body_st = dispatch_list(&arm->body);
+            if (g_returning) {
+                return g_return_status;
+            }
+            return body_st;
         }
     }
     return 0;
@@ -615,9 +656,15 @@ static int dispatch_while(petrush_while_t *wh)
     }
     int status = 0;
     for (;;) {
+        /* OSH-18: condicao isenta de errexit. */
+        g_no_errexit++;
         int st = dispatch_list(&wh->cond);
+        g_no_errexit--;
         if (g_returning) {
             return g_return_status;
+        }
+        if (g_shell_abort) {
+            return st;
         }
         if (st != 0) {
             return status;
@@ -625,6 +672,9 @@ static int dispatch_while(petrush_while_t *wh)
         status = dispatch_list(&wh->body);
         if (g_returning) {
             return g_return_status;
+        }
+        if (g_shell_abort) {
+            return status;
         }
     }
 }
@@ -942,6 +992,9 @@ static int dispatch_for(petrush_for_t *fr)
         if (g_returning) {
             return g_return_status;
         }
+        if (g_shell_abort) {
+            return status;
+        }
     }
     return status;
 }
@@ -1223,6 +1276,8 @@ int dispatch_list(petrush_list_t *list)
         if (g_returning) {
             return g_return_status;
         }
+        /* OSH-18: errexit apos pipeline/compound (isencoes AND-OR / g_no_errexit). */
+        maybe_errexit(list, i, status);
         /* OSH-16: special builtin error → para a lista (script aborta no runner). */
         if (g_shell_abort) {
             break;
@@ -1802,9 +1857,9 @@ static int dispatch_dbracket(petrush_dbracket_t *db)
 }
 
 /*
- * OSH-16/17: set — special builtin.
+ * OSH-16/17/18: set — special builtin.
  * sem args: dump environ "%s=%s\n"; -- / args: posicionais ($0 intacto);
- * -x/+x/-o xtrace; -u/+u/-o nounset; -C no-op; +C erro; -e ainda invalid (OSH-18).
+ * -x/+x/-o xtrace; -u/+u/-o nounset; -e/+e/-o errexit; -C no-op; +C erro.
  */
 static int set_apply_letter(char letter, int on)
 {
@@ -1815,6 +1870,9 @@ static int set_apply_letter(char letter, int on)
     case 'u':
         (void)petrush_shellopt_set('u', on);
         return 0;
+    case 'e':
+        (void)petrush_shellopt_set('e', on);
+        return 0;
     case 'C':
         if (!on) {
             fprintf(stderr, "petrush: set: +C: invalid option\n");
@@ -1822,7 +1880,6 @@ static int set_apply_letter(char letter, int on)
         }
         return 0; /* noclobber always-on */
     default:
-        /* Inclui -e (OSH-18) e letras desconhecidas. */
         fprintf(stderr, "petrush: set: %c%c: invalid option\n",
                 on ? '-' : '+', letter);
         return -1;
@@ -1844,6 +1901,10 @@ static int set_apply_o_name(const char *name, int on)
         (void)petrush_shellopt_set('u', on);
         return 0;
     }
+    if (strcmp(name, "errexit") == 0) {
+        (void)petrush_shellopt_set('e', on);
+        return 0;
+    }
     if (strcmp(name, "noclobber") == 0) {
         if (!on) {
             fprintf(stderr, "petrush: set: noclobber: invalid option\n");
@@ -1851,7 +1912,6 @@ static int set_apply_o_name(const char *name, int on)
         }
         return 0;
     }
-    /* errexit = -e: ainda unknown ate OSH-18. */
     fprintf(stderr, "petrush: set: %s: invalid option\n", name);
     return -1;
 }

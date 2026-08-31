@@ -5,7 +5,7 @@
  * + shift [n] (OSH-2; sem ${1:-} / arrays)
  * + cmdsubst $(cmd) via hook DIP (OSH-9; sem backticks)
  * + arith $((expr)) int64 (OSH-11; + - * / % ( ) unary)
- * + $? / $- / shellopt e|u|x (OSH-16/17; -e honrado em OSH-18)
+ * + $? / $- / shellopt e|u|x (OSH-16/17/18; -e errexit no dispatcher)
  */
 
 #ifndef PETRUSH_EXPAND_H
