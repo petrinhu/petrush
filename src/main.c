@@ -212,7 +212,12 @@ int main(int argc, char *argv[])
 
             petrush_list_t list = {0};
             if (petrush_parse_list(to_run, &list) == 0) {
-                if (list.nitems > 0) {
+                /* OSH-13: REPL nao coleta corpo (sem PS2); script/source sim. */
+                if (petrush_list_heredoc_pending(&list)) {
+                    fprintf(stderr,
+                            "petrush: here-document sem corpo "
+                            "(use script ou source)\n");
+                } else if (list.nitems > 0) {
                     dispatch_list(&list);
                 }
             } else {

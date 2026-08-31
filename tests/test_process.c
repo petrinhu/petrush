@@ -414,6 +414,71 @@ void test_execute_redir_err_noclobber_existing(void)
     unlink(err_path);
 }
 
+/* OSH-13: here-doc quoted via petrush_apply_redirs → stdin do externo */
+void test_execute_heredoc_quoted_stdin(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("/bin/cat <<'EOF'", &list) == 0);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "heredoc-unit-$HOME") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "EOF") == 0);
+    TEST_CHECK(list.nitems == 1 && list.items[0].pl.ncmds == 1);
+
+    int status = -1;
+    int rc = execute_pipeline(&list.items[0].pl, &status);
+    TEST_CHECK(rc == 0);
+    TEST_CHECK(status == 0);
+    /* stdout do cat nao e capturado aqui; contrato = apply nao falha e status 0.
+     * Conteudo literal e exercitado no smoke osh13. */
+    {
+        petrush_cmd_t *c = &list.items[0].pl.cmds[0];
+        TEST_CHECK(c->here_body != NULL);
+        TEST_CHECK(strstr(c->here_body, "$HOME") != NULL);
+        TEST_CHECK(c->redir_in == NULL);
+    }
+    petrush_list_free(&list);
+}
+
+/* OSH-13: petrush_apply_redirs com here_body (memfd) + regressao path < */
+void test_apply_redirs_heredoc_and_path(void)
+{
+    char in_path[] = "/var/tmp/petrush_test_here_in_XXXXXX";
+    int fd = mkstemp(in_path);
+    if (fd < 0) {
+        TEST_SKIP("mkstemp falhou");
+        return;
+    }
+    TEST_CHECK(write(fd, "from-file\n", 10) == 10);
+    close(fd);
+
+    petrush_cmd_t path_cmd = {0};
+    path_cmd.redir_in = in_path; /* nao owned para este teste pontual */
+    /* apply troca stdin do processo de teste — salvar/restaurar */
+    int saved = dup(STDIN_FILENO);
+    TEST_CHECK(saved >= 0);
+    TEST_CHECK(petrush_apply_redirs(&path_cmd) == 0);
+    char buf[32] = {0};
+    TEST_CHECK(read(STDIN_FILENO, buf, sizeof(buf) - 1) > 0);
+    TEST_CHECK(strstr(buf, "from-file") != NULL);
+    dup2(saved, STDIN_FILENO);
+    close(saved);
+    path_cmd.redir_in = NULL; /* nao free path do mkstemp via cmd_free */
+    unlink(in_path);
+
+    petrush_cmd_t here_cmd = {0};
+    here_cmd.here_delim = strdup("EOF");
+    here_cmd.here_body = strdup("memfd-body\n");
+    here_cmd.here_quoted = 1;
+    saved = dup(STDIN_FILENO);
+    TEST_CHECK(saved >= 0);
+    TEST_CHECK(petrush_apply_redirs(&here_cmd) == 0);
+    memset(buf, 0, sizeof(buf));
+    TEST_CHECK(read(STDIN_FILENO, buf, sizeof(buf) - 1) > 0);
+    TEST_CHECK(strstr(buf, "memfd-body") != NULL);
+    dup2(saved, STDIN_FILENO);
+    close(saved);
+    petrush_cmd_free(&here_cmd);
+}
+
 TEST_LIST = {
     { "execute_null_cmd",           test_execute_null_cmd },
     { "execute_empty_cmd",          test_execute_empty_cmd },
@@ -431,5 +496,7 @@ TEST_LIST = {
     { "execute_redir_out_noclobber", test_execute_redir_out_noclobber_existing },
     { "execute_redir_append_ok",     test_execute_redir_append_allows_existing },
     { "execute_redir_err_noclobber", test_execute_redir_err_noclobber_existing },
+    { "execute_heredoc_quoted_stdin", test_execute_heredoc_quoted_stdin },
+    { "apply_redirs_heredoc_and_path", test_apply_redirs_heredoc_and_path },
     { NULL, NULL }
 };

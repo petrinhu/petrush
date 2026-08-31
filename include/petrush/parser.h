@@ -32,6 +32,14 @@ typedef struct {
     char *redir_err;        /* path 2> / 2>>; NULL se merge-only */
     int redir_err_append;   /* 1 se 2>> */
     int redir_err_to_out;   /* 1 se 2>&1 ou &> → dup2(stdout, stderr) */
+    /* OSH-13: here-doc (nao reusa redir_in — senao open("EOF")) */
+    char *here_delim;       /* quote-removal feito; NULL = sem here-doc */
+    char *here_body;        /* corpo sem linha delim; NULL = pendente */
+    int here_quoted;        /* 1 se delim nasceu quoted (<<'EOF'/<<"EOF") */
+    int here_strip;         /* 1 se <<- (strip = OSH-15) */
+    char **here_skip_delims; /* << anteriores na mesma linha (consumir e descartar) */
+    int here_skip_n;
+    int here_feed_i;        /* cursor de fill: 0..skip_n-1 skips, skip_n = main */
 } petrush_cmd_t;
 
 /* Pipeline: um ou mais estágios ligados por `|`. */
@@ -168,5 +176,17 @@ size_t petrush_cmdsubst_span(const char *p);
  * protegem. $(( $(( )) )) aninhado fora desta fatia.
  */
 size_t petrush_arith_span(const char *p);
+
+/*
+ * OSH-13: 1 se algum here_delim ainda tem body NULL (ou skip pendente).
+ */
+int petrush_list_heredoc_pending(const petrush_list_t *list);
+
+/*
+ * OSH-13: alimenta uma linha (sem \\n) ao proximo here-doc pendente.
+ * line == NULL sinaliza EOF: se ainda pendente → -1.
+ * Retorno: 0 = todos cheios; 1 = ainda faminto; -1 = erro (EOF/OOM/cap 1MiB).
+ */
+int petrush_heredoc_feed_line(petrush_list_t *list, const char *line);
 
 #endif /* PETRUSH_PARSER_H */

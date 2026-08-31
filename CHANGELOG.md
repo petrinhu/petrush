@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- **OSH-13:** `<<'DELIM'` quoted here-doc ponta a ponta (script/`source`); `TOK_DLESS`/`TOK_DLESSDASH`; AST `here_*` + fill API; `petrush_apply_redirs` via memfd (fallback `/dev/shm`); sem `/tmp` nomeado; REPL recusa corpo pendente (sem PS2); smoke `tests/smoke/osh13-heredoc.sh`. Docker fedora:44 clang PASS. Sem 4755.
 - **OSH-10:** `case word in pat) list ;; esac` (`PETRUSH_ITEM_CASE`); word expandida 1x; padroes com `|` e glob `*` `?` via `petrush_glob_match`; so `;;` (sem `;&`); `"esac"` quoted nao fecha; smoke `tests/smoke/osh10-case.sh` + regressao osh3/osh5. Docker fedora:44 clang PASS. Sem 4755.
 - **CI-XDG-SYSTEM:** `tests/test_xdg_paths.c` `rm_tree` captura `int rc = system(...)` (sem `(void)`); se falhar, walk+unlink/rmdir; fecha GHA ubuntu-gcc-Release `-Werror=unused-result` sob fortify; host+Ubuntu Release PASS. Sem 4755.
 - **CI-XDG-TRUNC:** `tests/test_xdg_paths.c` destinos PATH_MAX (+margem sufixo) para silenciar gcc `-Werror=format-truncation` sem relaxar `-Werror`; host+Docker fedora:44 gcc PASS. Sem 4755.

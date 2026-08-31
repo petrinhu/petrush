@@ -2,6 +2,8 @@
  * process.c — Execução de processos externos
  */
 
+#define _GNU_SOURCE
+
 #include "petrush/process.h"
 #include "petrush/env.h"
 #ifdef PETRUSH_HAVE_ASM
@@ -14,6 +16,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <limits.h>
@@ -147,15 +150,78 @@ static int shell_error_code_for(const char *name)
     return 127;
 }
 
+/*
+ * OSH-13: fd anonimo para here-doc. Prefer memfd; fallback /dev/shm O_TMPFILE
+ * ou mkstemp+unlink. Nunca /tmp previsivel (CVE-2000-1134).
+ */
+static int open_heredoc_fd(const char *body)
+{
+    size_t len = body ? strlen(body) : 0;
+    int fd = memfd_create("petrush-heredoc", MFD_CLOEXEC);
+    if (fd < 0) {
+#ifdef O_TMPFILE
+        fd = open("/dev/shm", O_TMPFILE | O_RDWR | O_CLOEXEC, 0600);
+#endif
+    }
+    if (fd < 0) {
+        char path[] = "/dev/shm/petrush-here-XXXXXX";
+        fd = mkstemp(path);
+        if (fd < 0) {
+            fprintf(stderr, "petrush: here-doc: %s\n", strerror(errno));
+            return -1;
+        }
+        unlink(path);
+        int fl = fcntl(fd, F_GETFD);
+        if (fl >= 0) {
+            (void)fcntl(fd, F_SETFD, fl | FD_CLOEXEC);
+        }
+    }
+    size_t off = 0;
+    while (off < len) {
+        ssize_t n = write(fd, body + off, len - off);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            fprintf(stderr, "petrush: here-doc write: %s\n", strerror(errno));
+            close(fd);
+            return -1;
+        }
+        off += (size_t)n;
+    }
+    if (lseek(fd, 0, SEEK_SET) < 0) {
+        perror("petrush: here-doc lseek");
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
 /* Aplica redirecionamentos no processo atual (filho). Retorna 0 ok, -1 erro.
- * Ordem: stdin → stdout arquivo → stderr (path OU merge).
+ * Ordem: stdin (path OU here) → stdout arquivo → stderr (path OU merge).
  * Assim `> file 2>&1` e `&> file` mandam os dois para o arquivo.
  * `2>&1 > file` NÃO replica bash (sem lista ordenada de ops). */
-static int apply_redirs(const petrush_cmd_t *cmd)
+int petrush_apply_redirs(const petrush_cmd_t *cmd)
 {
     if (!cmd) return -1;
 
-    if (cmd->redir_in) {
+    /* Here-doc ganha sobre redir_in se body preenchido (last-wins no parse). */
+    if (cmd->here_body) {
+        int fd = open_heredoc_fd(cmd->here_body);
+        if (fd < 0) {
+            return -1;
+        }
+        if (dup2(fd, STDIN_FILENO) < 0) {
+            close(fd);
+            perror("petrush: dup2 stdin");
+            return -1;
+        }
+        close(fd);
+    } else if (cmd->here_delim) {
+        fprintf(stderr, "petrush: here-document '%s' sem corpo\n",
+                cmd->here_delim);
+        return -1;
+    } else if (cmd->redir_in) {
         int fd = open(cmd->redir_in, O_RDONLY);
         if (fd < 0) {
             fprintf(stderr, "petrush: não foi possível abrir '%s' para leitura: %s\n",
@@ -282,7 +348,7 @@ int execute_external(petrush_cmd_t *cmd, int *exit_status)
         signal(SIGINT,  SIG_DFL);
         signal(SIGQUIT, SIG_DFL);
 
-        if (apply_redirs(cmd) != 0) {
+        if (petrush_apply_redirs(cmd) != 0) {
             _exit(1);
         }
 
@@ -384,7 +450,7 @@ _Noreturn static void pipeline_child(petrush_cmd_t *cmd, int i, int n,
 
     pipeline_close_pipes(pipes, n - 1);
 
-    if (apply_redirs(cmd) != 0) {
+    if (petrush_apply_redirs(cmd) != 0) {
         /* exe_path: ownership no pai (ou heap do filho morre no _exit). */
         _exit(1);
     }

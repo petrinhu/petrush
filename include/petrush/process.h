@@ -23,6 +23,13 @@
 int execute_external(petrush_cmd_t *cmd, int *exit_status);
 
 /*
+ * OSH-13: aplica redirecionamentos no processo atual (stdin/out/err).
+ * Here-doc via memfd (fallback /dev/shm); path `<` via open.
+ * Retorna 0 ok, -1 erro. Usado por execute_* e builtins (Mid).
+ */
+int petrush_apply_redirs(const petrush_cmd_t *cmd);
+
+/*
  * Hook opcional no filho (após pipes + apply_redirs):
  *   0 = handled (builtin; hook deve fflush + _exit)
  *   1 = não handled → find_executable + execv

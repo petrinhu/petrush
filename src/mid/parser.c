@@ -111,11 +111,13 @@ static size_t dollar_group_span(const char *p)
     return petrush_cmdsubst_span(p);
 }
 
-/* Operadores unquoted: | < > >> 2> 2>> 2>&1 &> */
+/* Operadores unquoted: | < << <<- > >> 2> 2>> 2>&1 &> */
 typedef enum {
     TOK_WORD = 0,
     TOK_PIPE,
     TOK_LT,
+    TOK_DLESS,     /* << */
+    TOK_DLESSDASH, /* <<- */
     TOK_GT,
     TOK_GTGT,
     TOK_ERRGT,     /* 2> */
@@ -139,6 +141,25 @@ static void free_tokens(token_t *toks, int n)
     free(toks);
 }
 
+static void here_clear(petrush_cmd_t *cmd)
+{
+    free(cmd->here_delim);
+    cmd->here_delim = NULL;
+    free(cmd->here_body);
+    cmd->here_body = NULL;
+    cmd->here_quoted = 0;
+    cmd->here_strip = 0;
+    if (cmd->here_skip_delims) {
+        for (int i = 0; i < cmd->here_skip_n; i++) {
+            free(cmd->here_skip_delims[i]);
+        }
+        free(cmd->here_skip_delims);
+        cmd->here_skip_delims = NULL;
+    }
+    cmd->here_skip_n = 0;
+    cmd->here_feed_i = 0;
+}
+
 static void cmd_clear(petrush_cmd_t *cmd)
 {
     if (!cmd) return;
@@ -159,6 +180,7 @@ static void cmd_clear(petrush_cmd_t *cmd)
     cmd->redir_out = NULL;
     free(cmd->redir_err);
     cmd->redir_err = NULL;
+    here_clear(cmd);
     memset(cmd, 0, sizeof(*cmd));
 }
 
@@ -184,7 +206,8 @@ void petrush_pipeline_free(petrush_pipeline_t *pl)
     pl->ncmds = 0;
 }
 
-/* | < > >> &> - 1 se consumiu; 0 se não casa. */
+/* | < << <<- > >> &> - 1 se consumiu; 0 se não casa.
+ * <<- antes de << antes de < (senao <<-EOF vira << + -EOF). */
 static int try_consume_simple_op(const char **pp, tok_kind_t *kind)
 {
     const char *p = *pp;
@@ -194,8 +217,18 @@ static int try_consume_simple_op(const char **pp, tok_kind_t *kind)
         return 1;
     }
     if (*p == '<') {
-        *kind = TOK_LT;
-        *pp = p + 1;
+        if (p[1] == '<') {
+            if (p[2] == '-') {
+                *kind = TOK_DLESSDASH;
+                *pp = p + 3;
+            } else {
+                *kind = TOK_DLESS;
+                *pp = p + 2;
+            }
+        } else {
+            *kind = TOK_LT;
+            *pp = p + 1;
+        }
         return 1;
     }
     if (*p == '&' && p[1] == '>') {
@@ -446,16 +479,43 @@ static int build_stage(token_t *toks, int begin, int end, petrush_cmd_t *cmd)
             cmd->redir_err_to_out = 1;
             continue;
         }
-        /* demais redirs: próximo token deve ser WORD (path) */
+        /* demais redirs / here-doc: próximo token deve ser WORD */
         if (i + 1 >= end || toks[i + 1].kind != TOK_WORD) {
             cmd_clear(cmd);
             return -1;
         }
         char *path = toks[i + 1].text;
+        int path_quoted = toks[i + 1].quoted;
         toks[i + 1].text = NULL;
-        i++; /* consume path */
+        i++; /* consume path/delim */
 
-        if (k == TOK_LT) {
+        if (k == TOK_DLESS || k == TOK_DLESSDASH) {
+            /* last-wins com < : << limpa redir_in */
+            free(cmd->redir_in);
+            cmd->redir_in = NULL;
+            /* varios << : anterior vira skip (corpo consumido e descartado) */
+            if (cmd->here_delim) {
+                char **nd = realloc(cmd->here_skip_delims,
+                                    sizeof(char *) * (size_t)(cmd->here_skip_n + 1));
+                if (!nd) {
+                    free(path);
+                    cmd_clear(cmd);
+                    return -1;
+                }
+                cmd->here_skip_delims = nd;
+                cmd->here_skip_delims[cmd->here_skip_n] = cmd->here_delim;
+                cmd->here_skip_n++;
+                cmd->here_delim = NULL;
+            }
+            free(cmd->here_body);
+            cmd->here_body = NULL;
+            cmd->here_delim = path;
+            cmd->here_quoted = path_quoted ? 1 : 0;
+            cmd->here_strip = (k == TOK_DLESSDASH) ? 1 : 0;
+            cmd->here_feed_i = 0;
+        } else if (k == TOK_LT) {
+            /* last-wins: < limpa here-* */
+            here_clear(cmd);
             free(cmd->redir_in);
             cmd->redir_in = path;
         } else if (k == TOK_GT || k == TOK_GTGT) {
@@ -2036,4 +2096,254 @@ int petrush_parse_list(const char *input, petrush_list_t *out)
         return 0;
     }
     return parse_list_until(input, &pos, 0, out, 0);
+}
+
+/* OSH-13: cap irmao OSH-9 cmdsubst */
+#define PETRUSH_HEREDOC_MAX ((size_t)1024 * (size_t)1024)
+
+static int cmd_heredoc_pending(const petrush_cmd_t *cmd)
+{
+    if (!cmd || !cmd->here_delim) {
+        return 0;
+    }
+    /* feed_i < skip_n → ainda em skip; == skip_n → main ainda sem body */
+    int total = cmd->here_skip_n + 1;
+    return cmd->here_feed_i < total;
+}
+
+static int list_heredoc_pending(const petrush_list_t *list); /* fwd */
+
+/* NOLINTNEXTLINE(misc-no-recursion) */
+static int item_heredoc_pending(const petrush_list_item_t *it)
+{
+    if (!it) {
+        return 0;
+    }
+    if (it->kind == PETRUSH_ITEM_PIPELINE) {
+        for (int i = 0; i < it->pl.ncmds; i++) {
+            if (cmd_heredoc_pending(&it->pl.cmds[i])) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    if (it->kind == PETRUSH_ITEM_IF) {
+        for (int a = 0; a < it->ifc.narms; a++) {
+            if (list_heredoc_pending(&it->ifc.arms[a].cond) ||
+                list_heredoc_pending(&it->ifc.arms[a].body)) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    if (it->kind == PETRUSH_ITEM_WHILE) {
+        return list_heredoc_pending(&it->wh.cond) ||
+               list_heredoc_pending(&it->wh.body);
+    }
+    if (it->kind == PETRUSH_ITEM_FOR) {
+        return list_heredoc_pending(&it->fr.body);
+    }
+    if (it->kind == PETRUSH_ITEM_FN) {
+        return list_heredoc_pending(&it->fn.body);
+    }
+    if (it->kind == PETRUSH_ITEM_CASE) {
+        for (int a = 0; a < it->cs.narms; a++) {
+            if (list_heredoc_pending(&it->cs.arms[a].body)) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    return 0;
+}
+
+/* NOLINTNEXTLINE(misc-no-recursion) */
+static int list_heredoc_pending(const petrush_list_t *list)
+{
+    if (!list) {
+        return 0;
+    }
+    for (int i = 0; i < list->nitems; i++) {
+        if (item_heredoc_pending(&list->items[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int petrush_list_heredoc_pending(const petrush_list_t *list)
+{
+    return list_heredoc_pending(list);
+}
+
+static const char *cmd_current_delim(const petrush_cmd_t *cmd)
+{
+    if (!cmd || !cmd->here_delim) {
+        return NULL;
+    }
+    if (cmd->here_feed_i < cmd->here_skip_n) {
+        return cmd->here_skip_delims[cmd->here_feed_i];
+    }
+    if (cmd->here_feed_i == cmd->here_skip_n) {
+        return cmd->here_delim;
+    }
+    return NULL;
+}
+
+/* Append line + \\n to here_body. Cap 1MiB. 0 ok, -1 erro. */
+static int here_body_append(petrush_cmd_t *cmd, const char *line)
+{
+    size_t line_len = line ? strlen(line) : 0;
+    size_t old_len = cmd->here_body ? strlen(cmd->here_body) : 0;
+    if (old_len > PETRUSH_HEREDOC_MAX ||
+        line_len > PETRUSH_HEREDOC_MAX - old_len ||
+        1 > PETRUSH_HEREDOC_MAX - old_len - line_len) {
+        return -1;
+    }
+    char *nb = realloc(cmd->here_body, old_len + line_len + 2);
+    if (!nb) {
+        return -1;
+    }
+    cmd->here_body = nb;
+    if (line_len > 0) {
+        memcpy(cmd->here_body + old_len, line, line_len);
+    }
+    cmd->here_body[old_len + line_len] = '\n';
+    cmd->here_body[old_len + line_len + 1] = '\0';
+    return 0;
+}
+
+/* Feed one line into this cmd if pending. 0=done this cmd, 1=still, -1=err.
+ * *ate = 1 se consumiu a linha. */
+static int cmd_heredoc_feed(petrush_cmd_t *cmd, const char *line, int *ate)
+{
+    *ate = 0;
+    if (!cmd_heredoc_pending(cmd)) {
+        return 0;
+    }
+    if (!line) {
+        return -1; /* EOF com pendente */
+    }
+    const char *delim = cmd_current_delim(cmd);
+    if (!delim) {
+        return -1;
+    }
+    *ate = 1;
+    /* OSH-13: sem strip (OSH-15). Match exacto da linha ao delim. */
+    if (strcmp(line, delim) == 0) {
+        int filling_main = (cmd->here_feed_i == cmd->here_skip_n);
+        if (!filling_main) {
+            /* skip: descarta corpo acumulado */
+            free(cmd->here_body);
+            cmd->here_body = NULL;
+        }
+        /* se body ainda NULL no main (corpo vazio), deixa "" */
+        if (filling_main && !cmd->here_body) {
+            cmd->here_body = strdup("");
+            if (!cmd->here_body) {
+                return -1;
+            }
+        }
+        cmd->here_feed_i++;
+        return cmd_heredoc_pending(cmd) ? 1 : 0;
+    }
+    if (here_body_append(cmd, line) != 0) {
+        return -1;
+    }
+    return 1;
+}
+
+static int list_heredoc_feed(petrush_list_t *list, const char *line, int *ate);
+
+/* NOLINTNEXTLINE(misc-no-recursion) */
+static int item_heredoc_feed(petrush_list_item_t *it, const char *line, int *ate)
+{
+    *ate = 0;
+    if (!it) {
+        return 0;
+    }
+    if (it->kind == PETRUSH_ITEM_PIPELINE) {
+        for (int i = 0; i < it->pl.ncmds; i++) {
+            if (!cmd_heredoc_pending(&it->pl.cmds[i])) {
+                continue;
+            }
+            int rc = cmd_heredoc_feed(&it->pl.cmds[i], line, ate);
+            return rc;
+        }
+        return 0;
+    }
+    if (it->kind == PETRUSH_ITEM_IF) {
+        for (int a = 0; a < it->ifc.narms; a++) {
+            int rc = list_heredoc_feed(&it->ifc.arms[a].cond, line, ate);
+            if (*ate || rc < 0) {
+                return rc;
+            }
+            rc = list_heredoc_feed(&it->ifc.arms[a].body, line, ate);
+            if (*ate || rc < 0) {
+                return rc;
+            }
+        }
+        return 0;
+    }
+    if (it->kind == PETRUSH_ITEM_WHILE) {
+        int rc = list_heredoc_feed(&it->wh.cond, line, ate);
+        if (*ate || rc < 0) {
+            return rc;
+        }
+        return list_heredoc_feed(&it->wh.body, line, ate);
+    }
+    if (it->kind == PETRUSH_ITEM_FOR) {
+        return list_heredoc_feed(&it->fr.body, line, ate);
+    }
+    if (it->kind == PETRUSH_ITEM_FN) {
+        return list_heredoc_feed(&it->fn.body, line, ate);
+    }
+    if (it->kind == PETRUSH_ITEM_CASE) {
+        for (int a = 0; a < it->cs.narms; a++) {
+            int rc = list_heredoc_feed(&it->cs.arms[a].body, line, ate);
+            if (*ate || rc < 0) {
+                return rc;
+            }
+        }
+        return 0;
+    }
+    return 0;
+}
+
+/* NOLINTNEXTLINE(misc-no-recursion) */
+static int list_heredoc_feed(petrush_list_t *list, const char *line, int *ate)
+{
+    *ate = 0;
+    if (!list) {
+        return 0;
+    }
+    for (int i = 0; i < list->nitems; i++) {
+        if (!item_heredoc_pending(&list->items[i])) {
+            continue;
+        }
+        return item_heredoc_feed(&list->items[i], line, ate);
+    }
+    return 0;
+}
+
+int petrush_heredoc_feed_line(petrush_list_t *list, const char *line)
+{
+    if (!list) {
+        return -1;
+    }
+    if (!list_heredoc_pending(list)) {
+        if (!line) {
+            return 0; /* EOF sem pendente = ok */
+        }
+        return 0;
+    }
+    int ate = 0;
+    int rc = list_heredoc_feed(list, line, &ate);
+    if (rc < 0) {
+        return -1;
+    }
+    if (!line && list_heredoc_pending(list)) {
+        return -1;
+    }
+    return list_heredoc_pending(list) ? 1 : 0;
 }

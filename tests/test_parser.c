@@ -1093,6 +1093,119 @@ void test_parse_dbracket_quoted_close_literal(void)
     petrush_list_free(&list);
 }
 
+/* OSH-13: <<'EOF' → here_delim, quoted, body pendente; sem redir_in path */
+void test_parse_heredoc_quoted_pending(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("cat <<'EOF'", &cmd) == 0);
+    TEST_CHECK(cmd.argc == 1);
+    TEST_CHECK(cmd.argv != NULL && strcmp(cmd.argv[0], "cat") == 0);
+    TEST_CHECK(cmd.redir_in == NULL);
+    TEST_CHECK(cmd.here_delim != NULL);
+    TEST_CHECK(strcmp(cmd.here_delim, "EOF") == 0);
+    TEST_CHECK(cmd.here_quoted == 1);
+    TEST_CHECK(cmd.here_body == NULL);
+    TEST_CHECK(cmd.here_strip == 0);
+    petrush_cmd_free(&cmd);
+}
+
+/* OSH-13: <<- token distinto (delim sem '-'); strip = OSH-15 */
+void test_parse_heredoc_dlessdash_token(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("cat <<-'EOF'", &cmd) == 0);
+    TEST_CHECK(cmd.redir_in == NULL);
+    TEST_CHECK(cmd.here_delim != NULL);
+    TEST_CHECK(strcmp(cmd.here_delim, "EOF") == 0);
+    TEST_CHECK(cmd.here_quoted == 1);
+    TEST_CHECK(cmd.here_strip == 1);
+    TEST_CHECK(cmd.here_body == NULL);
+    petrush_cmd_free(&cmd);
+}
+
+/* OSH-13: << sem aspas → here_quoted=0 (expand = OSH-14) */
+void test_parse_heredoc_unquoted_flag(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("cat <<EOF", &cmd) == 0);
+    TEST_CHECK(cmd.here_delim != NULL);
+    TEST_CHECK(strcmp(cmd.here_delim, "EOF") == 0);
+    TEST_CHECK(cmd.here_quoted == 0);
+    TEST_CHECK(cmd.here_body == NULL);
+    petrush_cmd_free(&cmd);
+}
+
+/* OSH-13: last-wins << vs < file */
+void test_parse_heredoc_last_wins_vs_redir_in(void)
+{
+    petrush_cmd_t cmd = {0};
+    TEST_CHECK(petrush_parse("cat <<'EOF' < /tmp/in.txt", &cmd) == 0);
+    TEST_CHECK(cmd.here_delim == NULL);
+    TEST_CHECK(cmd.here_body == NULL);
+    TEST_CHECK(cmd.redir_in != NULL);
+    TEST_CHECK(strcmp(cmd.redir_in, "/tmp/in.txt") == 0);
+    petrush_cmd_free(&cmd);
+
+    memset(&cmd, 0, sizeof(cmd));
+    TEST_CHECK(petrush_parse("cat < /tmp/in.txt <<'EOF'", &cmd) == 0);
+    TEST_CHECK(cmd.redir_in == NULL);
+    TEST_CHECK(cmd.here_delim != NULL);
+    TEST_CHECK(strcmp(cmd.here_delim, "EOF") == 0);
+    TEST_CHECK(cmd.here_quoted == 1);
+    petrush_cmd_free(&cmd);
+}
+
+/* OSH-13: fill API — corpo até delim; delim fora; # no corpo é literal */
+void test_heredoc_fill_quoted_body(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("cat <<'EOF'", &list) == 0);
+    TEST_CHECK(petrush_list_heredoc_pending(&list) == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "hello $HOME") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "# not-comment") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "EOF") == 0);
+    TEST_CHECK(petrush_list_heredoc_pending(&list) == 0);
+    TEST_CHECK(list.nitems == 1);
+    TEST_CHECK(list.items[0].pl.ncmds == 1);
+    {
+        const petrush_cmd_t *c = &list.items[0].pl.cmds[0];
+        TEST_CHECK(c->here_body != NULL);
+        TEST_CHECK(strcmp(c->here_body, "hello $HOME\n# not-comment\n") == 0);
+        TEST_CHECK(c->here_quoted == 1);
+    }
+    petrush_list_free(&list);
+}
+
+/* OSH-13: EOF sem delim → -1 */
+void test_heredoc_fill_unterminated_eof(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("cat <<'EOF'", &list) == 0);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "orphan") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, NULL) == -1);
+    petrush_list_free(&list);
+}
+
+/* OSH-13: dois << na mesma linha — consome 2 corpos; stdin = último */
+void test_heredoc_fill_two_last_wins(void)
+{
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("cat <<'A' <<'B'", &list) == 0);
+    TEST_CHECK(petrush_list_heredoc_pending(&list) == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "first") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "A") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "second") == 1);
+    TEST_CHECK(petrush_heredoc_feed_line(&list, "B") == 0);
+    {
+        const petrush_cmd_t *c = &list.items[0].pl.cmds[0];
+        TEST_CHECK(c->here_delim != NULL);
+        TEST_CHECK(strcmp(c->here_delim, "B") == 0);
+        TEST_CHECK(c->here_body != NULL);
+        TEST_CHECK(strcmp(c->here_body, "second\n") == 0);
+    }
+    petrush_list_free(&list);
+}
+
 TEST_LIST = {
     { "parse_simple", test_parse_simple },
     { "parse_quoted_simple", test_parse_quoted_simple },
@@ -1173,5 +1286,12 @@ TEST_LIST = {
     { "parse_dbracket_and_one_item", test_parse_dbracket_and_one_item },
     { "parse_dbracket_file_and_glob", test_parse_dbracket_file_and_glob },
     { "parse_dbracket_quoted_close_literal", test_parse_dbracket_quoted_close_literal },
+    { "parse_heredoc_quoted_pending", test_parse_heredoc_quoted_pending },
+    { "parse_heredoc_dlessdash_token", test_parse_heredoc_dlessdash_token },
+    { "parse_heredoc_unquoted_flag", test_parse_heredoc_unquoted_flag },
+    { "parse_heredoc_last_wins_vs_redir_in", test_parse_heredoc_last_wins_vs_redir_in },
+    { "heredoc_fill_quoted_body", test_heredoc_fill_quoted_body },
+    { "heredoc_fill_unterminated_eof", test_heredoc_fill_unterminated_eof },
+    { "heredoc_fill_two_last_wins", test_heredoc_fill_two_last_wins },
     { NULL, NULL }
 };

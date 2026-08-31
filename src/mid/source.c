@@ -17,6 +17,47 @@
 
 static int g_source_depth;
 
+/*
+ * OSH-13: apos parse, enche here-docs pendentes (corpo nao tokeniza; # literal).
+ * Retorno: 0 ok; 1 erro; 2 EOF do ficheiro (caller nao deve fgets de novo).
+ */
+static int fill_heredocs(FILE *f, const char *path, int *lineno,
+                         petrush_list_t *list)
+{
+    char linebuf[4096];
+    while (petrush_list_heredoc_pending(list)) {
+        if (!fgets(linebuf, sizeof(linebuf), f)) {
+            if (ferror(f)) {
+                fprintf(stderr, "petrush: %s: erro de leitura (linha %d): %s\n",
+                        path, *lineno, strerror(errno));
+                return 1;
+            }
+            /* feof: sinaliza EOF ao fill; nao voltar a ler no runner */
+            if (petrush_heredoc_feed_line(list, NULL) < 0) {
+                fprintf(stderr,
+                        "petrush: %s: here-document delimitado sem fim"
+                        " (linha %d)\n",
+                        path, *lineno);
+                return 1;
+            }
+            return 2;
+        }
+        (*lineno)++;
+        size_t len = strlen(linebuf);
+        if (len > 0 && linebuf[len - 1] == '\n') {
+            linebuf[len - 1] = '\0';
+        }
+        int fr = petrush_heredoc_feed_line(list, linebuf);
+        if (fr < 0) {
+            fprintf(stderr,
+                    "petrush: %s: here-document overflow ou erro (linha %d)\n",
+                    path, *lineno);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* Runner compartilhado: linha a linha, #/vazio skip, alias+parse_list+dispatch. */
 static int run_file_lines(FILE *f, const char *path)
 {
@@ -44,14 +85,29 @@ static int run_file_lines(FILE *f, const char *path)
         const char *to_run = expanded ? expanded : start;
         petrush_list_t list = {0};
         if (petrush_parse_list(to_run, &list) == 0) {
+            int fill_rc = 0;
+            if (petrush_list_heredoc_pending(&list)) {
+                fill_rc = fill_heredocs(f, path, &lineno, &list);
+                if (fill_rc == 1) {
+                    status = 1;
+                    petrush_list_free(&list);
+                    free(expanded);
+                    return status;
+                }
+            }
             if (list.nitems > 0) {
                 status = dispatch_list(&list);
             }
-        } else {
-            fprintf(stderr, "petrush: erro em %s (linha %d): %s\n",
-                    path, lineno, start);
-            status = 1;
+            petrush_list_free(&list);
+            free(expanded);
+            if (fill_rc == 2) {
+                break; /* EOF ja consumido no fill */
+            }
+            continue;
         }
+        fprintf(stderr, "petrush: erro em %s (linha %d): %s\n",
+                path, lineno, start);
+        status = 1;
         petrush_list_free(&list);
         free(expanded);
     }

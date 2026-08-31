@@ -108,8 +108,14 @@ static void restore_saved_fds(int saved_in, int saved_out, int saved_err)
     }
 }
 
+static int cmd_needs_redir(const petrush_cmd_t *cmd)
+{
+    return cmd->redir_in || cmd->here_body || cmd->here_delim ||
+           cmd->redir_out || cmd->redir_err || cmd->redir_err_to_out;
+}
+
 /* Roda builtin no processo atual com redirecionamentos temporários.
- * Ordem: stdin → stdout arquivo → stderr (path OU merge). */
+ * Save FDs → petrush_apply_redirs (Foundation) → restore. */
 static int run_builtin_with_redirs(builtin_fn_t fn, petrush_cmd_t *cmd)
 {
     int saved_in = -1, saved_out = -1, saved_err = -1;
@@ -120,64 +126,30 @@ static int run_builtin_with_redirs(builtin_fn_t fn, petrush_cmd_t *cmd)
     fflush(stdout);
     fflush(stderr);
 
-    if (cmd->redir_in) {
+    if (cmd->redir_in || cmd->here_body || cmd->here_delim) {
         saved_in = dup(STDIN_FILENO);
-        int fd = open(cmd->redir_in, O_RDONLY);
-        if (fd < 0) {
-            fprintf(stderr, "petrush: não foi possível abrir '%s' para leitura: %s\n",
-                    cmd->redir_in, strerror(errno));
-            if (saved_in >= 0) close(saved_in);
+        if (saved_in < 0) {
             return 1;
         }
-        if (dup2(fd, STDIN_FILENO) < 0) {
-            close(fd);
-            if (saved_in >= 0) close(saved_in);
-            return 1;
-        }
-        close(fd);
     }
-
     if (cmd->redir_out) {
         saved_out = dup(STDOUT_FILENO);
-        /* SEC-09: `>` usa O_EXCL (noclobber); `>>` continua O_APPEND. */
-        int flags = O_WRONLY | O_CREAT | (cmd->redir_append ? O_APPEND : O_EXCL);
-        int fd = open(cmd->redir_out, flags, 0644);
-        if (fd < 0) {
-            fprintf(stderr, "petrush: não foi possível abrir '%s' para escrita: %s\n",
-                    cmd->redir_out, strerror(errno));
-            restore_saved_fds(saved_in, saved_out, -1);
+        if (saved_out < 0) {
+            restore_saved_fds(saved_in, -1, -1);
             return 1;
         }
-        if (dup2(fd, STDOUT_FILENO) < 0) {
-            close(fd);
-            restore_saved_fds(saved_in, saved_out, -1);
-            return 1;
-        }
-        close(fd);
     }
-
     if (cmd->redir_err || cmd->redir_err_to_out) {
         saved_err = dup(STDERR_FILENO);
-        if (cmd->redir_err) {
-            /* SEC-09: `2>` usa O_EXCL; `2>>` continua O_APPEND. */
-            int flags = O_WRONLY | O_CREAT | (cmd->redir_err_append ? O_APPEND : O_EXCL);
-            int fd = open(cmd->redir_err, flags, 0644);
-            if (fd < 0) {
-                fprintf(stderr, "petrush: não foi possível abrir '%s' para escrita: %s\n",
-                        cmd->redir_err, strerror(errno));
-                restore_saved_fds(saved_in, saved_out, saved_err);
-                return 1;
-            }
-            if (dup2(fd, STDERR_FILENO) < 0) {
-                close(fd);
-                restore_saved_fds(saved_in, saved_out, saved_err);
-                return 1;
-            }
-            close(fd);
-        } else if (dup2(STDOUT_FILENO, STDERR_FILENO) < 0) {
-            restore_saved_fds(saved_in, saved_out, saved_err);
+        if (saved_err < 0) {
+            restore_saved_fds(saved_in, saved_out, -1);
             return 1;
         }
+    }
+
+    if (petrush_apply_redirs(cmd) != 0) {
+        restore_saved_fds(saved_in, saved_out, saved_err);
+        return 1;
     }
 
     rc = fn(cmd);
@@ -432,7 +404,7 @@ int dispatch_command(petrush_cmd_t *cmd)
 
     builtin_fn_t fn = find_builtin(cmd->argv[0]);
     if (fn) {
-        if (cmd->redir_in || cmd->redir_out || cmd->redir_err || cmd->redir_err_to_out) {
+        if (cmd_needs_redir(cmd)) {
             return run_builtin_with_redirs(fn, cmd);
         }
         return fn(cmd);
@@ -522,7 +494,8 @@ static int dispatch_pipeline_background(petrush_pipeline_t *pl)
         signal(SIGTSTP, SIG_DFL);
         /* stdin /dev/null se tty e sem `<` no 1º estágio */
         if (pl->ncmds > 0 && isatty(STDIN_FILENO) &&
-            !pl->cmds[0].redir_in) {
+            !pl->cmds[0].redir_in && !pl->cmds[0].here_body &&
+            !pl->cmds[0].here_delim) {
             int fd = open("/dev/null", O_RDONLY);
             if (fd >= 0) {
                 if (dup2(fd, STDIN_FILENO) < 0) {
@@ -611,6 +584,9 @@ static int clone_cmd(const petrush_cmd_t *src, petrush_cmd_t *dst)
     dst->redir_append = src->redir_append;
     dst->redir_err_append = src->redir_err_append;
     dst->redir_err_to_out = src->redir_err_to_out;
+    dst->here_quoted = src->here_quoted;
+    dst->here_strip = src->here_strip;
+    dst->here_feed_i = src->here_feed_i;
     if (src->argc > 0) {
         dst->argv = calloc((size_t)src->argc + 1, sizeof(char *));
         if (!dst->argv) {
@@ -654,6 +630,37 @@ static int clone_cmd(const petrush_cmd_t *src, petrush_cmd_t *dst)
         if (!dst->redir_err) {
             petrush_cmd_free(dst);
             return -1;
+        }
+    }
+    if (src->here_delim) {
+        dst->here_delim = strdup(src->here_delim);
+        if (!dst->here_delim) {
+            petrush_cmd_free(dst);
+            return -1;
+        }
+    }
+    if (src->here_body) {
+        dst->here_body = strdup(src->here_body);
+        if (!dst->here_body) {
+            petrush_cmd_free(dst);
+            return -1;
+        }
+    }
+    if (src->here_skip_n > 0 && src->here_skip_delims) {
+        dst->here_skip_delims = calloc((size_t)src->here_skip_n, sizeof(char *));
+        if (!dst->here_skip_delims) {
+            petrush_cmd_free(dst);
+            return -1;
+        }
+        dst->here_skip_n = src->here_skip_n;
+        for (int i = 0; i < src->here_skip_n; i++) {
+            if (src->here_skip_delims[i]) {
+                dst->here_skip_delims[i] = strdup(src->here_skip_delims[i]);
+                if (!dst->here_skip_delims[i]) {
+                    petrush_cmd_free(dst);
+                    return -1;
+                }
+            }
         }
     }
     return 0;
