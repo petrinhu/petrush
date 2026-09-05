@@ -553,7 +553,7 @@ void test_parse_argv_quoted_flag_double(void)
     TEST_CHECK(cmd.argv_quoted != NULL);
     if (cmd.argv_quoted) {
         TEST_CHECK(cmd.argv_quoted[0] == 0);
-        TEST_CHECK(cmd.argv_quoted[1] == 1);
+        TEST_CHECK(cmd.argv_quoted[1] == 2); /* double → 2 */
     }
     petrush_cmd_free(&cmd);
 }
@@ -1087,7 +1087,7 @@ void test_parse_dbracket_quoted_close_literal(void)
     TEST_CHECK(list.items[0].db.argc == 3);
     TEST_CHECK(strcmp(list.items[0].db.argv[0], "]]") == 0);
     TEST_CHECK(list.items[0].db.argv_quoted != NULL);
-    TEST_CHECK(list.items[0].db.argv_quoted[0] == 1);
+    TEST_CHECK(list.items[0].db.argv_quoted[0] == 2); /* double → 2 */
     TEST_CHECK(strcmp(list.items[0].db.argv[1], "==") == 0);
     TEST_CHECK(strcmp(list.items[0].db.argv[2], "x") == 0);
     petrush_list_free(&list);

@@ -583,6 +583,8 @@ static int dispatch_pipeline_background(petrush_pipeline_t *pl)
         signal(SIGINT, SIG_DFL);
         signal(SIGQUIT, SIG_DFL);
         signal(SIGTSTP, SIG_DFL);
+        /* OSH-20: filho & nao herda acoes comando do pai (EXIT incluso). */
+        petrush_trap_reset_for_child();
         /* stdin /dev/null se tty e sem `<` no 1º estágio */
         if (pl->ncmds > 0 && isatty(STDIN_FILENO) &&
             !pl->cmds[0].redir_in && !pl->cmds[0].here_body &&
@@ -1134,6 +1136,8 @@ char *petrush_run_cmdsubst(const char *inner_cmd)
             _exit(127);
         }
         close(fds[1]);
+        /* OSH-20: cmdsubst nao corre EXIT do pai; ignores permanecem. */
+        petrush_trap_reset_for_child();
 
         if (!inner_cmd) {
             inner_cmd = "";
@@ -1422,6 +1426,8 @@ int builtin_exit(petrush_cmd_t *cmd)
         }
         code = (int)(v & 0xff);
     }
+    /* OSH-20: dispara EXIT (guarda g_in_exit / subshell dentro de run_exit_trap). */
+    code = petrush_run_exit_trap(code);
     exit(code);
     return 0; /* nunca chega aqui */
 }
@@ -2006,8 +2012,8 @@ int builtin_set(petrush_cmd_t *cmd)
 }
 
 /*
- * OSH-19: trap — special builtin (dump / set / reset / ignore).
- * Ainda sem disparar EXIT nem sinais (OSH-20/21).
+ * OSH-19/20: trap — special builtin (dump / set / reset / ignore) + EXIT.
+ * Sinais adiados ficam em OSH-21.
  */
 #define PETRUSH_TRAP_NSIG 65
 
@@ -2058,12 +2064,66 @@ static const petrush_trap_cond_t g_trap_conds[] = {
 /* NULL = default; "" = ignore; string = comando. Slot 0 = EXIT. */
 static char *g_trap_action[PETRUSH_TRAP_NSIG];
 
+/* OSH-20: evita reentrar EXIT quando a acao chama exit. */
+static int g_in_exit;
+
+/* OSH-20: filho de fork (cmdsubst/&) — nao dispara EXIT do processo shell. */
+static int g_is_subshell;
+
 void petrush_trap_reset_for_tests(void)
 {
     for (int i = 0; i < PETRUSH_TRAP_NSIG; i++) {
         free(g_trap_action[i]);
         g_trap_action[i] = NULL;
     }
+    g_in_exit = 0;
+    g_is_subshell = 0;
+}
+
+void petrush_trap_reset_for_child(void)
+{
+    for (int i = 0; i < PETRUSH_TRAP_NSIG; i++) {
+        char *act = g_trap_action[i];
+        if (!act) {
+            continue;
+        }
+        if (act[0] == '\0') {
+            continue; /* ignore permanece (POSIX) */
+        }
+        free(act);
+        g_trap_action[i] = NULL;
+    }
+    g_in_exit = 0;
+    g_is_subshell = 1;
+}
+
+/* NOLINTNEXTLINE(misc-no-recursion) — EXIT pode chamar exit → reentra com guarda */
+int petrush_run_exit_trap(int status)
+{
+    if (g_in_exit || g_is_subshell || g_cmdsubst_depth > 0) {
+        return status;
+    }
+
+    const char *act = g_trap_action[0];
+    if (!act || act[0] == '\0') {
+        return status; /* default ou ignore */
+    }
+
+    g_in_exit = 1;
+    petrush_last_status_set(status);
+    g_no_errexit++;
+
+    petrush_list_t list = {0};
+    if (petrush_parse_list(act, &list) == 0 && list.nitems > 0) {
+        (void)dispatch_list(&list);
+    }
+    petrush_list_free(&list);
+
+    g_no_errexit--;
+    /* Se a acao nao chamou exit, status de saida permanece o previsto. */
+    petrush_last_status_set(status);
+    g_in_exit = 0;
+    return status;
 }
 
 static int trap_slot_for_signo(int signo)

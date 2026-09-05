@@ -89,8 +89,17 @@ int builtin_set(petrush_cmd_t *cmd);
 /* OSH-19: trap [action] cond... | trap - cond... | trap '' cond...; special builtin */
 int builtin_trap(petrush_cmd_t *cmd);
 
-/* OSH-19: zera tabela de traps (testes). */
+/* OSH-19: zera tabela de traps + guarda EXIT (testes). */
 void petrush_trap_reset_for_tests(void);
+
+/* OSH-20: apos fork (cmdsubst/&): acoes comando → default; ignores ficam. */
+void petrush_trap_reset_for_child(void);
+
+/*
+ * OSH-20: corre acao EXIT uma vez; devolve status (trap pode chamar exit).
+ * $? na acao = status previsto; set -e isento; source/subshell nao disparam.
+ */
+int petrush_run_exit_trap(int status);
 
 /*
  * OSH-16: abort do runner (special builtin / expansion error).

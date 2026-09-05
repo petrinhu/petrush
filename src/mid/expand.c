@@ -1276,9 +1276,14 @@ void expand_cmd_argv(petrush_cmd_t *cmd)
 {
     if (!cmd || !cmd->argv) return;
 
-    /* 1) ~ / $VAR / $n / $#; splice $@ / $* (sem re-expand dos spliced) */
+    /* 1) ~ / $VAR / $n / $#; splice $@ / $* (sem re-expand dos spliced).
+     * Aspas simples (argv_quoted==1): literal — preciso p/ trap 'echo $?' EXIT. */
     for (int i = 0; i < cmd->argc; ) {
         if (!cmd->argv[i]) {
+            i++;
+            continue;
+        }
+        if (cmd->argv_quoted && cmd->argv_quoted[i] == 1) {
             i++;
             continue;
         }

@@ -290,10 +290,10 @@ static char *scan_word(const char **pp, int *quoted_out)
 {
     const char *p = *pp;
     char quote = 0;
-    int quoted = 0;
+    int quoted = 0; /* 0=unquoted; 1=single (sem expand); 2=double */
     if (is_quote(*p)) {
         quote = *p;
-        quoted = 1;
+        quoted = (quote == '\'') ? 1 : 2;
         p++;
     }
     const char *start = p;
@@ -419,7 +419,7 @@ static int push_arg(petrush_cmd_t *cmd, char *word, int quoted, size_t *argv_cap
         *argv_cap = nc;
     }
     cmd->argv[cmd->argc] = word;
-    cmd->argv_quoted[cmd->argc] = quoted ? 1 : 0;
+    cmd->argv_quoted[cmd->argc] = quoted; /* 0/1/2 */
     cmd->argc++;
     return 0;
 }
@@ -1341,10 +1341,10 @@ static char *scan_for_word(const char **pp, int *quoted_out)
 {
     const char *p = *pp;
     char quote = 0;
-    int quoted = 0;
+    int quoted = 0; /* 0=unquoted; 1=single; 2=double */
     if (*p == '\'' || *p == '"') {
         quote = *p;
-        quoted = 1;
+        quoted = (quote == '\'') ? 1 : 2;
         p++;
     }
     const char *start = p;
@@ -1530,10 +1530,10 @@ static char *scan_case_pattern(const char **pp, int *quoted_out)
 {
     const char *p = *pp;
     char quote = 0;
-    int quoted = 0;
+    int quoted = 0; /* 0=unquoted; 1=single; 2=double */
     if (*p == '\'' || *p == '"') {
         quote = *p;
-        quoted = 1;
+        quoted = (quote == '\'') ? 1 : 2;
         p++;
     }
     const char *start = p;
@@ -1783,7 +1783,7 @@ static int db_push_tok(petrush_dbracket_t *db, char *word, int quoted, int *cap)
         *cap = ncap;
     }
     db->argv[db->argc] = word;
-    db->argv_quoted[db->argc] = quoted ? 1 : 0;
+    db->argv_quoted[db->argc] = quoted; /* 0/1/2 */
     db->argc++;
     return 0;
 }

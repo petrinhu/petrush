@@ -211,7 +211,8 @@ int petrush_run_script(const char *path)
     int status = run_file_lines(f, path);
     fclose(f);
     g_source_depth--;
-    return status;
+    /* OSH-20: EXIT na saida do processo shell (nao em source). */
+    return petrush_run_exit_trap(status);
 }
 
 int builtin_source(petrush_cmd_t *cmd)
