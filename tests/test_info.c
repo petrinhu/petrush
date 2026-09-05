@@ -1527,6 +1527,30 @@ void test_info_anti_oe_without_sem_trap(void)
     TEST_CHECK(strstr(buf, "sem trap") == NULL);
 }
 
+/* OSH-21: trap comando ↔ is_command; reset volta a 0. */
+void test_osh21_trap_is_command_int(void)
+{
+    osh19_reset();
+    TEST_CHECK(petrush_trap_is_command(SIGINT) == 0);
+
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("trap 'echo x' INT", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_trap_is_command(SIGINT) == 1);
+
+    TEST_CHECK(petrush_parse_list("trap - INT", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_trap_is_command(SIGINT) == 0);
+
+    TEST_CHECK(petrush_parse_list("trap '' INT", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) == 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_trap_is_command(SIGINT) == 0);
+    osh19_reset();
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -1623,5 +1647,6 @@ TEST_LIST = {
     { "osh19_trap_invalid_aborts_list", test_osh19_trap_invalid_aborts_list },
     { "help_mentions_trap", test_help_mentions_trap },
     { "info_anti_oe_without_sem_trap", test_info_anti_oe_without_sem_trap },
+    { "osh21_trap_is_command_int", test_osh21_trap_is_command_int },
     { NULL, NULL }
 };

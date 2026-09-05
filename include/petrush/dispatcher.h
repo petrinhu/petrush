@@ -101,6 +101,12 @@ void petrush_trap_reset_for_child(void);
  */
 int petrush_run_exit_trap(int status);
 
+/* OSH-21: 1 se trap do sinal e comando (nao default/ignore). */
+int petrush_trap_is_command(int sig);
+
+/* OSH-21: corre acoes de sinais pendentes (ordem crescente); set -e isento. */
+void petrush_traps_poll(void);
+
 /*
  * OSH-16: abort do runner (special builtin / expansion error).
  * take consome; clear no inicio de run_file_lines.

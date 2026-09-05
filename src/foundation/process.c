@@ -23,6 +23,23 @@
 #include <signal.h>
 #include <termios.h>
 
+/*
+ * OSH-21: Mid (dispatcher.c) fornece as versoes fortes.
+ * test_process linka so Foundation — stubs weak = sem trap (comportamento antigo).
+ * Nao-static de proposito: simbolo fraco substituido pelo Mid no binario completo.
+ */
+/* NOLINTBEGIN(misc-use-internal-linkage) */
+__attribute__((weak)) int petrush_trap_is_command(int sig)
+{
+    (void)sig;
+    return 0;
+}
+
+__attribute__((weak)) void petrush_traps_poll(void)
+{
+}
+/* NOLINTEND(misc-use-internal-linkage) */
+
 /* ASM-PGID: wrapper setpgid; fallback libc se PETRUSH_ASM=OFF. */
 static int petrush_setpgid(pid_t pid, pid_t pgid)
 {
@@ -305,14 +322,22 @@ int execute_external(petrush_cmd_t *cmd, int *exit_status)
         return -1;
     }
 
-    /* Salva handlers antigos de sinais que o shell não deve receber enquanto o filho roda */
+    /* Salva handlers; IGN so se nao ha trap comando (OSH-21). */
     struct sigaction old_int, old_quit;
     struct sigaction new_act;
     memset(&new_act, 0, sizeof(new_act));
     new_act.sa_handler = SIG_IGN;
 
-    sigaction(SIGINT,  &new_act, &old_int);
-    sigaction(SIGQUIT, &new_act, &old_quit);
+    if (!petrush_trap_is_command(SIGINT)) {
+        sigaction(SIGINT, &new_act, &old_int);
+    } else {
+        sigaction(SIGINT, NULL, &old_int);
+    }
+    if (!petrush_trap_is_command(SIGQUIT)) {
+        sigaction(SIGQUIT, &new_act, &old_quit);
+    } else {
+        sigaction(SIGQUIT, NULL, &old_quit);
+    }
 
     /* Bloqueia sinais brevemente durante o fork para evitar race conditions */
     sigset_t mask, oldmask;
@@ -357,11 +382,20 @@ int execute_external(petrush_cmd_t *cmd, int *exit_status)
         perror("execv");
         _exit((exec_errno == EACCES || exec_errno == EPERM) ? 126 : 127);
     } else {
-        /* Processo pai */
-        int status;
-        if (waitpid(pid, &status, WUNTRACED) == -1) {
+        /* Processo pai: retenta EINTR; poll traps apos wait (OSH-21). */
+        int status = 0;
+        for (;;) {
+            if (waitpid(pid, &status, WUNTRACED) != -1) {
+                break;
+            }
+            if (errno == EINTR) {
+                petrush_traps_poll();
+                continue;
+            }
             perror("waitpid");
+            break;
         }
+        petrush_traps_poll();
 
         /* Devolve o terminal para o shell */
         take_terminal_back();
@@ -516,8 +550,16 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
     struct sigaction old_int, old_quit, new_act;
     memset(&new_act, 0, sizeof(new_act));
     new_act.sa_handler = SIG_IGN;
-    sigaction(SIGINT, &new_act, &old_int);
-    sigaction(SIGQUIT, &new_act, &old_quit);
+    if (!petrush_trap_is_command(SIGINT)) {
+        sigaction(SIGINT, &new_act, &old_int);
+    } else {
+        sigaction(SIGINT, NULL, &old_int);
+    }
+    if (!petrush_trap_is_command(SIGQUIT)) {
+        sigaction(SIGQUIT, &new_act, &old_quit);
+    } else {
+        sigaction(SIGQUIT, NULL, &old_quit);
+    }
 
     pid_t pgid = 0;
 
@@ -571,13 +613,22 @@ int execute_pipeline_with_hook(petrush_pipeline_t *pl, int *exit_status,
     int last_status = 0;
     for (int i = 0; i < n; i++) {
         int st = 0;
-        if (waitpid(pids[i], &st, WUNTRACED) == -1) {
+        for (;;) {
+            if (waitpid(pids[i], &st, WUNTRACED) != -1) {
+                break;
+            }
+            if (errno == EINTR) {
+                petrush_traps_poll();
+                continue;
+            }
             perror("waitpid");
+            break;
         }
         if (i == n - 1) {
             last_status = st;
         }
     }
+    petrush_traps_poll();
 
     take_terminal_back();
     pipeline_restore_signals(&old_int, &old_quit);
