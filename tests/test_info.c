@@ -1403,6 +1403,130 @@ void test_info_anti_oe_noclobber_always(void)
     TEST_CHECK(strstr(buf, "noclobber always-on") != NULL);
 }
 
+/* OSH-19: trap + dump + ignore/reset (ainda sem disparar EXIT/sinais). */
+static void osh19_reset(void)
+{
+    petrush_trap_reset_for_tests();
+    petrush_shell_abort_clear();
+}
+
+void test_osh19_trap_in_table(void)
+{
+    TEST_CHECK(builtin_table_has("trap"));
+}
+
+void test_osh19_trap_dump_exit(void)
+{
+    osh19_reset();
+    char out[512] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("trap 'echo x' EXIT; trap", out, sizeof(out),
+                                  err, sizeof(err), &st) == 0);
+    TEST_CHECK(st == 0);
+    TEST_CHECK(strstr(out, "EXIT") != NULL);
+    TEST_CHECK(strstr(out, "echo x") != NULL);
+    TEST_CHECK(strstr(out, "trap --") != NULL);
+}
+
+void test_osh19_trap_reset_clears_exit(void)
+{
+    osh19_reset();
+    char out[512] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("trap 'echo x' EXIT; trap - EXIT; trap", out,
+                                  sizeof(out), err, sizeof(err), &st) == 0);
+    TEST_CHECK(st == 0);
+    TEST_CHECK(strstr(out, "EXIT") == NULL);
+}
+
+void test_osh19_trap_ignore_int_dump(void)
+{
+    osh19_reset();
+    char out[512] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("trap '' INT; trap", out, sizeof(out), err,
+                                  sizeof(err), &st) == 0);
+    TEST_CHECK(st == 0);
+    TEST_CHECK(strstr(out, "trap -- '' INT") != NULL
+               || strstr(out, "trap -- \"\" INT") != NULL);
+}
+
+void test_osh19_trap_int_sigint_2_equivalent(void)
+{
+    osh19_reset();
+    char out[512] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("trap 'echo i' SIGINT; trap", out, sizeof(out),
+                                  err, sizeof(err), &st) == 0);
+    TEST_CHECK(st == 0);
+    TEST_CHECK(strstr(out, " INT") != NULL);
+    TEST_CHECK(strstr(out, "SIGINT") == NULL);
+
+    osh19_reset();
+    memset(out, 0, sizeof(out));
+    TEST_CHECK(capture_list_stdio("trap 'echo i' 2; trap", out, sizeof(out), err,
+                                  sizeof(err), &st) == 0);
+    TEST_CHECK(st == 0);
+    TEST_CHECK(strstr(out, " INT") != NULL);
+}
+
+void test_osh19_trap_err_chld_kill_fail(void)
+{
+    osh19_reset();
+    petrush_list_t list = {0};
+    TEST_CHECK(petrush_parse_list("trap 'x' ERR", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) != 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_take_shell_abort() == 1);
+
+    osh19_reset();
+    TEST_CHECK(petrush_parse_list("trap 'x' CHLD", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) != 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_take_shell_abort() == 1);
+
+    osh19_reset();
+    TEST_CHECK(petrush_parse_list("trap 'x' KILL", &list) == 0);
+    TEST_CHECK(dispatch_list(&list) != 0);
+    petrush_list_free(&list);
+    TEST_CHECK(petrush_take_shell_abort() == 1);
+}
+
+void test_osh19_trap_invalid_aborts_list(void)
+{
+    osh19_reset();
+    char out[256] = {0};
+    char err[256] = {0};
+    int st = -1;
+    TEST_CHECK(capture_list_stdio("trap 'x' NOTASIGNAL; echo should-not-run", out,
+                                  sizeof(out), err, sizeof(err), &st) == 0);
+    TEST_CHECK(st != 0);
+    TEST_CHECK(strstr(out, "should-not-run") == NULL);
+    TEST_CHECK(petrush_take_shell_abort() == 1);
+}
+
+void test_help_mentions_trap(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("help", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "trap") != NULL);
+}
+
+void test_info_anti_oe_without_sem_trap(void)
+{
+    char buf[4096] = {0};
+    int status = -1;
+    TEST_CHECK(capture_builtin_stdout("info", buf, sizeof(buf), &status) == 0);
+    TEST_CHECK(status == 0);
+    TEST_CHECK(strstr(buf, "sem trap") == NULL);
+}
+
 TEST_LIST = {
     { "info_builtin_basic", test_info_builtin_basic },
     { "info_output_contains_version", test_info_output_contains_version },
@@ -1490,5 +1614,14 @@ TEST_LIST = {
     { "osh16_set_o_xtrace", test_osh16_set_o_xtrace },
     { "help_mentions_set", test_help_mentions_set },
     { "info_anti_oe_noclobber_always", test_info_anti_oe_noclobber_always },
+    { "osh19_trap_in_table", test_osh19_trap_in_table },
+    { "osh19_trap_dump_exit", test_osh19_trap_dump_exit },
+    { "osh19_trap_reset_clears_exit", test_osh19_trap_reset_clears_exit },
+    { "osh19_trap_ignore_int_dump", test_osh19_trap_ignore_int_dump },
+    { "osh19_trap_int_sigint_2_equivalent", test_osh19_trap_int_sigint_2_equivalent },
+    { "osh19_trap_err_chld_kill_fail", test_osh19_trap_err_chld_kill_fail },
+    { "osh19_trap_invalid_aborts_list", test_osh19_trap_invalid_aborts_list },
+    { "help_mentions_trap", test_help_mentions_trap },
+    { "info_anti_oe_without_sem_trap", test_info_anti_oe_without_sem_trap },
     { NULL, NULL }
 };

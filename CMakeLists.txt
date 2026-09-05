@@ -1036,10 +1036,12 @@ add_custom_target(smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh17-set-u.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-18 set -e smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh18-set-e.sh ${CMAKE_BINARY_DIR}/petrush
+    COMMAND ${CMAKE_COMMAND} -E echo "=== OSH-19 trap dump/ignore/reset smoke ==="
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh19-trap.sh ${CMAKE_BINARY_DIR}/petrush
     COMMAND ${CMAKE_COMMAND} -E echo "=== XDG-1 paths smoke ==="
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/xdg-paths.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush pudod
-    COMMENT "Executando smoke tests integrados (pudo + OSH-0..18 + XDG-1)"
+    COMMENT "Executando smoke tests integrados (pudo + OSH-0..19 + XDG-1)"
     VERBATIM
 )
 
@@ -1159,6 +1161,13 @@ add_custom_target(osh18_set_e
     COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh18-set-e.sh ${CMAKE_BINARY_DIR}/petrush
     DEPENDS petrush
     COMMENT "OSH-18 set -e errexit smoke"
+    VERBATIM
+)
+
+add_custom_target(osh19_trap
+    COMMAND bash ${CMAKE_SOURCE_DIR}/tests/smoke/osh19-trap.sh ${CMAKE_BINARY_DIR}/petrush
+    DEPENDS petrush
+    COMMENT "OSH-19 trap dump/ignore/reset smoke"
     VERBATIM
 )
 

@@ -77,6 +77,7 @@ static const builtin_entry_t builtins[] = {
     { "return",  builtin_return  }, /* OSH-7: return [n] so em funcao */
     { "local",   builtin_local   }, /* OSH-8: local name[=value] so em fn */
     { "set",     builtin_set     }, /* OSH-16: set / -- / -x / $? / $- */
+    { "trap",    builtin_trap    }, /* OSH-19: trap dump/ignore/reset */
     { NULL,      NULL            }   /* sentinela */
 };
 
@@ -1460,6 +1461,7 @@ int builtin_help(petrush_cmd_t *cmd)
     printf("  return [n]   - Sai da funcao com status n (default 0; so em fn)\n");
     printf("  local NAME[=VALUE] - Var local na funcao (restaura ao sair; sem flags)\n");
     printf("  set [--] [args] / set [-+]x / set [-+]o xtrace - Opcoes e posicionais\n");
+    printf("  trap [action] cond... / trap - cond / trap '' cond - Trap POSIX (dump/ignore/reset)\n");
     printf("\n");
     printf("Também: pipes |, redirs > >> < 2> 2>> 2>&1 &>, listas && || ; &,\n");
     printf("  glob * ? (unquoted), !! / !n, Tab, history hints.\n");
@@ -2003,6 +2005,269 @@ int builtin_set(petrush_cmd_t *cmd)
     return 0;
 }
 
+/*
+ * OSH-19: trap — special builtin (dump / set / reset / ignore).
+ * Ainda sem disparar EXIT nem sinais (OSH-20/21).
+ */
+#define PETRUSH_TRAP_NSIG 65
+
+typedef struct {
+    const char *name;
+    int signo; /* 0 = EXIT */
+} petrush_trap_cond_t;
+
+/* Ordem estavel do dump: EXIT primeiro, depois esta lista. */
+static const petrush_trap_cond_t g_trap_conds[] = {
+    { "EXIT", 0 },
+    { "HUP", SIGHUP },
+    { "INT", SIGINT },
+    { "QUIT", SIGQUIT },
+    { "ILL", SIGILL },
+    { "TRAP", SIGTRAP },
+    { "ABRT", SIGABRT },
+    { "BUS", SIGBUS },
+    { "FPE", SIGFPE },
+    { "USR1", SIGUSR1 },
+    { "SEGV", SIGSEGV },
+    { "USR2", SIGUSR2 },
+    { "PIPE", SIGPIPE },
+    { "ALRM", SIGALRM },
+    { "TERM", SIGTERM },
+#ifdef SIGSTKFLT
+    { "STKFLT", SIGSTKFLT },
+#endif
+    { "CONT", SIGCONT },
+    { "TSTP", SIGTSTP },
+    { "TTIN", SIGTTIN },
+    { "TTOU", SIGTTOU },
+    { "URG", SIGURG },
+    { "XCPU", SIGXCPU },
+    { "XFSZ", SIGXFSZ },
+    { "VTALRM", SIGVTALRM },
+    { "PROF", SIGPROF },
+    { "WINCH", SIGWINCH },
+#ifdef SIGPOLL
+    { "POLL", SIGPOLL },
+#endif
+#ifdef SIGPWR
+    { "PWR", SIGPWR },
+#endif
+    { "SYS", SIGSYS },
+};
+
+/* NULL = default; "" = ignore; string = comando. Slot 0 = EXIT. */
+static char *g_trap_action[PETRUSH_TRAP_NSIG];
+
+void petrush_trap_reset_for_tests(void)
+{
+    for (int i = 0; i < PETRUSH_TRAP_NSIG; i++) {
+        free(g_trap_action[i]);
+        g_trap_action[i] = NULL;
+    }
+}
+
+static int trap_slot_for_signo(int signo)
+{
+    if (signo < 0 || signo >= PETRUSH_TRAP_NSIG) {
+        return -1;
+    }
+    return signo;
+}
+
+static void trap_print_quoted(const char *s)
+{
+    putchar('\'');
+    if (s) {
+        for (const char *p = s; *p; p++) {
+            if (*p == '\'') {
+                fputs("'\\''", stdout);
+            } else {
+                putchar(*p);
+            }
+        }
+    }
+    putchar('\'');
+}
+
+static void trap_dump(void)
+{
+    for (size_t i = 0; i < sizeof(g_trap_conds) / sizeof(g_trap_conds[0]); i++) {
+        int slot = trap_slot_for_signo(g_trap_conds[i].signo);
+        if (slot < 0) {
+            continue;
+        }
+        const char *act = g_trap_action[slot];
+        if (!act) {
+            continue; /* default: ausente no dump */
+        }
+        fputs("trap -- ", stdout);
+        trap_print_quoted(act);
+        printf(" %s\n", g_trap_conds[i].name);
+    }
+}
+
+static int trap_name_eq(const char *a, const char *b)
+{
+    return a && b && strcmp(a, b) == 0;
+}
+
+/* Resolve condition → slot (>=0) ou codigo de erro negativo. */
+enum {
+    TRAP_ERR_INVALID = -1,
+    TRAP_ERR_KILLSTOP = -2,
+    TRAP_ERR_CHLD = -3
+};
+
+static int trap_resolve_cond(const char *raw, int *out_slot)
+{
+    if (!raw || !raw[0] || !out_slot) {
+        return TRAP_ERR_INVALID;
+    }
+
+    const char *name = raw;
+    if (strncmp(name, "SIG", 3) == 0 && name[3] != '\0') {
+        name = name + 3;
+    }
+
+    if (trap_name_eq(name, "KILL") || trap_name_eq(name, "STOP")) {
+        return TRAP_ERR_KILLSTOP;
+    }
+    if (trap_name_eq(name, "CHLD") || trap_name_eq(name, "CLD")) {
+        return TRAP_ERR_CHLD;
+    }
+    if (trap_name_eq(name, "ERR") || trap_name_eq(name, "DEBUG")
+        || trap_name_eq(name, "RETURN")) {
+        return TRAP_ERR_INVALID;
+    }
+
+    /* Numero puro (0 = EXIT; 2 = INT; …). */
+    {
+        char *end = NULL;
+        errno = 0;
+        long v = strtol(raw, &end, 10);
+        if (end != raw && *end == '\0' && errno == 0) {
+            if (v == 0) {
+                *out_slot = 0;
+                return 0;
+            }
+            if (v == SIGKILL || v == SIGSTOP) {
+                return TRAP_ERR_KILLSTOP;
+            }
+            if (v == SIGCHLD) {
+                return TRAP_ERR_CHLD;
+            }
+            for (size_t i = 0; i < sizeof(g_trap_conds) / sizeof(g_trap_conds[0]);
+                 i++) {
+                if (g_trap_conds[i].signo == (int)v) {
+                    *out_slot = trap_slot_for_signo((int)v);
+                    return (*out_slot >= 0) ? 0 : TRAP_ERR_INVALID;
+                }
+            }
+            return TRAP_ERR_INVALID;
+        }
+    }
+
+    for (size_t i = 0; i < sizeof(g_trap_conds) / sizeof(g_trap_conds[0]); i++) {
+        if (trap_name_eq(name, g_trap_conds[i].name)) {
+            *out_slot = trap_slot_for_signo(g_trap_conds[i].signo);
+            return (*out_slot >= 0) ? 0 : TRAP_ERR_INVALID;
+        }
+    }
+    return TRAP_ERR_INVALID;
+}
+
+static int trap_set_slot(int slot, const char *action, int is_reset)
+{
+    if (slot < 0 || slot >= PETRUSH_TRAP_NSIG) {
+        return -1;
+    }
+    free(g_trap_action[slot]);
+    g_trap_action[slot] = NULL;
+    if (is_reset) {
+        return 0;
+    }
+    /* ignore ("" ) e comando: strdup (owned). */
+    g_trap_action[slot] = strdup(action ? action : "");
+    if (!g_trap_action[slot]) {
+        return -1;
+    }
+    return 0;
+}
+
+static int trap_report_cond_error(const char *raw, int err)
+{
+    if (err == TRAP_ERR_KILLSTOP) {
+        fprintf(stderr, "trap: %s: cannot be trapped\n", raw);
+    } else if (err == TRAP_ERR_CHLD) {
+        fprintf(stderr, "trap: cannot trap CHLD\n");
+    } else {
+        fprintf(stderr, "trap: %s: invalid trap name\n", raw);
+    }
+    shell_abort_raise();
+    return 1;
+}
+
+int builtin_trap(petrush_cmd_t *cmd)
+{
+    if (!cmd || !cmd->argv) {
+        return 1;
+    }
+
+    if (cmd->argc <= 1) {
+        trap_dump();
+        return 0;
+    }
+
+    int i = 1;
+    const char *action = NULL;
+    int is_reset = 0;
+
+    if (strcmp(cmd->argv[1], "--") == 0) {
+        if (cmd->argc < 3) {
+            fprintf(stderr, "trap: usage: trap [-] [action] condition...\n");
+            shell_abort_raise();
+            return 1;
+        }
+        action = cmd->argv[2];
+        i = 3;
+    } else if (cmd->argv[1][0] == '-' && cmd->argv[1][1] != '\0') {
+        /* -p / -l / --help etc. — fora do recorte POSIX dump. */
+        fprintf(stderr, "trap: %s: invalid option\n", cmd->argv[1]);
+        shell_abort_raise();
+        return 1;
+    } else {
+        action = cmd->argv[1];
+        i = 2;
+    }
+
+    if (i >= cmd->argc) {
+        /* trap EXIT / trap -  sem condition: erro de uso (nao reset silencioso). */
+        fprintf(stderr, "trap: usage: trap [-] [action] condition...\n");
+        shell_abort_raise();
+        return 1;
+    }
+
+    if (action && strcmp(action, "-") == 0) {
+        is_reset = 1;
+        action = NULL;
+    }
+
+    for (; i < cmd->argc; i++) {
+        const char *cond = cmd->argv[i];
+        int slot = -1;
+        int err = trap_resolve_cond(cond, &slot);
+        if (err != 0) {
+            return trap_report_cond_error(cond, err);
+        }
+        if (trap_set_slot(slot, action, is_reset) != 0) {
+            fprintf(stderr, "trap: out of memory\n");
+            shell_abort_raise();
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* OSH-2: shift [n]; default 1; n>$# → 1 e intactos; shift 0 no-op. */
 int builtin_shift(petrush_cmd_t *cmd)
 {
@@ -2272,8 +2537,8 @@ int builtin_info(petrush_cmd_t *cmd)
     printf("petrush %s\n", PETRUSH_VERSION);
     printf("C23 REPL shell\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
-    printf("Features: history, rc, signals, pudo, pipes, redir (noclobber), alias, PS1, complete, hints, &&/||/;/&, glob, source/., jobs, set/-x.\n");
-    printf("Anti-OE: noclobber always-on; sem trap/arrays/pipefail/fg\n");
+    printf("Features: history, rc, signals, pudo, pipes, redir (noclobber), alias, PS1, complete, hints, &&/||/;/&, glob, source/., jobs, set/-x, trap.\n");
+    printf("Anti-OE: noclobber always-on; sem arrays/pipefail/fg\n");
     return 0;
 }
 

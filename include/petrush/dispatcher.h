@@ -86,6 +86,12 @@ int builtin_local(petrush_cmd_t *cmd);
 /* OSH-16: set [--] [args] | set [-+][euxC] | set [-+]o name; special builtin */
 int builtin_set(petrush_cmd_t *cmd);
 
+/* OSH-19: trap [action] cond... | trap - cond... | trap '' cond...; special builtin */
+int builtin_trap(petrush_cmd_t *cmd);
+
+/* OSH-19: zera tabela de traps (testes). */
+void petrush_trap_reset_for_tests(void);
+
 /*
  * OSH-16: abort do runner (special builtin / expansion error).
  * take consome; clear no inicio de run_file_lines.
